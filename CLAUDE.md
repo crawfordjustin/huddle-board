@@ -77,6 +77,9 @@ bug. The call strip rewrites BLUE↔ORANGE on mirror instead.
 ORANGE, in inline SVG — because the app is one file that opens with the radio
 off, and because the art follows the same rules the field does: colour instead
 of left/right, and not a letter anywhere on it. `IntroChecks` holds both.
+The football itself (`BALL_BODY`/`BALL_LACES`) is one shape shared with the play
+screen's ball marker — a kid should not have to learn two pictures of the same
+object. `BallChecks` holds that marker's shape, heading and landing spot.
 
 **6. An update never interrupts a live play.** The service worker installs a new
 build as a *waiting* worker and shows "Update ready". It swaps only on tap.

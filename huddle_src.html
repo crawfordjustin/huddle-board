@@ -348,6 +348,14 @@ function F2S(x, y){                    // field paint — never moves
 const pt  = p => W2S(p[0], p[1]).join(",");
 const fpt = p => F2S(p[0], p[1]).join(",");
 
+/* One football, drawn once. The intro art and the play screen both use it: a
+   kid should not have to learn two different pictures of the same object. The
+   ends are pointed rather than an ellipse, which is most of what makes the
+   silhouette read as a football at the size it is actually seen. */
+const BALL_BODY = "M-22 0Q0-13.5 22 0Q0 13.5-22 0Z";
+const BALL_LACES = "M-8.5 0h17M0-4.5v9M-6-3.5v7M6-3.5v7";
+const BALL_FILL = "#7A4520", BALL_EDGE = "#141A16", BALL_LACE = "#F7F9F6";
+
 const flipSide = s => s === "blue" ? "orange" : s === "orange" ? "blue" : "none";
 const mirrored = () => mAnim > 0.5;
 const sideOf = k => mirrored() ? flipSide(S.play.spots[k].side) : S.play.spots[k].side;
@@ -812,9 +820,9 @@ function introArt(){
       stroke-dasharray="3 18" opacity=".8"/>
     ${kids.map(kidSVG).join("")}
     <g transform="translate(${ball[0].toFixed(1)},${ball[1].toFixed(1)}) rotate(14)">
-      <ellipse cx="0" cy="0" rx="20" ry="12.5" fill="#7A4520"/>
-      <path d="M-13 0h26" stroke="#5A3116" stroke-width="1.6" opacity=".6"/>
-      <path d="M-8 0h16M0-4.5v9M-4.5-3v6M4.5-3v6" stroke="#FBFCFA" stroke-width="2.3"
+      <path d="${BALL_BODY}" fill="${BALL_FILL}" stroke="${BALL_EDGE}" stroke-width="2.5"
+        stroke-linejoin="round"/>
+      <path d="${BALL_LACES}" fill="none" stroke="${BALL_LACE}" stroke-width="2.6"
         stroke-linecap="round"/>
     </g>
   </svg>`;
@@ -1245,7 +1253,7 @@ function buildScene(){
   svg.appendChild(defs);
 
   SC = {washL:null, washR:null, yard:[], side:{}, los:null, paths:[], players:{},
-        ball:null, ring:null, overX:0, overY:0};
+        ball:null, ballAng:0, overX:0, overY:0};
 
   // How far the letterbox reaches past the viewBox, in viewBox units. Measured
   // on resize rather than per frame — getBoundingClientRect forces layout.
@@ -1319,9 +1327,6 @@ function buildScene(){
     SC.paths.push(g);
   });
 
-  SC.ring = mk("circle",{fill:"none",stroke:"#FFC400","stroke-width":6,opacity:0});
-  svg.appendChild(SC.ring);
-
   for (const key in p.spots){
     const sp = p.spots[key];
     const g = mk("g");
@@ -1356,8 +1361,14 @@ function buildScene(){
     SC.players[key] = {g, shape, halo, l1, l2, role};
   }
 
+  // A football, not a yellow dot, and it points where it is going. The only job
+  // this marker has is telling six seven-year-olds where the ball ends up, and
+  // they already know what a football looks like.
   SC.ball = mk("g");
-  SC.ball.appendChild(mk("circle",{r:15,fill:"#FFC400",stroke:"#141A16","stroke-width":3.5}));
+  SC.ball.appendChild(mk("path",{d:BALL_BODY,fill:BALL_FILL,stroke:BALL_EDGE,
+    "stroke-width":3,"stroke-linejoin":"round"}));
+  SC.ball.appendChild(mk("path",{d:BALL_LACES,fill:"none",stroke:BALL_LACE,
+    "stroke-width":3,"stroke-linecap":"round"}));
   svg.appendChild(SC.ball);
 }
 
@@ -1507,14 +1518,22 @@ function frame(now){
     P.g.setAttribute("opacity", S.solo ? (S.solo === key ? 1 : 0.22) : 1);
   }
 
-  // ball
+  // ball — nose first, so the shape itself says which way it is travelling.
+  // `ahead` is the same motion a moment later; the heading comes from the two
+  // of them in *screen* space, which is what keeps it right under mirroring.
   const b = tl.ball;
-  let show = false, bp = null;
+  const STEP = 0.02;
+  let show = false, bp = null, ahead = null;
   if (running && !S.solo){
     if (b.mode === "carry"){
       const seg = tl.paths[b.pathIdx];
       const prog = Math.max(0, Math.min(1, (t - seg.start) / seg.dur));
-      if (t >= seg.start){ bp = walk(p.paths[b.pathIdx].pts, prog).end; show = true; }
+      if (t >= seg.start){
+        const pts = p.paths[b.pathIdx].pts;
+        bp = walk(pts, prog).end;
+        ahead = walk(pts, Math.min(1, prog + STEP)).end;
+        show = true;
+      }
     } else {
       const path = p.paths[b.pathIdx], seg = tl.paths[b.pathIdx];
       const src = [p.spots.QB.x, p.spots.QB.y];
@@ -1524,26 +1543,30 @@ function frame(now){
         const mid = [(src[0]+dst[0])/2, (src[1]+dst[1])/2];
         const dx = dst[0]-src[0], dy = dst[1]-src[1], d = Math.hypot(dx,dy) || 1;
         const ctrl = [mid[0] - dy/d*d*0.16, mid[1] + dx/d*d*0.16];
-        bp = qbez(src, ctrl, dst, f); show = true;
+        bp = qbez(src, ctrl, dst, f);
+        ahead = qbez(src, ctrl, dst, Math.min(1, f + STEP));
+        show = true;
       }
     }
   }
   if (show && bp){
-    const s = W2S(bp[0], bp[1]);
-    SC.ball.setAttribute("transform", `translate(${s[0]} ${s[1]})`);
-    SC.ball.setAttribute("opacity", 1);
+    const s = W2S(bp[0], bp[1]), s2 = W2S(ahead[0], ahead[1]);
+    // once it has arrived there is no "ahead" left, so hold the last heading
+    // rather than letting the ball snap flat at the moment it is caught
+    if (Math.hypot(s2[0] - s[0], s2[1] - s[1]) > 0.5)
+      SC.ballAng = Math.atan2(s2[1] - s[1], s2[0] - s[0]) * 180 / Math.PI;
     const done = (b.mode === "carry")
       ? t > tl.paths[b.pathIdx].start + tl.paths[b.pathIdx].dur
       : t > b.start + b.dur;
-    if (done){
-      const ph = 1 + 0.35 * Math.sin(t / 130);
-      SC.ring.setAttribute("cx", s[0]); SC.ring.setAttribute("cy", s[1]);
-      SC.ring.setAttribute("r", 26 * ph);
-      SC.ring.setAttribute("opacity", 0.85);
-    } else SC.ring.setAttribute("opacity", 0);
+    // Arrived: the ball swells and breathes where the ring used to pulse. The
+    // players stay on their spots through the whole animation, so this marker is
+    // the only thing on screen saying where the ball finished.
+    const k = !done ? 1 : REDUCED ? 1.25 : 1.25 + 0.18 * Math.sin(t / 130);
+    SC.ball.setAttribute("transform",
+      `translate(${s[0]} ${s[1]}) rotate(${SC.ballAng.toFixed(1)}) scale(${k.toFixed(3)})`);
+    SC.ball.setAttribute("opacity", 1);
   } else {
     SC.ball.setAttribute("opacity", 0);
-    SC.ring.setAttribute("opacity", 0);
   }
 }
 
