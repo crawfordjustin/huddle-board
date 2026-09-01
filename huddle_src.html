@@ -66,6 +66,26 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .edit.done{background:var(--green);border-color:var(--green-2);color:#fff}
 .edit.upd{background:var(--green);border-color:var(--green-2);color:#fff}
 .edit:active{transform:scale(.97)}
+
+/* one control for everything that is not a play. Setup and Exit are things a
+   coach does between series, so they get one tap of chrome and no header room. */
+.menuwrap{position:relative;display:flex}
+.ham{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  padding:9px 15px;border-radius:9px;background:transparent;border:1.5px solid #3B443E;
+  min-height:44px;min-width:54px}
+.ham i{display:block;width:24px;height:2.5px;border-radius:2px;background:#D5DCD7}
+.ham:active,.menuwrap.open .ham{background:#28302A}
+.menuwrap.open .ham{transform:scale(.97)}
+/* the tiles are position:relative, so the panel needs to be told it is on top */
+.menu{position:absolute;top:calc(100% + 10px);right:0;z-index:30;
+  min-width:max(210px,100%);background:#232B26;border:1.5px solid #3B443E;
+  border-radius:12px;padding:6px;box-shadow:0 16px 36px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;gap:4px}
+.menu[hidden]{display:none}
+.menu button{font-family:var(--disp);font-size:clamp(14px,2.2vh,20px);text-transform:uppercase;
+  letter-spacing:.05em;text-align:left;padding:10px 16px;min-height:48px;border-radius:8px;
+  color:#D5DCD7;width:100%}
+.menu button:active{background:#2F3833}
 .tiles{flex:1;display:grid;grid-template-columns:repeat(var(--cols,2),1fr);
   grid-auto-rows:minmax(clamp(92px,12vh,150px),1fr);
   gap:clamp(10px,1.8vh,20px);padding-top:clamp(10px,1.8vh,20px);min-height:0;
@@ -847,6 +867,27 @@ function renderIntro(){
   };
 }
 
+/* --------------------------------------------------------- the deck menu
+   The deck is re-rendered constantly (clock, update, fullscreen), so the
+   outside-tap and Escape handlers live out here and are registered once. */
+function openMenu(ham){
+  ham.parentElement.classList.add("open");
+  ham.setAttribute("aria-expanded", "true");
+  ham.parentElement.querySelector(".menu").hidden = false;
+}
+function closeMenu(){
+  const w = document.querySelector(".menuwrap.open");
+  if (!w) return;
+  w.classList.remove("open");
+  w.querySelector(".ham").setAttribute("aria-expanded", "false");
+  w.querySelector(".menu").hidden = true;
+}
+addEventListener("pointerdown", e => {
+  const w = document.querySelector(".menuwrap.open");
+  if (w && !w.contains(e.target)) closeMenu();
+}, true);
+addEventListener("keydown", e => { if (e.key === "Escape") closeMenu(); });
+
 /* ------------------------------------------------------------ deck ui */
 function renderDeck(){
   S.screen = "deck";
@@ -867,8 +908,15 @@ function renderDeck(){
               ? `<button class="edit" id="fs">Full screen</button>` : ""}
           ${clockHTML()}
           <p>${list.length} play${list.length === 1 ? "" : "s"}</p>
-          <button class="edit" id="setup">Setup</button>
           <button class="edit" id="edit">Change plays</button>
+          <div class="menuwrap">
+            <button class="ham" id="ham" aria-label="Menu" aria-haspopup="true"
+              aria-expanded="false"><i></i><i></i><i></i></button>
+            <div class="menu" id="menu" role="menu" hidden>
+              <button id="setup" role="menuitem">Setup</button>
+              <button id="exit" role="menuitem">Exit</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="tiles ${compact ? "compact" : ""}" style="--cols:${cols}">
@@ -891,7 +939,16 @@ function renderDeck(){
         that kid his own job. Every play mirrors, so this is really ${list.length * 2} looks.</div>
     </div>`;
   document.getElementById("edit").onclick = renderLibrary;
-  document.getElementById("setup").onclick = renderSettings;
+  const ham = document.getElementById("ham");
+  ham.onclick = () => {
+    const open = !ham.parentElement.classList.contains("open");
+    closeMenu();
+    if (open) openMenu(ham);
+  };
+  document.getElementById("setup").onclick = () => { closeMenu(); renderSettings(); };
+  document.getElementById("exit").onclick = () => {
+    closeMenu(); logEvent("exit_to_intro"); renderIntro();
+  };
   const fs = document.getElementById("fs");
   if (fs) fs.onclick = goFullscreen;
   const up = document.getElementById("upd");

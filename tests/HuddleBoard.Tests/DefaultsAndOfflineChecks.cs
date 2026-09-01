@@ -97,6 +97,7 @@ public sealed class DefaultsAndOfflineChecks(AppFixture app)
             "no routes were drawn offline");
 
         await page.ClickAsync("#back");
+        await page.ClickAsync("#ham");
         await page.ClickAsync("#setup");
         await page.WaitForTimeoutAsync(300);
 
