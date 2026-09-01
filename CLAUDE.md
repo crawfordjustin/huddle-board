@@ -251,14 +251,31 @@ group, not the subscription. GitHub stores only three identifiers, as repository
 *variables* — `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` —
 because they are not secrets and a failed login is easier to read unmasked.
 
-**The trust is bound to the environment, not the branch.** Because the job
-declares `environment: production`, GitHub presents the subject claim
-`repo:crawfordjustin/huddle-board:environment:production` — the `ref:refs/heads/...`
-form a branch-scoped credential would match is never sent. That caught us once
-already. The branch restriction is real but it lives on the GitHub side: the
-`production` environment has a deployment branch policy allowing only `master`.
-So there are two things to keep in step, and removing `environment:` from the
-workflow breaks the login outright.
+**The trust is bound to the environment, not the branch**, and the subject is
+spelled in numbers:
+
+```
+repo:crawfordjustin@66266306/huddle-board@1353173891:environment:production
+```
+
+Two things in there are easy to get wrong, and both cost a failed run:
+
+*The environment, not the ref.* Because the job declares
+`environment: production`, GitHub sends an `:environment:` subject and never the
+`ref:refs/heads/master` form a branch-scoped credential would match. Removing
+`environment:` from the workflow breaks the login outright. The branch
+restriction is real, but it lives on the GitHub side — the `production`
+environment has a deployment branch policy allowing only `master` — so that
+policy and this credential have to stay in step.
+
+*The IDs, not the names.* GitHub presents immutable owner and repo IDs
+(`crawfordjustin@66266306`, `huddle-board@1353173891`), not the plain path. This
+is the better form: it survives a rename, and nobody who later claims a freed-up
+`crawfordjustin/huddle-board` inherits the trust. But it means the credential
+cannot be written from the repo name alone — read the IDs from
+`gh api repos/crawfordjustin/huddle-board -q '.id, .owner.id'`, or just read the
+subject back out of the `AADSTS700213` error, which prints exactly what was
+presented.
 
 Publish profiles do not work here at all — SCM basic publishing credentials are
 disabled on the app, which is the Azure default and worth leaving alone.
