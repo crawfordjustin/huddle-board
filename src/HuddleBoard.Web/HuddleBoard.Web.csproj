@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>HuddleBoard.Web</RootNamespace>
+    <HuddleBoardDeploy>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\dist\deploy'))</HuddleBoardDeploy>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HuddleBoard.Playbook\HuddleBoard.Playbook.csproj" />
+  </ItemGroup>
+
+  <!--
+    Publishing has to carry the built site with it, because a published app has
+    no repository above it to read dist/ from. Build the app first, then stage
+    dist/deploy into wwwroot. The items are added inside the target because the
+    folder does not exist at evaluation time; the base path is normalised and the
+    glob is flat, because `**` over a base containing `..` matches every file
+    twice, and two entries for one relative path is a hard error.
+  -->
+  <Target Name="BuildHuddleBoardSite" BeforeTargets="ComputeFilesToPublish"
+          Condition="'$(_HuddleBoardSiteStaged)' != 'true'">
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\HuddleBoard.Build&quot; -- build"
+          WorkingDirectory="$(MSBuildThisFileDirectory)" />
+    <PropertyGroup>
+      <_HuddleBoardSiteStaged>true</_HuddleBoardSiteStaged>
+    </PropertyGroup>
+    <ItemGroup>
+      <HuddleBoardSiteFile Include="$(HuddleBoardDeploy)*" />
+      <ResolvedFileToPublish Include="@(HuddleBoardSiteFile)">
+        <RelativePath>wwwroot\%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+</Project>

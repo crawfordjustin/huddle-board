@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HuddleBoard.Build/HuddleBoard.Build.csproj" />
+    <Project Path="src/HuddleBoard.Playbook/HuddleBoard.Playbook.csproj" />
+    <Project Path="src/HuddleBoard.Web/HuddleBoard.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HuddleBoard.Tests/HuddleBoard.Tests.csproj" />
+  </Folder>
+</Solution>

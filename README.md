@@ -25,30 +25,32 @@ type and don't cache `index.html` or `sw.js`.
 
 ## Work on it
 
-```
-python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-playwright install chromium
+Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download). Open
+`HuddleBoard.slnx` in Visual Studio, or use the command line:
 
-make build      # -> dist/
-make check      # fast play-library check
-make test       # the full suite, drives a real browser
+```
+dotnet run --project src/HuddleBoard.Build -- build   # -> dist/
+dotnet run --project src/HuddleBoard.Build -- check   # fast play-library check
+dotnet test                                           # the full suite, real browser
 ```
 
-`make print` regenerates the paper fallbacks — playbook, field cards, rotation
-sheet — as PDFs.
+In Visual Studio, press F5 with **HuddleBoard.Web** as the startup project to
+serve the app on localhost — that is the way to exercise the install prompt,
+offline caching and browser storage, none of which work from a local file.
+**HuddleBoard.Build** has a launch profile per verb.
+
+`... -- print` regenerates the paper fallbacks — playbook, field cards, rotation
+sheet — as PDFs. The first test or print run downloads Chromium for Playwright.
 
 ## What's in here
 
 | | |
 |---|---|
-| `huddle_src.html` | the whole app: markup, styles, script |
-| `plays.py`, `plays_more.py` | the 24 plays — route geometry in yards |
-| `spots.py`, `spots_more.py` | what the tablet says to a seven-year-old |
-| `check_plays.py` | legality, collision and vocabulary checker |
-| `export_proto.py`, `build_app.py` | the build |
-| `print/` | the paper playbook pipeline |
-| `tests/` | verification — real browser, five tablet shapes |
+| `huddle_src.html` | the whole app: markup, styles, script — one file, no framework |
+| `src/HuddleBoard.Playbook` | the 24 plays, the checker, the build, the print documents |
+| `src/HuddleBoard.Build` | the command line |
+| `src/HuddleBoard.Web` | an ASP.NET Core host for F5 and for Azure |
+| `tests/HuddleBoard.Tests` | verification — real browser, five tablet shapes |
 
 **`CLAUDE.md` is the file to read before changing anything.** It has the design
 rules that are load-bearing, the coordinate system, how to add a play, and the

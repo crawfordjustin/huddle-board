@@ -7,16 +7,40 @@ Android tablet, turns it around, and shows six seven-year-olds what to do.
 The audience is a coach who **knows football well** but needs help explaining it
 to children. Do not simplify the football. Simplify the explaining.
 
+## The solution
+
+`HuddleBoard.slnx` opens in Visual Studio. Four projects:
+
+```
+src/HuddleBoard.Playbook    the play library, the checker, the build, the print
+                            documents. All the substance is here.
+src/HuddleBoard.Build       the command line — this is what `make` used to be
+src/HuddleBoard.Web         an ASP.NET Core host, so F5 serves the real thing
+tests/HuddleBoard.Tests     the verification suite, driving real Chromium
+```
+
+Nothing depends on Python. The app itself is still one hand-written HTML file
+with no framework and no runtime dependencies — that has not changed and should
+not.
+
 ## Commands
 
 ```
-make build     # data -> dist/proto_data.json -> dist/{HuddleBoard.html, deploy/, zip}
-make check     # fast: legality + safety + vocabulary pass over the play library
-make test      # build, then every check (drives real Chromium; ~2-4 min)
-make print     # the paper playbook, field cards and rotation sheet -> PDFs
+dotnet run --project src/HuddleBoard.Build -- build   # data -> dist/
+dotnet run --project src/HuddleBoard.Build -- check   # fast play-library check
+dotnet run --project src/HuddleBoard.Build -- print   # the paper PDFs
+dotnet run --project src/HuddleBoard.Build -- icons   # redraw the app icons
+dotnet run --project src/HuddleBoard.Build -- shots   # README screenshots
+dotnet test                                           # build, then every check
 ```
 
-`dist/` is generated in full by `make build`; nothing in it is edited by hand.
+In Visual Studio: set **HuddleBoard.Build** as the startup project and pick the
+launch profile for the verb you want, or set **HuddleBoard.Web** and press F5 to
+serve the app on localhost. Use the web host rather than opening the file
+directly whenever you are touching storage, the install prompt or the service
+worker — none of them work on `file://`.
+
+`dist/` is generated in full by `build`; nothing in it is edited by hand.
 
 ## The rules that matter
 
@@ -24,12 +48,13 @@ These are not style preferences. Each one exists because breaking it made the
 tool worse for actual eight-year-olds.
 
 **1. Nine shapes, and no tenth.** Every route a kid runs is GO, OUT, IN, SIT,
-CORNER, POST, WHEEL, SWING or CARRY (`spots.py: SHAPES`), plus the default rule:
+CORNER, POST, WHEEL, SWING or CARRY (`Spots.Shapes`), plus the default rule:
 *if the coach did not give you a job, run GO*. The library can grow forever
 inside that vocabulary at zero teaching cost. A tenth shape costs every kid on
-the team, so adding one is a product decision, not a convenience. `check_plays.py`
+the team, so adding one is a product decision, not a convenience. `PlayChecker`
 warns when a call strip uses a word that is not one of the nine. Play 11
-currently violates this ("CROSS deep") and is a known, deliberate exception.
+currently violates this ("CROSS deep") and is a known, deliberate exception —
+`PlayLibraryChecks.TheVocabularyHasNotGrown` pins that to exactly play 11.
 
 **2. Colour, never left/right.** Sides are BLUE and ORANGE, because 8U players
 confuse left and right and because left/right inverts depending on whether the
@@ -40,8 +65,8 @@ teammates move because only six are on the field.
 **3. No letters on the field.** Not `W`, `SN`, `QB`, `T`. A kid knows he is
 WIDE BLUE. Markers carry shape (circle = receiver, diamond = back, hexagon =
 thrower, square = snapper) plus colour plus the spoken name. This was tested at
-a real practice and the letters did not land. `tests/verify_labels.py` asserts
-no letter tag can come back.
+a real practice and the letters did not land. `LabelChecks` asserts no letter
+tag can come back.
 
 **4. The field never mirrors, the players do.** `W2S()` transforms players,
 routes and the ball — it mirrors. `F2S()` transforms field paint — it never
@@ -54,18 +79,32 @@ build as a *waiting* worker and shows "Update ready". It swaps only on tap.
 ## Source layout
 
 ```
-huddle_src.html     the whole app — markup, CSS, JS. __DATA__ and __VERSION__
-                    are substituted at build time. This is the only UI file.
-plays.py            formations + the first 14 plays: route geometry in yards
-plays_more.py       plays 15-24 (imported and appended by plays.py)
-spots.py            spot names, the 9 SHAPES, DEFAULT_RULE, PLAY_TEXT
-spots_more.py       PLAY_TEXT for 15-24 (imported and merged by spots.py)
-check_plays.py      the legality/safety/vocabulary checker — see below
-export_proto.py     plays + spots -> dist/proto_data.json (gated on the checker)
-build_app.py        proto_data + huddle_src -> the three shipping forms
-make_icons.py       app icons, drawn to still read at 48px
-print/              the paper pipeline: playbook, field cards, rotation sheet
-tests/              the verification suite; harness.py holds the shared plumbing
+huddle_src.html                 the whole app — markup, CSS, JS. __DATA__ and
+                                __VERSION__ are substituted at build time. This
+                                is the only UI file, and it is not C#.
+
+src/HuddleBoard.Playbook/
+  Model.cs, Geometry.cs         the record types; Pt and Num
+  Formations.cs                 where everybody lines up
+  Plays.cs                      the first 14 plays: route geometry in yards
+  PlaysMore.cs                  plays 15-24
+  Spots.cs                      spot names, the 9 shapes, the default rule
+  PlayTexts.cs                  what the tablet says, plays 1-14
+  PlayTextsMore.cs              the same for 15-24
+  Library.cs                    joins the two halves of each pair
+  PlayChecker.cs                the legality/safety/vocabulary checker
+  ProtoExporter.cs              plays + spots -> dist/proto_data.json
+  AppBuilder.cs                 proto_data + huddle_src -> the shipping forms
+  DeployReadme.cs               the notes that ship inside dist/deploy/
+  IconRenderer.cs               app icons, drawn to still read at 48px
+  JsonWriter.cs                 exact control over how the data is spelled
+  Pipeline.cs, Workspace.cs     what "build" means, and where the repo is
+  Print/                        the paper playbook, cards and rotation sheet
+
+src/HuddleBoard.Build/          the CLI, plus the Playwright PDF and screenshot
+                                steps that need a browser
+src/HuddleBoard.Web/            static host with the two headers that matter
+tests/HuddleBoard.Tests/        the verification suite
 ```
 
 ### Coordinates
@@ -76,15 +115,15 @@ is at `|x| = 15.7`, the goal line at `y = 15`.
 
 ### Adding a play
 
-1. Append to `NEW_PLAYS` in `plays_more.py` — geometry, tagline, notes, mistake.
-2. Add matching `PLAY_TEXT` in `spots_more.py` — the call strip and the
-   per-spot instructions, in spot language. Call-strip labels use LEFT/RIGHT
-   spot names (`SLOT LEFT`); `export_proto.recolor()` turns them into
-   BLUE/ORANGE for display. Getting this backwards means the label will not
-   resolve and the export will raise.
-3. Add `BALL[num]` and `KID_NAMES[num]` in `export_proto.py`. `BALL` is the
+1. Append to `Recent` in `PlaysMore.cs` — geometry, tagline, notes, mistake.
+2. Add matching text in `PlayTextsMore.cs` — the call strip and the per-spot
+   instructions, in spot language. Call-strip labels use LEFT/RIGHT spot names
+   (`SLOT LEFT`); `ProtoExporter.Recolor` turns them into BLUE/ORANGE for
+   display. Getting this backwards means the label will not resolve and the
+   export will throw.
+3. Add `KidNames[num]` and `Ball[num]` in `ProtoExporter.cs`. `Ball` is the
    thrower's *first read*, or the ball carrier — one rule, no judgement calls.
-4. `make check` until clean, then `make test`.
+4. `check` until clean, then `dotnet test`.
 
 Prefer **concept × formation** over inventing concepts. Most concepts port to
 two or three of the four formations, so the honest way to grow the library is
@@ -92,10 +131,10 @@ to run the concepts you have from more places, not to draw 100 one-offs. At 8U
 there are perhaps 40-50 genuinely distinct ideas before you are drawing
 distinctions a second-grader cannot perceive.
 
-## check_plays.py
+## PlayChecker
 
 Hand-drawing routes does not scale, and every bug found by eye on the first
-fourteen plays is encoded here. It is a hard gate on `export_proto.py`: bad
+fourteen plays is encoded here. It is a hard gate on `ProtoExporter`: bad
 geometry cannot reach a tablet.
 
 The collision rule is **time-aware**. Two routes crossing on paper is not a
@@ -107,7 +146,8 @@ concepts.
 
 Calibration note: **the original fourteen plays pass with zero errors**, and
 nothing was tuned to make that true. If a change makes them fail, the change is
-wrong, not the plays.
+wrong, not the plays. `PlayLibraryChecks.TheOriginalFourteenStillPassClean`
+holds that line.
 
 Warnings (not errors) are drawing-legibility notes — usually an arrowhead
 finishing near another route's line. Stacked-OUT concepts like Triple Out do
@@ -115,17 +155,23 @@ this by design and are fine.
 
 ## Testing
 
-Everything drives real Chromium against a real build. There are no unit tests
-on purpose: nearly every bug this project has had was a layout or timing bug
-that only appears on screen at a particular size. Checks run across five tablet
-shapes (`harness.SIZES`) — two landscape, two portrait, and a short landscape
-that catches anything relying on vertical room.
+`dotnet test` drives real Chromium against a real build. There are no unit tests
+on the UI on purpose: nearly every bug this project has had was a layout or
+timing bug that only appears on screen at a particular size. Checks run across
+five tablet shapes (`AppFixture.Sizes`) — two landscape, two portrait, and a
+short landscape that catches anything relying on vertical room.
 
-`tests/verify_labels.py` sweeps 24 plays × 2 mirror states × 2 stages × 5
-viewports = 480 states.
+`LabelChecks` sweeps 24 plays × 2 mirror states × 2 stages × 5 viewports = 480
+states. Several checks pad the library out to 100 plays
+(`AppFixture.InjectPlaysAsync`) to judge the UI at a size it has not reached yet.
 
-Several checks pad the library out to 100 plays (`harness.INJECT_PLAYS`) to
-judge the UI at a size it has not reached yet.
+Everything shares one browser and one build and runs in sequence — two checks
+racing over the same `dist/` is not a real signal. The first run downloads
+Chromium (about 190 MB); after that it is cached in your profile.
+
+When a sweep test can only pass by finding nothing, give it something to assert
+it actually looked — `LabelChecks` checks it saw six players per state, so the
+whole sweep cannot pass vacuously.
 
 ## Gotchas that have already cost a day
 
@@ -148,6 +194,14 @@ judge the UI at a size it has not reached yet.
 - **Browser storage on `file://`** may be blocked by Android, so deck and
   settings will not persist on the standalone copy. That is the main reason to
   prefer the hosted build.
+- **`Num` remembers how you wrote it.** `new Pt(0, 0)` exports as `[0,0]` and
+  `new Pt(0.0, -2.0)` as `[0.0,-2.0]`. Both parse identically in JavaScript, so
+  this only affects the diff — but it is why the coordinates are `Num` and not
+  `double`.
+- **Generated files are UTF-8 with no BOM and LF endings**, on every platform.
+  `Workspace.WriteText` is the only thing that should write into `dist/`;
+  `File.WriteAllText` would use the platform default and produce CRLF on
+  Windows.
 
 ## Deploy
 
@@ -157,6 +211,11 @@ is included). Only two things actually matter: serve `.webmanifest` as
 `application/manifest+json`, and send `Cache-Control: no-cache` for
 `index.html` and `sw.js`. Miss the second and tablets never see a new build.
 
+From Visual Studio, right-click **HuddleBoard.Web** → **Publish** → Azure App
+Service. Publishing runs the build first and stages `dist/deploy/` into
+`wwwroot`, and the host applies the same two rules the generated `web.config`
+applies. Either route works; the static one has fewer moving parts.
+
 `dist/HuddleBoard.html` is the whole app in one file for a tablet with no
 network at all.
 
@@ -165,8 +224,11 @@ address bar, are generated into `dist/deploy/README.md`.
 
 ## Out of scope (decided, not forgotten)
 
-- **Coach-authored plays.** The library grows by editing `plays_more.py`, not
+- **Coach-authored plays.** The library grows by editing `PlaysMore.cs`, not
   through UI. Revisit only with the checker validating user input.
+- **Rewriting the app in Blazor.** The single HTML file is the product: it opens
+  from a file, on a tablet, with no network and no runtime. A WASM runtime works
+  against that, and every gotcha above would have to be re-solved.
 - **The flip/orientation toggle.** Removed deliberately — all coaches teach the
   same way instead.
 - **Parent/assistant logging apps.** The event log already records everything
