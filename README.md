@@ -9,6 +9,7 @@ of left and right, and the play tells each kid where he lines up and what he
 does. Works offline.
 
 <p align="center">
+  <img src="docs/intro.png" width="49%" alt="The intro screen">
   <img src="docs/deck.png" width="49%" alt="The deck screen">
   <img src="docs/play.png" width="49%" alt="A play, lined up">
 </p>

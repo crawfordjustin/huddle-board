@@ -48,6 +48,8 @@ public sealed class PwaChecks(AppFixture app) : IDisposable
         await context.SetOfflineAsync(true);
         await page.GotoAsync(url);
         await page.WaitForTimeoutAsync(1200);
+        await page.ClickAsync("#start");
+        await page.WaitForTimeoutAsync(300);
         Assert.True(await page.Locator(".tile").CountAsync() > 0, "offline reload showed no tiles");
         Assert.Equal(0, await page.Locator("#upd").CountAsync());
         await context.SetOfflineAsync(false);
@@ -92,6 +94,8 @@ public sealed class FullScreenChecks(AppFixture app) : IDisposable
 
         await page.GotoAsync(_site.Origin + "/index.html");
         await page.WaitForTimeoutAsync(1200);
+        await page.ClickAsync("#start");
+        await page.WaitForSelectorAsync(".deck");
 
         Assert.Equal(1, await page.Locator("#fs").CountAsync());
         Assert.False(await page.EvaluateAsync<bool>("isImmersive()"));
@@ -121,6 +125,10 @@ public sealed class FullScreenChecks(AppFixture app) : IDisposable
 
         await page.GotoAsync(_site.Origin + "/index.html");
         await page.WaitForTimeoutAsync(1000);
+        // onto the deck, or the button being absent proves nothing — the intro
+        // does not carry it either
+        await page.ClickAsync("#start");
+        await page.WaitForSelectorAsync(".deck");
 
         Assert.Equal(0, await page.Locator("#fs").CountAsync());
         Assert.True(await page.EvaluateAsync<bool>("isImmersive()"));

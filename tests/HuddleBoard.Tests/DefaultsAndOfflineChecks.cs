@@ -45,6 +45,8 @@ public sealed class DefaultsAndOfflineChecks(AppFixture app)
         await page.EvaluateAsync("cfg.funNames=true; saveCfg();");
         await page.ReloadAsync();
         await page.WaitForTimeoutAsync(500);
+        await page.ClickAsync("#start");
+        await page.WaitForTimeoutAsync(300);
 
         Assert.True(await page.EvaluateAsync<bool>("cfg.funNames"), "the choice did not survive a reload");
         Assert.Equal("BULLDOZER",
@@ -77,6 +79,12 @@ public sealed class DefaultsAndOfflineChecks(AppFixture app)
 
         await page.GotoAsync(app.AppUri);
         await page.WaitForTimeoutAsync(900);
+
+        // the intro is the first thing offline too, and its art is drawn rather
+        // than fetched precisely so that this holds
+        Assert.Equal(6, await page.Locator(".introart .introkid").CountAsync());
+        await page.ClickAsync("#start");
+        await page.WaitForTimeoutAsync(300);
 
         Assert.True(await page.Locator(".tile").CountAsync() > 0, "no tiles rendered offline");
         Assert.False(string.IsNullOrWhiteSpace(await page.EvaluateAsync<string>("APP_BUILD")));

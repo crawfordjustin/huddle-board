@@ -74,8 +74,17 @@ public sealed class AppFixture : IAsyncLifetime
         Playwright.Dispose();
     }
 
-    /// <summary>A new page with the app loaded, ready to drive.</summary>
-    public async Task<(IPage Page, List<string> Errors)> OpenAppAsync(Viewport size, int settle = 400)
+    /// <summary>
+    /// A new page with the app loaded and the intro dismissed, sitting on the
+    /// deck — which is where a coach is within one tap of launching, and where
+    /// every check below this one expects to start.
+    /// </summary>
+    /// <param name="intro">
+    /// Leave the intro screen up instead. Only the checks on the intro itself
+    /// want this.
+    /// </param>
+    public async Task<(IPage Page, List<string> Errors)> OpenAppAsync(
+        Viewport size, int settle = 400, bool intro = false)
     {
         var page = await Browser.NewPageAsync(new BrowserNewPageOptions
         {
@@ -86,6 +95,14 @@ public sealed class AppFixture : IAsyncLifetime
         page.PageError += (_, e) => errors.Add(e);
         await page.GotoAsync(AppUri);
         await page.WaitForTimeoutAsync(settle);
+
+        if (!intro)
+        {
+            await page.ClickAsync("#start");
+            await page.WaitForSelectorAsync(".deck");
+            await page.WaitForTimeoutAsync(settle);
+        }
+
         return (page, errors);
     }
 

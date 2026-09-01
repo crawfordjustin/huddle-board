@@ -73,7 +73,12 @@ routes and the ball — it mirrors. `F2S()` transforms field paint — it never
 moves. Mirroring the paint with the players is physically wrong and was a real
 bug. The call strip rewrites BLUE↔ORANGE on mirror instead.
 
-**5. An update never interrupts a live play.** The service worker installs a new
+**5. The intro art is drawn, not photographed.** Six kids, three BLUE and three
+ORANGE, in inline SVG — because the app is one file that opens with the radio
+off, and because the art follows the same rules the field does: colour instead
+of left/right, and not a letter anywhere on it. `IntroChecks` holds both.
+
+**6. An update never interrupts a live play.** The service worker installs a new
 build as a *waiting* worker and shows "Update ready". It swaps only on tap.
 
 ## Source layout
@@ -160,6 +165,10 @@ on the UI on purpose: nearly every bug this project has had was a layout or
 timing bug that only appears on screen at a particular size. Checks run across
 five tablet shapes (`AppFixture.Sizes`) — two landscape, two portrait, and a
 short landscape that catches anything relying on vertical room.
+
+The app opens on an intro screen — art and one START button — so
+`AppFixture.OpenAppAsync` taps through it and hands every other check the deck.
+Pass `intro: true` to stay on it; `IntroChecks` is the only thing that does.
 
 `LabelChecks` sweeps 24 plays × 2 mirror states × 2 stages × 5 viewports = 480
 states. Several checks pad the library out to 100 plays

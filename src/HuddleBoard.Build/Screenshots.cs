@@ -12,7 +12,9 @@ internal static class Screenshots
         var o = output ?? Console.Out;
         var dir = Workspace.Ensure(Path.Combine(Workspace.Root, "docs"));
 
-        if (!Pipeline.IsBuilt && Pipeline.Build(output: o) != 0)
+        // Always rebuild, not just when dist/ is empty. A screenshot of the
+        // previous build is worse than no screenshot: it looks current.
+        if (Pipeline.Build(output: o) != 0)
             return 1;
 
         using var playwright = await Playwright.CreateAsync();
@@ -23,6 +25,10 @@ internal static class Screenshots
         });
 
         await page.GotoAsync(new Uri(Path.Combine(Workspace.Dist, "HuddleBoard.html")).AbsoluteUri);
+        await page.WaitForTimeoutAsync(600);
+        await Shoot("intro.png");
+
+        await page.ClickAsync("#start");
         await page.WaitForTimeoutAsync(600);
         await Shoot("deck.png");
 
