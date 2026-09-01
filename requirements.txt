@@ -1,0 +1,6 @@
+# Verification drives a real browser — that is where every layout bug has been.
+playwright==1.* ; python_version >= "3.9"
+# Icon generation and the contact sheets.
+pillow>=10
+# The printed playbook renders HTML to PDF.
+weasyprint>=60

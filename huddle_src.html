@@ -1,0 +1,1417 @@
+<title>Huddle Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#F2F4F1; --surface:#FBFCFA; --ink:#141A16; --ink-2:#4A554E;
+  --hair:#D8DED8; --blue:#1D6FD0; --orange:#E4610F; --ball:#FFC400;
+  --green:#1B5E3A; --green-2:#154C2F;
+  --oob:#1E2521; --oob-hatch:#38423B; --oob-ink:#7C887F;
+  --run:#127A4D; --route:#232B26;
+  --pass:#2A6FD6; --pass-lt:#7FB2F2;   /* run vs pass, legible on either ground */
+  --disp:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow","Helvetica Neue",system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--oob);color:var(--ink);
+  font-family:var(--body);-webkit-user-select:none;user-select:none;touch-action:manipulation}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+
+/* ---------------------------------------------------------------- deck
+   Dark ground, light plays. The cards are the content; the chrome recedes. */
+/* min-height:0 is load-bearing. A flex item defaults to min-height:auto, so
+   without this .deck grows to fit its content instead of the screen, and the
+   scrollers inside it (.tiles, .lib) never have a reason to scroll — rows just
+   fall off the bottom of the tablet, unreachable. Breaks past ~22 plays. */
+.deck{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--oob);
+  padding:clamp(14px,2.2vh,26px) clamp(16px,2.4vw,34px)}
+.deckhead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  border-bottom:2px solid #39433C;padding-bottom:10px;flex:none}
+.deckhead h1{font-family:var(--disp);font-size:clamp(26px,4.4vh,40px);margin:0;letter-spacing:.01em;
+  text-transform:uppercase;color:#F2F4F1}
+.deckhead p{margin:0;font-size:clamp(11px,1.6vh,14px);color:#8A968C;letter-spacing:.13em;
+  text-transform:uppercase;font-weight:600}
+.dh-right{display:flex;align-items:center;gap:clamp(10px,1.5vw,20px)}
+.barright{justify-self:end;display:flex;align-items:center;gap:clamp(8px,1.2vw,16px)}
+
+/* play clock — same dark instrument on every screen */
+.clockwrap{display:flex;align-items:center;gap:6px}
+.clock{display:flex;align-items:center;gap:clamp(7px,.8vw,12px);background:var(--ink);
+  border:2px solid #333D36;border-radius:10px;padding:6px clamp(10px,1.1vw,15px);
+  min-height:48px;color:#fff;transition:background .15s ease,border-color .15s ease}
+.clock .clabel{font-size:clamp(7.5px,1.1vh,10px);font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:#8A968C;text-align:right;line-height:1.15;max-width:5.2em}
+.clock .cnum{font-family:var(--disp);font-size:clamp(23px,4vh,38px);font-weight:700;
+  line-height:1;font-variant-numeric:tabular-nums;min-width:1.7ch;text-align:right}
+.clock.run{border-color:#4A9C6E}
+.clock.run .clabel{color:#8FCBA8}
+.clock.warn{background:#8A5A00;border-color:#C58A16}
+.clock.warn .clabel{color:#F3D89B}
+.clock.danger{background:#8E2418;border-color:#C0392B}
+.clock.danger .clabel{color:#F5C2BB}
+.clock.gone{background:#C0392B;border-color:#E05545}
+.clock.gone .clabel{color:#fff}
+.clock:active{transform:scale(.97)}
+.cstop{width:34px;height:34px;border-radius:8px;background:transparent;border:1.5px solid var(--hair);
+  color:var(--ink-2);font-size:19px;line-height:1;display:flex;align-items:center;
+  justify-content:center}
+.bar .cstop{border-color:#3B443E;color:#9AA69C}
+.edit{font-family:var(--disp);font-size:clamp(14px,2.2vh,20px);text-transform:uppercase;
+  letter-spacing:.05em;padding:9px 18px;border-radius:9px;background:transparent;
+  border:1.5px solid #3B443E;min-height:44px;color:#D5DCD7}
+.edit:active{background:#28302A}
+.edit.done{background:var(--green);border-color:var(--green-2);color:#fff}
+.edit.upd{background:var(--green);border-color:var(--green-2);color:#fff}
+.edit:active{transform:scale(.97)}
+.tiles{flex:1;display:grid;grid-template-columns:repeat(var(--cols,2),1fr);
+  grid-auto-rows:minmax(clamp(92px,12vh,150px),1fr);
+  gap:clamp(10px,1.8vh,20px);padding-top:clamp(10px,1.8vh,20px);min-height:0;
+  overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  scrollbar-gutter:stable}
+.tiles.compact .tile{padding:clamp(10px,1.6vh,16px) clamp(10px,1.2vw,16px)
+  clamp(10px,1.6vh,16px) clamp(22px,2.6vw,32px)}
+
+.tiles.compact .coach{font-size:clamp(9px,1.4vh,12px)}
+
+/* settings */
+.setrows{flex:1;display:flex;flex-direction:column;justify-content:center;
+  gap:clamp(10px,1.8vh,20px);padding:clamp(12px,2vh,22px) 0;min-height:0}
+.setrow{flex:0 0 auto;display:flex;align-items:center;gap:clamp(14px,2vw,28px);
+  background:#242C27;border:1.5px solid #333D36;border-radius:12px;
+  padding:clamp(10px,1.8vh,18px) clamp(14px,1.6vw,22px)}
+.setlab{flex:1;min-width:0}
+.setlab b{display:block;font-family:var(--disp);font-size:clamp(17px,3vh,27px);
+  text-transform:uppercase;letter-spacing:.01em;line-height:1.05;color:#EDF0EC}
+.setlab span{display:block;font-size:clamp(10px,1.6vh,14px);color:#8E9A91;
+  line-height:1.35;margin-top:4px;max-width:52ch}
+.seg{display:flex;gap:6px;flex:none}
+.seg button{font-family:var(--disp);font-size:clamp(14px,2.3vh,21px);text-transform:uppercase;
+  letter-spacing:.04em;min-width:clamp(56px,6vw,80px);min-height:52px;border-radius:9px;
+  background:#1A211D;border:1.5px solid #39433C;color:#A3AFA6}
+.seg button.on{background:var(--green);border-color:var(--green-2);color:#fff}
+.seg button:active{transform:scale(.96)}
+
+/* play library — filter bar. Wraps rather than scrolling sideways: a filter
+   you cannot see is a filter nobody uses. */
+.lfilt{flex:none;display:flex;flex-wrap:wrap;align-items:center;
+  gap:clamp(5px,.8vw,9px);padding:clamp(8px,1.2vh,14px) 0 clamp(2px,.6vh,6px)}
+.fchip{font-family:var(--disp);font-size:clamp(12px,1.85vh,17px);text-transform:uppercase;
+  letter-spacing:.05em;min-height:clamp(36px,5vh,46px);padding:0 clamp(9px,1vw,15px);
+  border-radius:9px;background:#1A211D;border:1.5px solid #39433C;color:#A3AFA6;
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap;cursor:pointer}
+.fchip .n{font-size:.82em;color:#6E7A72;font-variant-numeric:tabular-nums}
+.fchip.on{background:var(--green);border-color:var(--green-2);color:#fff}
+.fchip.on .n{color:#CBE8DA}
+/* a situation chip lights up in its own colour, matching the row's edge bar */
+.fchip[data-cat].on{background:var(--cat);border-color:var(--cat);color:#fff}
+.fchip[data-cat="all"].on{background:var(--green);border-color:var(--green-2)}
+.fchip:active{transform:scale(.96)}
+.fchip:focus-visible{outline:3px solid #5FBF8F;outline-offset:2px}
+.lsep{width:1.5px;align-self:stretch;background:#39433C;margin:0 clamp(2px,.4vw,6px)}
+.lsearch{flex:0 1 clamp(120px,15vw,230px);min-width:0;min-height:clamp(36px,5vh,46px);
+  background:#141A16;border:1.5px solid #39433C;border-radius:9px;color:#E8EDE9;
+  padding:0 clamp(10px,1vw,14px);font-family:var(--disp);letter-spacing:.05em;
+  font-size:clamp(13px,1.9vh,18px)}
+.lsearch::placeholder{color:#6E7A72;text-transform:uppercase;letter-spacing:.08em}
+.lsearch:focus{outline:none;border-color:#5FBF8F}
+.lempty{grid-column:1/-1;align-self:start;display:flex;align-items:center;gap:14px;
+  color:#8A968C;font-size:clamp(13px,2vh,18px);padding:clamp(14px,2.5vh,28px) 4px}
+
+/* one column on a narrow tablet: two columns of long play names at 800px wide
+   leaves each name about 200px, which is not enough as the library grows. */
+@media (max-width:860px){ .lib{grid-template-columns:1fr !important} }
+.lib{flex:1;display:grid;grid-template-columns:1fr 1fr;
+  grid-auto-rows:minmax(clamp(52px,7vh,96px),1fr);
+  gap:clamp(6px,1vh,11px) clamp(10px,1.6vw,22px);
+  padding-top:clamp(10px,1.6vh,18px);min-height:0;
+  overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  scrollbar-gutter:stable}
+/* out of the deck = dark card, in the deck = light card. Readable either way,
+   which dimming with opacity was not. */
+.lrow{display:flex;align-items:center;gap:clamp(8px,1vw,14px);text-align:left;
+  background:#262E29;border:1.5px solid #333D36;border-radius:10px;
+  padding:0 clamp(10px,1.1vw,15px) 0 0;overflow:hidden;position:relative;
+  transition:background .12s ease,border-color .12s ease}
+.lrow::before{content:"";width:clamp(7px,.8vw,11px);align-self:stretch;background:var(--cat);
+  flex:none}
+.lrow.on{background:var(--surface);border-color:#5FBF8F}
+.lrow:active{transform:scale(.99)}
+.lnum{font-family:var(--disp);font-size:clamp(15px,2.4vh,22px);font-weight:700;color:#6E7A72;
+  min-width:22px;text-align:center;font-variant-numeric:tabular-nums;flex:none;
+  padding-left:clamp(4px,.5vw,8px)}
+.lname{flex:1;min-width:0}
+.lname b{display:block;font-family:var(--disp);font-size:clamp(15px,2.4vw,27px);
+  text-transform:uppercase;line-height:1;letter-spacing:.01em;color:#C9D2CB;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lname i{display:block;font-style:normal;font-size:clamp(9px,1.4vh,12px);color:#7E8A81;
+  font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcat{font-size:clamp(7px,1.1vh,9.5px);font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:#fff;background:var(--cat);padding:4px 8px;border-radius:4px;white-space:nowrap;flex:none}
+.lthumb{flex:none;width:clamp(78px,8.6vw,126px);display:flex;align-items:center}
+.lthumb .thumbsvg{width:100%}
+.lkind{font-family:var(--disp);font-size:clamp(11px,1.8vh,16px);font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;width:clamp(38px,4vw,54px);text-align:center;
+  flex:none}
+.lkind.run{color:#5FBF8F} .lkind.pass{color:var(--pass-lt)}
+.lrow.on .lnum{color:var(--ink-2)}
+.lrow.on .lname b{color:var(--ink)}
+.lrow.on .lname i{color:var(--ink-2)}
+.lrow.on .lkind.run{color:var(--run)}
+.lrow.on .lkind.pass{color:var(--pass)}
+.lmark{font-size:clamp(15px,2.4vh,21px);font-weight:700;width:30px;height:30px;flex:none;
+  display:flex;align-items:center;justify-content:center;border-radius:8px;
+  background:#39433C;color:#A3AFA6}
+.lrow.on .lmark{background:var(--green);color:#fff}
+/* names were sized in vh, so rotating the tablet grew the type while the tile
+   got narrower — the exact recipe for clipping. Size against the card itself. */
+.tile{container-type:inline-size;
+  position:relative;display:flex;align-items:center;gap:clamp(10px,1.4vw,20px);
+  background:var(--surface);border:1.5px solid transparent;border-radius:14px;
+  padding:clamp(12px,2vh,22px) clamp(14px,1.6vw,22px) clamp(12px,2vh,22px) clamp(26px,3vw,40px);
+  text-align:left;transition:transform .12s ease,box-shadow .12s ease;overflow:hidden}
+.tilemain{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;
+  justify-content:center}
+.thumb{flex:none;width:clamp(150px,26vw,380px);align-self:stretch;display:flex;
+  align-items:center}
+@supports (container-type:inline-size){
+  .tile .kid{font-size:min(44px, 10.5cqi)}
+  .thumb{width:52cqi}
+  .tiles.compact .thumb{width:49cqi}
+  .lrow{container-type:inline-size}
+  .lname b{font-size:min(27px, 9cqi)}
+}
+.thumbsvg{width:100%;height:auto;max-height:100%;display:block}
+/* the bar answers the only question that matters in three seconds */
+.tile.run::before{background:var(--run)}
+.tile.pass::before{background:var(--pass)}
+.kindrow{display:flex;align-items:center;gap:clamp(6px,.8vw,11px);
+  margin-bottom:clamp(3px,.6vh,7px);flex-wrap:wrap}
+.kind{font-family:var(--disp);font-size:clamp(12px,1.9vh,17px);font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase}
+.catchip{font-size:clamp(7px,1.05vh,9.5px);font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:#fff;background:var(--cat);padding:3px 7px;border-radius:4px;
+  white-space:nowrap}
+.tiles.compact .catchip{display:none}
+.tile.run .kind{color:var(--run)}
+.tile.pass .kind{color:var(--pass)}
+.tile:active{transform:scale(.985);box-shadow:inset 0 0 0 3px var(--green)}
+.tile:focus-visible{outline:3px solid #5FBF8F;outline-offset:3px}
+.tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:clamp(10px,1.2vw,16px);
+  background:var(--cat);border-radius:12px 0 0 12px}
+
+/* Two lines are allowed here so a long real name like PLAY-ACTION CROSS can
+   wrap instead of shrinking to nothing. fitText() is what enforces the cap —
+   do NOT add a max-height: with line-height under 1 the glyph box is taller
+   than the line box, so any height clamp makes scrollHeight permanently
+   exceed clientHeight and every name collapses to the floor size. */
+.tile .kid{display:block;font-family:var(--disp);font-size:clamp(20px,4.2vw,44px);
+  line-height:.95;text-transform:uppercase;letter-spacing:.005em;
+  white-space:normal;overflow-wrap:normal;word-break:keep-all}
+.tile .coach{font-size:clamp(11px,1.7vh,15px);color:var(--ink-2);font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;margin-top:6px}
+.tile .tag{font-size:clamp(11px,1.85vh,16px);color:var(--ink-2);line-height:1.25;
+  margin-top:clamp(8px,1.4vh,14px);max-width:34ch}
+.decknote{flex:none;padding-top:clamp(8px,1.4vh,14px);font-size:clamp(10px,1.5vh,13px);
+  color:#78847B;letter-spacing:.06em}
+
+/* ---------------------------------------------------------------- play */
+.play{flex:1;display:flex;flex-direction:column;min-height:0}
+.bar{flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+  gap:clamp(10px,1.4vw,18px);background:var(--ink);color:#fff;
+  padding:clamp(6px,1.1vh,12px) clamp(10px,1.4vw,18px)}
+.back{justify-self:start;font-family:var(--disp);font-size:clamp(18px,2.8vh,26px);
+  text-transform:uppercase;letter-spacing:.06em;padding:8px 16px;border-radius:9px;
+  background:transparent;border:1.5px solid #3B443E;color:#E4E9E5;min-height:44px}
+.back:active{background:#242B26}
+.titlewrap{grid-column:2;min-width:0;display:flex;align-items:baseline;gap:12px;
+  justify-content:center}
+.titlewrap .kid{font-family:var(--disp);font-size:clamp(20px,3.6vw,44px);text-transform:uppercase;
+  line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+.titlewrap .coach{font-size:clamp(10px,1.6vh,14px);color:#98A49B;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+.chip{justify-self:end;font-family:var(--body);font-size:clamp(9px,1.3vh,12px);font-weight:700;
+  letter-spacing:.11em;text-transform:uppercase;color:#fff;background:var(--cat);
+  padding:5px 10px;border-radius:5px;white-space:nowrap}
+
+.stagewrap{flex:1;display:flex;min-height:0}
+/* overflow:hidden here + overflow:visible on the svg lets the out-of-bounds
+   hatch bleed into the letterbox, so the coloured border reaches the physical
+   edge of the screen instead of stopping at the viewBox. */
+.fieldwrap{flex:1;min-width:0;position:relative;display:flex;background:var(--oob);
+  overflow:hidden}
+#field{width:100%;height:100%;display:block;overflow:visible}
+.rail{flex:none;width:clamp(84px,9.5vw,124px);display:flex;flex-direction:column;
+  justify-content:center;gap:clamp(8px,1.4vh,16px);
+  padding:clamp(8px,1.2vh,14px) clamp(8px,.9vw,13px);
+  border-left:1.5px solid var(--hair);background:var(--ground)}
+.rbtn{flex:0 0 auto;padding:clamp(14px,3.2vh,30px) 4px;min-height:62px;border-radius:11px;background:var(--surface);
+  border:1.5px solid var(--hair);font-family:var(--disp);text-transform:uppercase;
+  font-size:clamp(13px,2.1vh,19px);letter-spacing:.05em;line-height:1.05;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  transition:background .12s ease,color .12s ease}
+.rbtn small{font-family:var(--body);font-size:clamp(8px,1.15vh,10px);letter-spacing:.1em;
+  color:var(--ink-2);font-weight:600}
+.rbtn.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.rbtn.on small{color:#A9B5AD}
+.rbtn.go{background:var(--green);border-color:var(--green-2);color:#fff}
+.rbtn.go small{color:#BEE3CE}
+.rbtn:active{transform:scale(.97)}
+
+.calls{flex:none;display:flex;gap:clamp(6px,.9vw,12px);align-items:stretch;
+  padding:clamp(7px,1.2vh,13px) clamp(10px,1.4vw,18px);border-top:1.5px solid var(--hair);
+  background:var(--surface);min-height:clamp(56px,9vh,86px)}
+.call{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;
+  padding:0 clamp(8px,1vw,14px);border-left:4px solid var(--hair)}
+.call.job{border-left-color:var(--ball)}
+.call b{font-family:var(--disp);font-size:clamp(14px,2.5vh,23px);text-transform:uppercase;
+  letter-spacing:.03em;line-height:1.05}
+.call span{font-size:clamp(11px,1.85vh,17px);color:var(--ink-2);line-height:1.15;margin-top:2px}
+.call.blue b{color:var(--blue)} .call.orange b{color:var(--orange)}
+.solo{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 clamp(8px,1vw,14px);
+  border-left:4px solid var(--ball)}
+.solo b{font-family:var(--disp);font-size:clamp(17px,3.2vh,30px);text-transform:uppercase;line-height:1}
+.solo span{font-size:clamp(11px,1.9vh,18px);color:var(--ink-2);line-height:1.2;margin-top:3px}
+.solo .x{position:absolute;right:14px;top:50%;transform:translateY(-50%)}
+
+.hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
+  font-size:clamp(10px,1.5vh,13px);color:var(--ink-2);letter-spacing:.1em;text-transform:uppercase;
+  font-weight:600;background:rgba(251,252,250,.86);padding:5px 12px;border-radius:20px;
+  pointer-events:none;transition:opacity .3s ease}
+.hidden{display:none!important}
+@media (prefers-reduced-motion:reduce){.tile,.rbtn{transition:none}}
+</style>
+
+<div id="app"></div>
+
+<script>
+const DATA = __DATA__;
+
+/* ------------------------------------------------------------ geometry */
+const SCALE = 31.25, VB_W = 1140, VB_H = 672, CX = 570, TOPY = 15;
+const EDGE = 15.7;                   // sideline, in yards from the middle
+let mAnim = 0;                       // 0..1 current mirror
+let mTarget = 0;
+
+function W2S(x, y){                    // players, routes, ball — these mirror
+  return [CX + x * (1 - 2 * mAnim) * SCALE, (TOPY - y) * SCALE];
+}
+function F2S(x, y){                    // field paint — never moves
+  return [CX + x * SCALE, (TOPY - y) * SCALE];
+}
+const pt  = p => W2S(p[0], p[1]).join(",");
+const fpt = p => F2S(p[0], p[1]).join(",");
+
+const flipSide = s => s === "blue" ? "orange" : s === "orange" ? "blue" : "none";
+const mirrored = () => mAnim > 0.5;
+const sideOf = k => mirrored() ? flipSide(S.play.spots[k].side) : S.play.spots[k].side;
+function swapWords(t){
+  return t.replace(/BLUE/g, "\u0001").replace(/ORANGE/g, "BLUE").replace(/\u0001/g, "ORANGE")
+          .replace(/blue/g, "\u0002").replace(/orange/g, "blue").replace(/\u0002/g, "orange");
+}
+const sideName = k => { const sp = S.play.spots[k];
+  return mirrored() ? swapWords(sp.name) : sp.name; };
+
+let ourSide = "blue";              // which sideline our team is assigned to, all game
+try { ourSide = localStorage.getItem("hb.ourside") || "blue"; } catch(e){}
+function setOurSide(v){ ourSide = v; try { localStorage.setItem("hb.ourside", v); } catch(e){} }
+
+function lens(pts){
+  const out = [0];
+  for (let i = 1; i < pts.length; i++){
+    out.push(out[i-1] + Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]));
+  }
+  return out;
+}
+function walk(pts, t){            // t 0..1 of total length -> {pts:[...], end:[x,y]}
+  const L = lens(pts), total = L[L.length-1];
+  if (total === 0) return {pts:[pts[0]], end:pts[0]};
+  const target = Math.max(0, Math.min(1, t)) * total;
+  const keep = [pts[0]];
+  for (let i = 1; i < pts.length; i++){
+    if (L[i] <= target){ keep.push(pts[i]); continue; }
+    const f = (target - L[i-1]) / (L[i] - L[i-1]);
+    const p = [pts[i-1][0] + (pts[i][0]-pts[i-1][0])*f, pts[i-1][1] + (pts[i][1]-pts[i-1][1])*f];
+    keep.push(p);
+    return {pts:keep, end:p};
+  }
+  return {pts:keep, end:pts[pts.length-1]};
+}
+function qbez(a, b, c, t){
+  const u = 1 - t;
+  return [u*u*a[0] + 2*u*t*b[0] + t*t*c[0], u*u*a[1] + 2*u*t*b[1] + t*t*c[1]];
+}
+
+/* ------------------------------------------------------------ timeline */
+const HOLD = 700, YD = 150, TAIL = 1500;
+function buildTimeline(play){
+  const tl = {paths:[], tSnap:HOLD, tEnd:0};
+  let motionEnd = HOLD;
+  play.paths.forEach((p, i) => {
+    const L = lens(p.pts).pop();
+    if (p.type === "motion"){
+      const dur = Math.max(600, L * 190);
+      tl.paths[i] = {start:HOLD, dur};
+      motionEnd = Math.max(motionEnd, HOLD + dur);
+    }
+  });
+  tl.tSnap = motionEnd > HOLD ? motionEnd + 120 : HOLD;
+  play.paths.forEach((p, i) => {
+    if (tl.paths[i]) return;
+    const L = lens(p.pts).pop();
+    const quick = (p.type === "handoff");
+    const dur = quick ? Math.max(240, L*140) : Math.max(480, L*YD);
+    tl.paths[i] = {start:tl.tSnap, dur};
+  });
+  // ball
+  const b = play.ball;
+  const idx = play.paths.findIndex(p => p.who === b.who &&
+        (b.mode === "carry" ? (p.type === "run" || p.type === "route") : true));
+  const tp = tl.paths[idx] || {start:tl.tSnap, dur:1200};
+  if (b.mode === "carry"){
+    tl.ball = {mode:"carry", pathIdx:idx, start:tp.start, dur:tp.dur};
+  } else {
+    const arrive = tp.start + tp.dur;
+    tl.ball = {mode:"pass", pathIdx:idx, start:Math.max(tl.tSnap + 120, arrive - 620),
+               dur:Math.min(620, arrive - tl.tSnap - 100), arrive};
+  }
+  tl.tEnd = Math.max(...tl.paths.map(p => p.start + p.dur),
+                     tl.ball.start + tl.ball.dur) + TAIL;
+  return tl;
+}
+
+/* ------------------------------------------------------------ state */
+const S = {screen:"deck", play:null, tl:null, stage:"lineup", solo:null,
+           t0:0, running:false, hintSeen:false};
+
+let deck = DATA.defaultDeck.slice();
+try {
+  const saved = JSON.parse(localStorage.getItem("hb.deck") || "null");
+  if (Array.isArray(saved) && saved.length) deck = saved;
+} catch(e){}
+function saveDeck(){ try { localStorage.setItem("hb.deck", JSON.stringify(deck)); } catch(e){} }
+const byNum = (a,b) => a.num - b.num;
+const inDeck = () => DATA.plays.filter(p => deck.includes(p.id)).sort(byNum);
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ------------------------------------------------------------ event log
+   Append-only, millisecond-resolution. Every record carries BOTH a monotonic
+   offset (immune to the device clock being wrong or jumping) and a wall-clock
+   stamp (the only thing comparable against another device). Reconciliation
+   later joins on the timeline, never on a shared event id.                   */
+const LOG_CAP = 6000;
+const APP_BUILD = "__VERSION__";
+let devId = "";
+try {
+  devId = localStorage.getItem("hb.dev") || "";
+  if (!devId){
+    devId = "d_" + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem("hb.dev", devId);
+  }
+} catch(e){ devId = "d_ephemeral"; }
+
+const SESSION = {
+  id: "s_" + Math.random().toString(36).slice(2, 10),
+  w0: Date.now(),                 // wall clock at session start
+  m0: performance.now(),          // monotonic origin
+};
+let logSeq = 0;
+let events = [];
+try { events = JSON.parse(localStorage.getItem("hb.events") || "[]") || []; } catch(e){}
+
+let flushT = null;
+function flushLog(){
+  flushT = null;
+  try { localStorage.setItem("hb.events", JSON.stringify(events)); } catch(e){}
+}
+function logEvent(type, payload){
+  const mono = performance.now() - SESSION.m0;
+  events.push({
+    v: 1, s: SESSION.id, d: devId, n: ++logSeq,
+    t: Math.round(mono),                       // ms since session start, monotonic
+    w: Math.round(SESSION.w0 + mono),          // wall ms, derived from the monotonic clock
+    wr: Date.now(),                            // wall ms read directly, to expose drift
+    e: type,
+    ...(payload ? {p: payload} : {}),
+  });
+  if (events.length > LOG_CAP) events.splice(0, events.length - LOG_CAP);
+  if (!flushT) flushT = setTimeout(flushLog, 400);
+}
+addEventListener("visibilitychange", () => { if (document.hidden) flushLog(); });
+addEventListener("pagehide", flushLog);
+
+/* ------------------------------------------------------------ settings */
+// funNames defaults off: a tablet out of the box shows 22 DIVE, the name the
+// coach already knows. Fun names are a deliberate opt-in per team.
+// Note the v stays 1 — bumping it would throw away every coach's saved
+// settings. Anyone who has already chosen keeps their choice; only a fresh
+// install picks up this default.
+const CFG_DEFAULTS = {v:1, clockSecs:40, warnAt:10, vibrate:true, showClock:true,
+                      funNames:false};
+let cfg = Object.assign({}, CFG_DEFAULTS);
+try {
+  const saved = JSON.parse(localStorage.getItem("hb.settings") || "null");
+  if (saved && saved.v === 1) cfg = Object.assign({}, CFG_DEFAULTS, saved);
+} catch(e){}
+function saveCfg(){ try { localStorage.setItem("hb.settings", JSON.stringify(cfg)); } catch(e){} }
+
+/* ------------------------------------------------------------ play clock */
+let clk = {at:0, running:false, warned:false, expired:false};
+function buzz(p){
+  if (!cfg.vibrate) return;
+  try { navigator.vibrate && navigator.vibrate(p); } catch(e){}
+}
+function startClock(){
+  const wasRunning = clk.running, left = clockLeft();
+  clk = {at: performance.now(), running:true, warned:false, expired:false};
+  buzz(35);
+  // a clock start marks the moment the PREVIOUS play ended — the single most
+  // useful boundary for lining this log up against somebody else's
+  logEvent("clock_start", {secs: cfg.clockSecs, restart: wasRunning,
+                           prevLeftMs: wasRunning ? Math.round(left * 1000) : null});
+}
+function stopClock(){
+  if (clk.running) logEvent("clock_stop", {leftMs: Math.round(clockLeft() * 1000)});
+  clk.running = false;
+}
+function clockLeft(){
+  return clk.running ? Math.max(0, cfg.clockSecs - (performance.now() - clk.at) / 1000)
+                     : cfg.clockSecs;
+}
+function clockHTML(){
+  if (!cfg.showClock) return "";
+  return `<div class="clockwrap">
+    <button class="clock" id="clock" aria-label="Play clock">
+      <span class="clabel" id="clocklabel">Play clock</span>
+      <span class="cnum" id="clocknum">${cfg.clockSecs}</span>
+    </button>
+    <button class="cstop hidden" id="cstop" aria-label="Stop the clock">&times;</button>
+  </div>`;
+}
+function bindClock(){
+  const c = document.getElementById("clock");
+  if (c) c.onclick = () => { startClock(); paintClock(); };
+  const x = document.getElementById("cstop");
+  if (x) x.onclick = () => { stopClock(); paintClock(); };
+}
+function paintClock(){
+  const el = document.getElementById("clocknum");
+  if (!el) return;
+  const t = clockLeft(), n = Math.ceil(t);
+  el.textContent = n;
+  const c = document.getElementById("clock");
+  const lab = document.getElementById("clocklabel");
+  const gone = clk.running && t <= 0;
+  c.classList.toggle("run", clk.running && !gone);
+  c.classList.toggle("warn", clk.running && t > 5 && t <= cfg.warnAt);
+  c.classList.toggle("danger", clk.running && t > 0 && t <= 5);
+  c.classList.toggle("gone", gone);
+  lab.textContent = gone ? "Snap it" : clk.running ? "Play clock" : "Tap to start";
+  document.getElementById("cstop").classList.toggle("hidden", !clk.running);
+  if (clk.running && !clk.warned && t <= cfg.warnAt){ clk.warned = true; buzz(60); }
+  if (gone && !clk.expired){ clk.expired = true; buzz([120,90,120]); logEvent("clock_expired"); }
+}
+const CAT = {"RUN ZONE":"#127A4D","QUICK GAME":"#1B6BA8","SHOT PLAY":"#8A3AB0",
+             "NO-RUN ZONE":"#C9700D","GOAL LINE":"#C0392B"};
+const SIDE = {blue:"#1D6FD0", orange:"#E4610F", none:"#141A16"};
+const app = document.getElementById("app");
+
+/* ---------------------------------------------------- play thumbnail */
+/* same proportions and the same dark-surround / light-field logic as the
+   full-size view, so a tile reads as a small version of the real thing */
+const TH = {s:9.5, w:346, h:204, cx:173, top:15, edge:15.7, botY:-6.5};
+function thumbSVG(p){
+  const tx = (x,y) => [TH.cx + x*TH.s, (TH.top - y)*TH.s];
+  const poly = pts => pts.map(q => tx(q[0],q[1]).join(",")).join(" ");
+  const o = [`<svg viewBox="0 0 ${TH.w} ${TH.h}" class="thumbsvg" aria-hidden="true">`];
+  o.push(`<rect x="0" y="0" width="${TH.w}" height="${TH.h}" rx="7" fill="#1E2521"/>`);
+  const f0 = tx(-TH.edge, TH.top), f1 = tx(TH.edge, TH.botY);
+  o.push(`<rect x="${f0[0]}" y="${f0[1]}" width="${f1[0]-f0[0]}" height="${f1[1]-f0[1]}"
+    fill="#F7F9F6"/>`);
+  const g0 = tx(-TH.edge, 15), g1 = tx(TH.edge, 13.3);
+  o.push(`<rect x="${g0[0]}" y="${g0[1]}" width="${g1[0]-g0[0]}" height="${g1[1]-g0[1]}"
+    fill="#1B5E3A" fill-opacity=".14"/>`);
+  // inset slightly so the whole stroke lands on the light field and survives
+  // being scaled down to a library row
+  [["#1D6FD0",-(TH.edge-0.22)],["#E4610F",TH.edge-0.22]].forEach(([c,xv]) => {
+    const a = tx(xv,TH.top), b = tx(xv,TH.botY);
+    o.push(`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${c}"
+      stroke-width="5"/>`);
+  });
+  const l1 = tx(-TH.edge,0), l2 = tx(TH.edge,0);
+  o.push(`<line x1="${l1[0]}" y1="${l1[1]}" x2="${l2[0]}" y2="${l2[1]}"
+    stroke="#AEB8B0" stroke-width="2"/>`);
+  const col = {route:"#232B26", run:"#127A4D", fake:"#127A4D",
+               motion:"#C9700D", handoff:"#7C877F"};
+  p.paths.forEach(pa => {
+    const dash = pa.type === "motion" ? '4 3' : pa.type === "fake" ? '5 3'
+               : pa.type === "handoff" ? '3 2' : '';
+    const strong = p.jobs.includes(pa.who);
+    o.push(`<polyline points="${poly(pa.pts)}" fill="none" stroke="${col[pa.type]}"
+      stroke-width="${pa.type === "run" ? 3.4 : 2.4}" stroke-linejoin="round"
+      stroke-linecap="round" opacity="${strong ? 1 : .34}"
+      ${dash ? `stroke-dasharray="${dash}"` : ""}/>`);
+  });
+  for (const k in p.spots){
+    const sp = p.spots[k], c = tx(sp.x, sp.y);
+    const isBall = k === p.primary;
+    const fill = isBall ? "#FFC400"
+      : sp.side === "blue" ? "#1D6FD0" : sp.side === "orange" ? "#E4610F" : "#141A16";
+    o.push(`<circle cx="${c[0]}" cy="${c[1]}" r="${isBall ? 6.2 : 4.6}" fill="${fill}"
+      stroke="#F7F9F6" stroke-width="${isBall ? 2.2 : 1.6}"/>`);
+  }
+  o.push("</svg>");
+  return o.join("");
+}
+const isRun = p => p.ball.mode === "carry";
+/* Fun name if there is one and the coach wants it; otherwise the real name
+   is promoted so a tile is never left with nothing to say. */
+function nameOf(p){
+  return (cfg.funNames && p.kidName)
+    ? {big: p.kidName, small: p.coachName}
+    : {big: p.coachName, small: ""};
+}
+
+/* ---------------------------------------------------- fit names to the box
+   Sizing in CSS assumes a font's metrics. Offline the webfont is missing and
+   the fallback is far wider, so names clipped. Measure and shrink instead. */
+function lineCount(el){
+  // Count laid-out lines, not pixels. Height maths lies when line-height < 1.
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  const tops = new Set();
+  for (const b of r.getClientRects()){
+    if (b.height > 0.5) tops.add(Math.round(b.top * 2));
+  }
+  return tops.size || 1;
+}
+function fitText(el, minPx, maxLines){
+  if (!el) return;
+  el.style.fontSize = "";
+  let size = parseFloat(getComputedStyle(el).fontSize);
+  let guard = 60;
+  const over = () => el.scrollWidth > el.clientWidth + 0.5
+                  || (maxLines > 0 && lineCount(el) > maxLines);
+  while (size > minPx && over() && guard--){
+    size -= 1;
+    el.style.fontSize = size + "px";
+  }
+}
+function fitNames(){
+  // Fit each name, then drop the whole grid to the smallest of them. One size
+  // across the deck scans far faster than fourteen individually-optimal ones,
+  // and shrinking is always safe — a name that fit at 30px fits at 22px.
+  const kids = [...document.querySelectorAll(".tile .kid")];
+  kids.forEach(e => fitText(e, 15, 2));
+  if (kids.length){
+    const px = Math.min(...kids.map(e => parseFloat(getComputedStyle(e).fontSize)));
+    kids.forEach(e => { e.style.fontSize = px + "px"; });
+  }
+  document.querySelectorAll(".lname b").forEach(e => fitText(e, 11, 1));
+  document.querySelectorAll(".titlewrap .kid").forEach(e => fitText(e, 16, 1));
+}
+let fitT = null;
+function refit(){
+  clearTimeout(fitT);
+  fitT = setTimeout(() => {
+    if (S.screen === "deck") renderDeck();      // column count may have changed
+    else fitNames();
+  }, 90);
+}
+addEventListener("resize", refit);
+addEventListener("orientationchange", refit);
+
+/* ------------------------------------------------------------ deck ui */
+function renderDeck(){
+  S.screen = "deck";
+  const list = inDeck();
+  // columns follow the room available, not just how many plays there are —
+  // four columns on a narrow tablet leaves tiles too small to read
+  const roomFor = Math.max(1, Math.min(4, Math.floor(innerWidth / 340)));
+  const want = list.length <= 4 ? 2 : list.length <= 9 ? 3 : 4;
+  const cols = Math.min(want, roomFor);
+  const compact = cols > 2;
+  app.innerHTML = `
+    <div class="deck">
+      <div class="deckhead">
+        <h1>Your Deck</h1>
+        <div class="dh-right">
+          ${updateReady ? `<button class="edit upd" id="upd">Update ready</button>` : ""}
+          ${(!isImmersive() && canFullscreen())
+              ? `<button class="edit" id="fs">Full screen</button>` : ""}
+          ${clockHTML()}
+          <p>${list.length} play${list.length === 1 ? "" : "s"}</p>
+          <button class="edit" id="setup">Setup</button>
+          <button class="edit" id="edit">Change plays</button>
+        </div>
+      </div>
+      <div class="tiles ${compact ? "compact" : ""}" style="--cols:${cols}">
+        ${list.map(p => `
+        <button class="tile ${isRun(p) ? "run" : "pass"}" data-id="${p.id}"
+          style="--cat:${CAT[p.category]}">
+          <span class="tilemain">
+            <span class="kindrow">
+              <span class="kind">${isRun(p) ? "Run" : "Pass"}</span>
+              <span class="catchip">${p.category}</span>
+            </span>
+            <span class="kid">${nameOf(p).big}</span>
+            <span class="coach">${[nameOf(p).small, p.formation].filter(Boolean).join(" &middot; ")}</span>
+            ${compact ? "" : `<span class="tag">${p.tagline}</span>`}
+          </span>
+          <span class="thumb">${thumbSVG(p)}</span>
+        </button>`).join("")}
+      </div>
+      <div class="decknote">Tap a play &rarr; line them up &rarr; run it. Tap any player to show
+        that kid his own job. Every play mirrors, so this is really ${list.length * 2} looks.</div>
+    </div>`;
+  document.getElementById("edit").onclick = renderLibrary;
+  document.getElementById("setup").onclick = renderSettings;
+  const fs = document.getElementById("fs");
+  if (fs) fs.onclick = goFullscreen;
+  const up = document.getElementById("upd");
+  if (up) up.onclick = () => { up.textContent = "Updating"; applyUpdate(); };
+  bindClock(); paintClock();
+  app.querySelectorAll(".tile").forEach(b =>
+    b.addEventListener("click", () => openPlay(b.dataset.id)));
+  fitNames();
+}
+
+function seg(key, opts){
+  return `<div class="seg" data-key="${key}">` + opts.map(o =>
+    `<button data-v="${o[0]}" class="${String(cfg[key]) === String(o[0]) ? "on" : ""}">${o[1]}</button>`
+  ).join("") + `</div>`;
+}
+
+function logBlob(){
+  return JSON.stringify({
+    format: "huddleboard.events", v: 1, build: APP_BUILD, device: devId,
+    exportedWall: Date.now(), events
+  });
+}
+async function exportLog(btn){
+  const text = logBlob(), name = "huddle-log-" + devId + ".json";
+  let done = "";
+  try {                                    // best: hand it to Android's share sheet
+    const f = new File([text], name, {type: "application/json"});
+    if (navigator.canShare && navigator.canShare({files: [f]})){
+      await navigator.share({files: [f], title: "Huddle Board log"});
+      done = "Shared";
+    }
+  } catch(e){}
+  if (!done){
+    try { await navigator.clipboard.writeText(text); done = "Copied"; } catch(e){}
+  }
+  if (!done){
+    try {                                  // last resort: a download link
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], {type: "application/json"}));
+      a.download = name; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      done = "Downloaded";
+    } catch(e){ done = "Failed"; }
+  }
+  btn.textContent = done;
+  setTimeout(() => { btn.textContent = "Export"; }, 1800);
+}
+
+function renderSettings(){
+  S.screen = "settings";
+  const rows = [
+    ["Clock length", "How long the referee gives you after the whistle. Check your league — 25 and 30 are both common.",
+     seg("clockSecs", [[25,"25s"],[30,"30s"],[40,"40s"],[45,"45s"]])],
+    ["Warn me at", "When the clock turns amber and buzzes once.",
+     seg("warnAt", [[5,"5s"],[10,"10s"],[15,"15s"]])],
+    ["Buzz the tablet", "A short buzz at the warning and a triple at zero, so you do not have to look.",
+     seg("vibrate", [[true,"On"],[false,"Off"]])],
+    ["Play names", "BULLDOZER or 22 DIVE. Fun names stick with the kids; real names are what you say to another coach.",
+     seg("funNames", [[true,"Fun"],[false,"Real"]])],
+    ["Show the clock", "Turn it off entirely if your league does not run one.",
+     seg("showClock", [[true,"On"],[false,"Off"]])],
+    ["Game log", `${events.length} event${events.length === 1 ? "" : "s"} recorded on this tablet.
+      Every play shown, every clock start, stamped to the millisecond.`,
+     `<div class="seg"><button id="logexp">Export</button>
+      <button id="logclr">Clear</button></div>`],
+  ];
+  app.innerHTML = `
+    <div class="deck">
+      <div class="deckhead">
+        <h1>Settings</h1>
+        <div class="dh-right"><button class="edit done" id="sdone">Done</button></div>
+      </div>
+      <div class="setrows">${rows.map(([t, d, c]) =>
+        `<div class="setrow"><div class="setlab"><b>${t}</b><span>${d}</span></div>${c}</div>`
+      ).join("")}</div>
+      <div class="decknote">Version ${APP_BUILD} &middot; settings and the log live on this
+        tablet. Nothing is sent anywhere unless you tap Export.</div>
+    </div>`;
+  document.getElementById("sdone").onclick = renderDeck;
+  document.getElementById("logexp").onclick = e => exportLog(e.currentTarget);
+  document.getElementById("logclr").onclick = e => {
+    const b = e.currentTarget;
+    if (b.dataset.armed){ events = []; flushLog(); renderSettings(); return; }
+    b.dataset.armed = "1"; b.textContent = "Sure?";
+    setTimeout(() => { if (b.isConnected){ delete b.dataset.armed; b.textContent = "Clear"; } }, 2500);
+  };
+  app.querySelectorAll(".seg").forEach(g => g.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    const key = g.dataset.key, raw = b.dataset.v;
+    cfg[key] = raw === "true" ? true : raw === "false" ? false : Number(raw);
+    saveCfg(); logEvent("setting", {key, value: cfg[key]});
+    stopClock(); clk.warned = clk.expired = false;
+    renderSettings();
+  }));
+}
+
+/* ---------------------------------------------------------- play library
+   Built to stay usable as the library grows. A flat list is fine at 14 plays
+   and unusable at 100, so the filters are the primary way in and the list is
+   grouped by situation, which is how a coach actually thinks ("I need a goal
+   line play"), not by play number. */
+let libF = {q:"", kind:"all", cat:"all", deckOnly:false};
+
+const CAT_ORDER = Object.keys(CAT);
+const catRank = c => { const i = CAT_ORDER.indexOf(c); return i < 0 ? 99 : i; };
+const byCat = (a, b) => catRank(a.category) - catRank(b.category) || a.num - b.num;
+
+function libMatch(p, f){
+  if (f.deckOnly && !deck.includes(p.id)) return false;
+  if (f.kind !== "all" && (f.kind === "run") !== isRun(p)) return false;
+  if (f.cat !== "all" && p.category !== f.cat) return false;
+  const q = f.q.trim().toUpperCase();
+  if (!q) return true;
+  return [p.coachName, p.kidName, p.formation, p.category]
+    .join(" ").toUpperCase().includes(q);
+}
+// count as if one facet were changed — so a chip shows what tapping it yields
+function libCount(over){
+  const f = Object.assign({}, libF, over);
+  return DATA.plays.reduce((n, p) => n + (libMatch(p, f) ? 1 : 0), 0);
+}
+
+function libFilterHTML(){
+  const cats = CAT_ORDER.filter(k => DATA.plays.some(p => p.category === k));
+  const chip = (on, attr, label, n, extra) =>
+    `<button class="fchip ${on ? "on" : ""}" ${attr} ${extra || ""}>${label}` +
+    (n === null ? "" : `<span class="n">${n}</span>`) + `</button>`;
+  return `
+    <input class="lsearch" id="lq" type="search" placeholder="Search plays"
+           autocomplete="off" autocorrect="off" spellcheck="false" value="${libF.q}">
+    ${chip(libF.kind === "all",  'data-kind="all"',  "All",  libCount({kind:"all"}))}
+    ${chip(libF.kind === "run",  'data-kind="run"',  "Run",  libCount({kind:"run"}))}
+    ${chip(libF.kind === "pass", 'data-kind="pass"', "Pass", libCount({kind:"pass"}))}
+    <span class="lsep"></span>
+    ${chip(libF.deckOnly, 'id="lonly"', "In deck", deck.length)}
+    <span class="lsep"></span>
+    ${chip(libF.cat === "all", 'data-cat="all"', "All situations", null)}
+    ${cats.map(k => chip(libF.cat === k, `data-cat="${k}"`, k, libCount({cat:k}),
+                         `style="--cat:${CAT[k]}"`)).join("")}`;
+}
+
+function renderLibrary(){
+  S.screen = "library";
+  libF = {q:"", kind:"all", cat:"all", deckOnly:false};
+
+  const rowHTML = p => {
+    const on = deck.includes(p.id), nm = nameOf(p);
+    return `<button class="lrow ${on ? "on" : ""}" data-id="${p.id}"
+              style="--cat:${CAT[p.category]}">
+      <span class="lnum">${p.num}</span>
+      <span class="lname"><b>${nm.big}</b><i>${nm.small ? nm.small + " &middot; " : ""}${p.formation}</i></span>
+      <span class="lthumb">${thumbSVG(p)}</span>
+      <span class="lkind ${isRun(p) ? "run" : "pass"}">${isRun(p) ? "Run" : "Pass"}</span>
+      <span class="lmark">${on ? "&#10003;" : "&#43;"}</span>
+    </button>`;
+  };
+
+  const drawRows = () => {
+    const list = DATA.plays.filter(p => libMatch(p, libF)).sort(byCat);
+    const lib = document.getElementById("lib");
+    lib.innerHTML = list.length
+      ? list.map(rowHTML).join("")
+      : `<div class="lempty">No plays match.
+           <button class="fchip" id="lclear">Clear filters</button></div>`;
+    lib.scrollTop = 0;
+    document.getElementById("lcount").textContent = deck.length + " in your deck";
+    document.getElementById("lnote").innerHTML = list.length === DATA.plays.length
+      ? `Tap to add or remove. Keep the deck small &mdash; four plays you can find
+         without looking beats ${DATA.plays.length} you have to hunt through.`
+      : `Showing ${list.length} of ${DATA.plays.length} plays.`;
+    // after layout settles — row width can still change as the list reflows
+    fitNames();
+    requestAnimationFrame(fitNames);
+    const clear = document.getElementById("lclear");
+    if (clear) clear.onclick = () => {
+      libF = {q:"", kind:"all", cat:"all", deckOnly:false};
+      drawFilters(); drawRows();
+    };
+    lib.querySelectorAll(".lrow").forEach(b => b.addEventListener("click", () => {
+      const id = b.dataset.id;
+      if (deck.includes(id)){
+        if (deck.length === 1) return;          // never leave the deck empty
+        deck = deck.filter(x => x !== id);
+      } else deck.push(id);
+      saveDeck(); logEvent("deck_changed", {deck: deck.slice()});
+      drawCounts(); drawRows();
+    }));
+  };
+
+  // counts only — never rebuilds the search box, so typing keeps focus
+  const drawCounts = () => {
+    const f = document.getElementById("lfilt");
+    if (!f) return;
+    const set = (sel, n) => { const e = f.querySelector(sel + " .n"); if (e) e.textContent = n; };
+    set('[data-kind="all"]',  libCount({kind:"all"}));
+    set('[data-kind="run"]',  libCount({kind:"run"}));
+    set('[data-kind="pass"]', libCount({kind:"pass"}));
+    set('#lonly', deck.length);
+    CAT_ORDER.forEach(k => set(`[data-cat="${CSS.escape(k)}"]`, libCount({cat:k})));
+    f.querySelectorAll("[data-kind]").forEach(b =>
+      b.classList.toggle("on", b.dataset.kind === libF.kind));
+    f.querySelectorAll("[data-cat]").forEach(b =>
+      b.classList.toggle("on", b.dataset.cat === libF.cat));
+    const only = document.getElementById("lonly");
+    if (only) only.classList.toggle("on", libF.deckOnly);
+  };
+
+  const drawFilters = () => {
+    const f = document.getElementById("lfilt");
+    f.innerHTML = libFilterHTML();
+    const q = document.getElementById("lq");
+    q.addEventListener("input", () => { libF.q = q.value; drawCounts(); drawRows(); });
+    f.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => {
+      libF.kind = b.dataset.kind; drawCounts(); drawRows(); });
+    f.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
+      libF.cat = b.dataset.cat; drawCounts(); drawRows(); });
+    document.getElementById("lonly").onclick = () => {
+      libF.deckOnly = !libF.deckOnly; drawCounts(); drawRows(); };
+  };
+
+  app.innerHTML = `
+    <div class="deck">
+      <div class="deckhead">
+        <h1>Play Library</h1>
+        <div class="dh-right">
+          ${clockHTML()}
+          <p id="lcount"></p>
+          <button class="edit done" id="done">Done</button>
+        </div>
+      </div>
+      <div class="lfilt" id="lfilt"></div>
+      <div class="lib" id="lib"></div>
+      <div class="decknote" id="lnote"></div>
+    </div>`;
+  document.getElementById("done").onclick = renderDeck;
+  bindClock(); paintClock();
+  drawFilters(); drawRows();
+}
+
+/* ------------------------------------------------------------ play ui */
+function openPlay(id){
+  S.screen = "play"; S.play = DATA.plays.find(p => p.id === id); S.tl = buildTimeline(S.play);
+  S.openedAt = performance.now();
+  logEvent("play_opened", {play: id, num: S.play.num, name: S.play.coachName});
+  S.stage = "lineup"; S.solo = null; S.running = false;
+  mTarget = mAnim = 0;
+  const p = S.play;
+  app.innerHTML = `
+    <div class="play" style="--cat:${CAT[p.category]}">
+      <div class="bar">
+        <button class="back" id="back">&larr; Deck</button>
+        <div class="titlewrap">
+          <span class="kid">${nameOf(p).big}</span>
+          ${nameOf(p).small ? `<span class="coach">${nameOf(p).small}</span>` : ""}
+        </div>
+        <div class="barright">${clockHTML()}<span class="chip">${p.formation}</span></div>
+      </div>
+      <div class="stagewrap">
+        <div class="fieldwrap">
+          <svg id="field" viewBox="0 0 ${VB_W} ${VB_H}" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="hint" id="hint">Tap a player to show him his job</div>
+        </div>
+        <div class="rail">
+          <button class="rbtn" id="stage"></button>
+          <button class="rbtn" id="mirror">Mirror<small>swap sides</small></button>
+          <button class="rbtn" id="replay">Replay</button>
+        </div>
+      </div>
+      <div class="calls" id="calls"></div>
+    </div>`;
+  document.getElementById("back").onclick = () => {
+    logEvent("play_closed", {play: S.play.id,
+      dwellMs: Math.round(performance.now() - S.openedAt), mirrored: mTarget === 1});
+    renderDeck();
+  };
+  bindClock();
+  document.getElementById("stage").onclick = toggleStage;
+  document.getElementById("mirror").onclick = () => {
+    mTarget = mTarget ? 0 : 1; if (REDUCED) mAnim = mTarget; syncRail();
+    logEvent("mirror", {play: S.play.id, on: mTarget === 1}); };
+  document.getElementById("replay").onclick = () => { S.stage = "run"; S.t0 = performance.now(); syncRail(); };
+  buildScene();
+  renderCalls();
+  syncRail();
+  fitNames();
+}
+
+function toggleStage(){
+  if (S.stage === "lineup"){
+    S.stage = "run";
+    S.t0 = performance.now();
+    logEvent("play_run", {play: S.play.id, mirrored: mTarget === 1});
+  } else {
+    S.stage = "lineup";
+  }
+  S.solo = null;
+  renderCalls(); syncRail();
+}
+function syncRail(){
+  const st = document.getElementById("stage");
+  const run = S.stage === "run";
+  st.className = "rbtn go";
+  st.innerHTML = run ? "Line up<small>hold it</small>" : "Run it<small>animate</small>";
+  document.getElementById("mirror").classList.toggle("on", mTarget === 1);
+  document.getElementById("replay").classList.toggle("hidden", !run);
+  const h = document.getElementById("hint");
+  if (h) h.style.opacity = S.hintSeen ? 0 : 1;
+}
+
+function renderCalls(){
+  const el = document.getElementById("calls");
+  const p = S.play;
+  if (S.solo){
+    el.innerHTML = `<div class="solo"><b style="color:${SIDE[sideOf(S.solo)]}">${sideName(S.solo)}</b>
+      <span>${mirrored() ? swapWords(p.assign[S.solo]) : p.assign[S.solo]}</span></div>
+      <button class="rbtn" style="flex:0 0 90px" id="unsolo">All<small>everyone</small></button>`;
+    document.getElementById("unsolo").onclick = () => { S.solo = null; renderCalls(); };
+    return;
+  }
+  el.innerHTML = p.calls.map(([a0, b0]) => {
+    const a = mirrored() ? swapWords(a0) : a0, b = mirrored() ? swapWords(b0) : b0;
+    const side = /BLUE/.test(a) ? "blue" : /ORANGE/.test(a) ? "orange" : "";
+    const job = a !== "EVERYONE ELSE";
+    return `<div class="call ${side} ${job ? "job" : ""}"><b>${a}</b><span>${b}</span></div>`;
+  }).join("");
+}
+
+/* ------------------------------------------------------------ scene */
+const N = "http://www.w3.org/2000/svg";
+let SC = null;
+let fieldRO = null;
+function mk(tag, attrs){
+  const e = document.createElementNS(N, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function buildScene(){
+  const svg = document.getElementById("field");
+  svg.innerHTML = "";
+  const defs = mk("defs");
+  [["route","#232B26"],["run","#127A4D"],["motion","#C9700D"],["handoff","#5B6472"],
+   ["fake","#127A4D"]].forEach(([k,c]) => {
+    const m = mk("marker",{id:"a-"+k,viewBox:"0 0 10 10",refX:8.4,refY:5,markerWidth:5,
+      markerHeight:5,orient:"auto-start-reverse"});
+    m.appendChild(mk("path",{d:"M0 0 L10 5 L0 10 z",fill:c}));
+    defs.appendChild(m);
+  });
+  // Out of bounds is hatched on both sides, but the hatch carries the side's
+  // colour so the dark border itself says BLUE or ORANGE. The base square stays
+  // exactly --oob so the strip never seams against the page behind the field.
+  [["blue","#31496A"],["orange","#6B4525"]].forEach(([side,ink]) => {
+    const hp = mk("pattern",{id:"oob-"+side,width:14,height:14,
+      patternUnits:"userSpaceOnUse"});
+    hp.appendChild(mk("rect",{width:14,height:14,fill:"#1E2521"}));
+    hp.appendChild(mk("path",{d:"M0 0 L14 14 M14 0 L0 14",
+      stroke:ink,"stroke-width":2.2,"stroke-linecap":"round"}));
+    defs.appendChild(hp);
+  });
+  svg.appendChild(defs);
+
+  SC = {washL:null, washR:null, yard:[], side:{}, los:null, paths:[], players:{},
+        ball:null, ring:null, overX:0, overY:0};
+
+  // How far the letterbox reaches past the viewBox, in viewBox units. Measured
+  // on resize rather than per frame — getBoundingClientRect forces layout.
+  const measure = () => {
+    const b = svg.getBoundingClientRect();
+    const k = Math.min(b.width / VB_W, b.height / VB_H);
+    if (!k || !isFinite(k)) return;
+    SC.overX = Math.max(0, (b.width / k - VB_W) / 2);
+    SC.overY = Math.max(0, (b.height / k - VB_H) / 2);
+  };
+  measure();
+  if (window.ResizeObserver){
+    if (fieldRO) fieldRO.disconnect();
+    fieldRO = new ResizeObserver(measure);
+    fieldRO.observe(svg);
+  }
+
+  SC.base = mk("rect",{fill:"#F7F9F6"});
+  svg.appendChild(SC.base);
+  SC.oob = {};
+  ["blue","orange"].forEach(side => {
+    const g = mk("g"); g.style.cursor = "pointer";
+    const r = mk("rect",{fill:"url(#oob-"+side+")"});
+    // dominant-baseline:central is what actually centres these. The text is
+    // rotated 90°, so the baseline runs vertically and the glyphs would
+    // otherwise hang off one side of the anchor point instead of straddling it.
+    const lbl = mk("text",{"text-anchor":"middle","dominant-baseline":"central",
+      "font-size":15,"font-weight":700,
+      fill:side === "blue" ? "#7E8B9C" : "#948375","letter-spacing":3.5,
+      "font-family":"Barlow Condensed, Arial Narrow, sans-serif"});
+    lbl.textContent = "OUT OF BOUNDS";
+    const badge = mk("rect",{rx:7,fill:"#F2F4F1",stroke:"#5C665F","stroke-width":1.5});
+    const btxt = mk("text",{"text-anchor":"middle","dominant-baseline":"central",
+      "font-size":16,"font-weight":700,fill:"#141A16",
+      "letter-spacing":2.2,"font-family":"Barlow Condensed, Arial Narrow, sans-serif"});
+    g.appendChild(r); g.appendChild(lbl); g.appendChild(badge); g.appendChild(btxt);
+    g.addEventListener("click", () => { setOurSide(side); logEvent("our_side", {side}); });
+    svg.appendChild(g);
+    SC.oob[side] = {g, r, lbl, badge, btxt};
+  });
+  SC.goal = mk("polygon",{fill:"#1B5E3A","fill-opacity":.14});
+  SC.goalT = mk("text",{"text-anchor":"middle","font-size":30,"font-weight":700,
+    fill:"#1B5E3A","letter-spacing":6,
+    "font-family":"Barlow Condensed, Arial Narrow, sans-serif"});
+  SC.goalT.textContent = "GOAL";
+  SC.washL = mk("polygon",{fill:"#1D6FD0","fill-opacity":.075});
+  SC.washR = mk("polygon",{fill:"#E4610F","fill-opacity":.075});
+  svg.appendChild(SC.washL); svg.appendChild(SC.washR);
+  svg.appendChild(SC.goal); svg.appendChild(SC.goalT);
+
+  [5,10].forEach(() => { const l = mk("line",{stroke:"#C8D0C9","stroke-width":2,
+    "stroke-dasharray":"7 9"}); SC.yard.push(l); svg.appendChild(l); });
+  SC.los = mk("line",{stroke:"#8A948C","stroke-width":4}); svg.appendChild(SC.los);
+  SC.side.blue = mk("line",{stroke:"#1D6FD0","stroke-width":11,"stroke-linecap":"round"});
+  SC.side.orange = mk("line",{stroke:"#E4610F","stroke-width":11,"stroke-linecap":"round"});
+  svg.appendChild(SC.side.blue); svg.appendChild(SC.side.orange);
+
+  const p = S.play;
+  p.paths.forEach((path, i) => {
+    const g = {};
+    const col = {route:"#232B26",run:"#127A4D",motion:"#C9700D",handoff:"#5B6472",
+                 fake:"#127A4D"}[path.type];
+    g.line = mk("polyline",{fill:"none",stroke:col,
+      "stroke-width": path.type === "run" ? 8 : 6,
+      "stroke-linejoin":"round","stroke-linecap":"round",
+      "stroke-dasharray": (path.type === "motion" ? "16 11" : path.type === "handoff" ? "13 9"
+                          : path.type === "fake" ? "17 11" : "")});
+    if ((path.end || "arrow") !== "bar") g.line.setAttribute("marker-end", `url(#a-${path.type})`);
+    else g.bar = mk("line",{stroke:col,"stroke-width":6,"stroke-linecap":"round"});
+    svg.appendChild(g.line); if (g.bar) svg.appendChild(g.bar);
+    SC.paths.push(g);
+  });
+
+  SC.ring = mk("circle",{fill:"none",stroke:"#FFC400","stroke-width":6,opacity:0});
+  svg.appendChild(SC.ring);
+
+  for (const key in p.spots){
+    const sp = p.spots[key];
+    const g = mk("g");
+    g.style.cursor = "pointer";
+    const halo = mk("circle",{r:33,fill:"none",stroke:"#FFC400","stroke-width":5,opacity:0});
+    // shape carries the role, so identity does not depend on reading a letter
+    const role = sp.name === "SNAPPER" ? "snap" : sp.name === "THROWER" ? "throw"
+               : sp.name === "BACK" ? "back" : "wr";
+    const shape = role === "wr" ? mk("circle",{r:12.5})
+                : mk(role === "snap" ? "rect" : "polygon", {});
+    shape.setAttribute("stroke-width", 4);
+    // No letters on the markers, in either stage. "W" and "SN" mean nothing to
+    // a 7-year-old — he knows he is WIDE BLUE. Shape says what kind of job,
+    // colour says which side, and the words underneath say it out loud.
+    // paint-order:stroke draws the halo behind the glyphs, so a route line
+    // running under a name does not turn it to mush
+    const lbl = () => mk("text",{"text-anchor":"middle","font-weight":800,"font-size":17,
+      "font-family":"Barlow Condensed, Arial Narrow, sans-serif","letter-spacing":.6,
+      "paint-order":"stroke", stroke:"#F7F9F6", "stroke-width":3.5,
+      "stroke-linejoin":"round"});
+    const l1 = lbl(), l2 = lbl();
+    g.appendChild(halo); g.appendChild(shape);
+    g.appendChild(l1); g.appendChild(l2);
+    g.addEventListener("click", () => {
+      S.hintSeen = true;
+      S.solo = (S.solo === key) ? null : key;
+      if (S.solo) logEvent("solo", {play: S.play.id, spot: key,
+                                    name: S.play.spots[key].name});
+      renderCalls(); syncRail();
+    });
+    svg.appendChild(g);
+    SC.players[key] = {g, shape, halo, l1, l2, role};
+  }
+
+  SC.ball = mk("g");
+  SC.ball.appendChild(mk("circle",{r:15,fill:"#FFC400",stroke:"#141A16","stroke-width":3.5}));
+  svg.appendChild(SC.ball);
+}
+
+/* ------------------------------------------------------------ frame */
+function frame(now){
+  requestAnimationFrame(frame);
+  paintClock();
+  if (S.screen !== "play" || !SC) return;
+
+  const k = REDUCED ? 1 : 0.085;
+  const wasMirrored = mAnim > 0.5;
+  mAnim += (mTarget - mAnim) * k;
+  if (Math.abs(mTarget - mAnim) < 0.001) mAnim = mTarget;
+  if ((mAnim > 0.5) !== wasMirrored) renderCalls();
+
+  const p = S.play, tl = S.tl;
+  const running = S.stage === "run";
+  const t = running ? (now - S.t0) % tl.tEnd : 0;
+
+  // field
+  const bt = F2S(-EDGE, 15), bb = F2S(EDGE, -6.5);
+  SC.base.setAttribute("x", bt[0]); SC.base.setAttribute("y", bt[1]);
+  SC.base.setAttribute("width", bb[0] - bt[0]); SC.base.setAttribute("height", bb[1] - bt[1]);
+  const half = [[-EDGE,-6.5],[0,-6.5],[0,15],[-EDGE,15]];
+  SC.washL.setAttribute("points", half.map(fpt).join(" "));
+  SC.washR.setAttribute("points", half.map(q => fpt([-q[0], q[1]])).join(" "));
+  SC.goal.setAttribute("points",
+    [[-EDGE,13.3],[EDGE,13.3],[EDGE,15],[-EDGE,15]].map(fpt).join(" "));
+  const gt = F2S(0, 14.15);
+  SC.goalT.setAttribute("x", gt[0]); SC.goalT.setAttribute("y", gt[1] + 10);
+  [5,10].forEach((yv, i) => {
+    const a = F2S(-EDGE, yv), b = F2S(EDGE, yv);
+    SC.yard[i].setAttribute("x1",a[0]); SC.yard[i].setAttribute("y1",a[1]);
+    SC.yard[i].setAttribute("x2",b[0]); SC.yard[i].setAttribute("y2",b[1]);
+  });
+  const la = F2S(-EDGE,0), lb = F2S(EDGE,0);
+  SC.los.setAttribute("x1",la[0]); SC.los.setAttribute("y1",la[1]);
+  SC.los.setAttribute("x2",lb[0]); SC.los.setAttribute("y2",lb[1]);
+  [["blue",-EDGE],["orange",EDGE]].forEach(([nm,xv]) => {
+    const a = F2S(xv,-6.5), b = F2S(xv,15), e = SC.side[nm];
+    e.setAttribute("x1",a[0]); e.setAttribute("y1",a[1]);
+    e.setAttribute("x2",b[0]); e.setAttribute("y2",b[1]);
+  });
+  // out-of-bounds strips, sideline labels, parents badge
+  [["blue",-1],["orange",1]].forEach(([nm,dir]) => {
+    const o = SC.oob[nm];
+    const inner = F2S(dir * EDGE, 15)[0];
+    // bleed into the letterbox so the strip runs to the edge of the screen —
+    // and centre the labels on that whole visible band, not on the viewBox slice
+    const ox = SC.overX, oy = SC.overY;
+    const x = dir < 0 ? -ox : inner;
+    const w = dir < 0 ? inner + ox : VB_W - inner + ox;
+    o.r.setAttribute("x", x); o.r.setAttribute("y", -oy);
+    o.r.setAttribute("width", Math.max(0, w));
+    o.r.setAttribute("height", VB_H + 2 * oy);
+    const cx = x + w / 2, ours = ourSide === nm;
+    o.lbl.setAttribute("transform", `translate(${cx} ${VB_H*0.76}) rotate(${dir<0?-90:90})`);
+    o.lbl.setAttribute("opacity", .8);
+    o.btxt.textContent = ours ? "OUR SIDE" : "THEIR SIDE";
+    const h = ours ? 132 : 152;
+    o.badge.setAttribute("x", cx - 16); o.badge.setAttribute("y", VB_H*0.30 - h/2);
+    o.badge.setAttribute("width", 32); o.badge.setAttribute("height", h);
+    o.badge.setAttribute("fill", ours ? "#F2F4F1" : "none");
+    o.badge.setAttribute("stroke", ours ? "none" : "#4B554E");
+    o.btxt.setAttribute("fill", ours ? "#141A16" : "#8B978D");
+    o.btxt.setAttribute("transform",
+      `translate(${cx} ${VB_H*0.30}) rotate(${dir<0?-90:90})`);
+  });
+
+  // routes
+  p.paths.forEach((path, i) => {
+    const g = SC.paths[i], seg = tl.paths[i];
+    const prog = running ? Math.max(0, Math.min(1, (t - seg.start) / seg.dur)) : 0;
+    let op = 0;
+    if (prog > 0){
+      op = p.jobs.includes(path.who) ? 1 : 0.34;
+      if (S.solo) op = (path.who === S.solo) ? 1 : 0.07;
+    }
+    g.line.setAttribute("opacity", op);
+    if (g.bar) g.bar.setAttribute("opacity", op);
+    if (prog <= 0) return;
+    const w = walk(path.pts, prog);
+    g.line.setAttribute("points", w.pts.map(pt).join(" "));
+    if (g.bar && prog > 0.985){
+      const n = w.pts.length, a = w.pts[n-2] || w.pts[0], b = w.pts[n-1];
+      const dx = b[0]-a[0], dy = b[1]-a[1], d = Math.hypot(dx,dy) || 1;
+      const nx = -dy/d*0.45, ny = dx/d*0.45;
+      const s1 = W2S(b[0]-nx, b[1]-ny), s2 = W2S(b[0]+nx, b[1]+ny);
+      g.bar.setAttribute("x1",s1[0]); g.bar.setAttribute("y1",s1[1]);
+      g.bar.setAttribute("x2",s2[0]); g.bar.setAttribute("y2",s2[1]);
+    } else if (g.bar) g.bar.setAttribute("opacity", 0);
+  });
+
+  // players
+  const lining = !running;                       // LINE UP stage
+  const R = lining ? 17 : 12.5;
+  for (const key in SC.players){
+    const sp = p.spots[key], P = SC.players[key], c = W2S(sp.x, sp.y);
+    P.g.setAttribute("transform", `translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})`);
+
+    const sd = sideOf(key);
+    const stroke = SIDE[sd];
+    const fill = sd === "none" ? "#fff" : sd === "blue" ? "#E8F1FC" : "#FDEEE4";
+    if (P.role === "wr"){                         // receiver — circle
+      P.shape.setAttribute("r", R);
+    } else if (P.role === "back"){                // back — diamond
+      const d = R * 1.24;
+      P.shape.setAttribute("points", `0,${-d} ${d},0 0,${d} ${-d},0`);
+    } else if (P.role === "throw"){               // thrower — hexagon
+      const d = R * 1.16;
+      P.shape.setAttribute("points",
+        [0,60,120,180,240,300].map(a => {
+          const r = a * Math.PI / 180;
+          return `${(Math.sin(r)*d).toFixed(1)},${(-Math.cos(r)*d).toFixed(1)}`;
+        }).join(" "));
+    } else {                                      // snapper — square
+      const w = R * 1.82;
+      P.shape.setAttribute("x", -w/2); P.shape.setAttribute("y", -w/2);
+      P.shape.setAttribute("width", w); P.shape.setAttribute("height", w);
+      P.shape.setAttribute("rx", 3);
+    }
+    P.shape.setAttribute("fill", fill);
+    P.shape.setAttribute("stroke", stroke);
+
+    P.halo.setAttribute("r", R + 8);
+    P.halo.setAttribute("opacity",
+      S.solo ? (S.solo === key ? 1 : 0) : (key === p.primary ? 0.95 : 0));
+
+    // Same words in both stages. Lining up there is room for the whole name on
+    // two lines; once six kids are moving, two-line labels collide with each
+    // other and with the routes, so it drops to the first word — the colour of
+    // the marker and of the text is already saying BLUE or ORANGE.
+    const words = sideName(key).split(" ");
+    P.l1.textContent = words[0];
+    P.l2.textContent = lining ? (words[1] || "") : "";
+    const twoLine = lining && !!words[1];
+    // players in the backfield get their name above, so it never runs off the edge
+    const above = sp.y < -2.5;
+    if (above){
+      P.l1.setAttribute("y", -(R + (twoLine ? 24 : 9)));
+      P.l2.setAttribute("y", -(R + 7));
+    } else {
+      P.l1.setAttribute("y", R + 20); P.l2.setAttribute("y", R + 37);
+    }
+    [P.l1, P.l2].forEach(t => t.setAttribute("fill", sd === "none" ? "#141A16" : stroke));
+
+    P.g.setAttribute("opacity", S.solo ? (S.solo === key ? 1 : 0.22) : 1);
+  }
+
+  // ball
+  const b = tl.ball;
+  let show = false, bp = null;
+  if (running && !S.solo){
+    if (b.mode === "carry"){
+      const seg = tl.paths[b.pathIdx];
+      const prog = Math.max(0, Math.min(1, (t - seg.start) / seg.dur));
+      if (t >= seg.start){ bp = walk(p.paths[b.pathIdx].pts, prog).end; show = true; }
+    } else {
+      const path = p.paths[b.pathIdx], seg = tl.paths[b.pathIdx];
+      const src = [p.spots.QB.x, p.spots.QB.y];
+      const dst = path.pts[path.pts.length - 1];
+      if (t >= b.start){
+        const f = Math.max(0, Math.min(1, (t - b.start) / b.dur));
+        const mid = [(src[0]+dst[0])/2, (src[1]+dst[1])/2];
+        const dx = dst[0]-src[0], dy = dst[1]-src[1], d = Math.hypot(dx,dy) || 1;
+        const ctrl = [mid[0] - dy/d*d*0.16, mid[1] + dx/d*d*0.16];
+        bp = qbez(src, ctrl, dst, f); show = true;
+      }
+    }
+  }
+  if (show && bp){
+    const s = W2S(bp[0], bp[1]);
+    SC.ball.setAttribute("transform", `translate(${s[0]} ${s[1]})`);
+    SC.ball.setAttribute("opacity", 1);
+    const done = (b.mode === "carry")
+      ? t > tl.paths[b.pathIdx].start + tl.paths[b.pathIdx].dur
+      : t > b.start + b.dur;
+    if (done){
+      const ph = 1 + 0.35 * Math.sin(t / 130);
+      SC.ring.setAttribute("cx", s[0]); SC.ring.setAttribute("cy", s[1]);
+      SC.ring.setAttribute("r", 26 * ph);
+      SC.ring.setAttribute("opacity", 0.85);
+    } else SC.ring.setAttribute("opacity", 0);
+  } else {
+    SC.ball.setAttribute("opacity", 0);
+    SC.ring.setAttribute("opacity", 0);
+  }
+}
+
+/* ------------------------------------------------------------ full screen
+   A page cannot hide Chrome's address bar in an ordinary tab — only an
+   installed launch (display:fullscreen) or the Fullscreen API can. So: offer
+   the button when we are NOT already immersive, and hide it when we are.
+   Orientation lock is also gated on fullscreen/installed, which is why it
+   silently did nothing in a tab.                                            */
+function isImmersive(){
+  return matchMedia("(display-mode: fullscreen)").matches
+      || matchMedia("(display-mode: standalone)").matches
+      || matchMedia("(display-mode: minimal-ui)").matches
+      || navigator.standalone === true
+      || !!document.fullscreenElement;
+}
+function canFullscreen(){
+  return !!(document.documentElement.requestFullscreen
+         || document.documentElement.webkitRequestFullscreen);
+}
+async function goFullscreen(){
+  const el = document.documentElement;
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await (el.requestFullscreen ? el.requestFullscreen({navigationUI: "hide"})
+                                     : el.webkitRequestFullscreen());
+  } catch(e){}
+  try { await screen.orientation.lock("landscape"); } catch(e){}
+  logEvent("fullscreen", {on: !!document.fullscreenElement});
+  if (S.screen === "deck") renderDeck();
+}
+addEventListener("fullscreenchange", () => { if (S.screen === "deck") renderDeck(); });
+
+/* ------------------------------------------------ update from the server
+   Service workers only exist over http(s); opened as a local file this whole
+   block is skipped and the app still runs, just without update checks.      */
+let updateReady = false, swWaiting = null;
+function applyUpdate(){
+  if (swWaiting) swWaiting.postMessage({type: "SKIP_WAITING"});
+}
+function markUpdate(worker){
+  swWaiting = worker; updateReady = true;
+  logEvent("update_ready");
+  if (S.screen === "deck") renderDeck();      // never interrupt a live play
+}
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  navigator.serviceWorker.register("./sw.js").then(reg => {
+    if (reg.waiting) markUpdate(reg.waiting);
+    reg.addEventListener("updatefound", () => {
+      const nw = reg.installing;
+      if (!nw) return;
+      nw.addEventListener("statechange", () => {
+        if (nw.state === "installed" && navigator.serviceWorker.controller) markUpdate(nw);
+      });
+    });
+    // look for a new build whenever the coach comes back to the app
+    addEventListener("visibilitychange", () => {
+      if (!document.hidden) reg.update().catch(() => {});
+    });
+  }).catch(() => {});
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
+  });
+}
+
+/* ------------------------------------------------------------ boot */
+async function keepAwake(){
+  try { if ("wakeLock" in navigator) await navigator.wakeLock.request("screen"); } catch(e){}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") keepAwake();
+});
+// only meaningful once installed or fullscreen; harmless otherwise
+try { if (isImmersive() && screen.orientation && screen.orientation.lock)
+        screen.orientation.lock("landscape").catch(() => {}); } catch(e){}
+logEvent("session_start", {build: APP_BUILD, w0: SESSION.w0,
+  tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || ""),
+  tzOffMin: new Date().getTimezoneOffset(),
+  deck: deck.slice(), cfg: Object.assign({}, cfg)});
+keepAwake();
+renderDeck();
+requestAnimationFrame(frame);
+</script>
