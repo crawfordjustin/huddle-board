@@ -24,6 +24,9 @@ updates and can install to the home screen. `dist/deploy/README.md` has the
 per-host setup; the short version is serve `.webmanifest` with the right MIME
 type and don't cache `index.html` or `sw.js`.
 
+Pushes to `master` build and deploy themselves — see
+`.github/workflows/deploy.yml`.
+
 ## Work on it
 
 Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download). Open

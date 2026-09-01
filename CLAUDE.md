@@ -228,6 +228,41 @@ Service. Publishing runs the build first and stages `dist/deploy/` into
 `wwwroot`, and the host applies the same two rules the generated `web.config`
 applies. Either route works; the static one has fewer moving parts.
 
+### The pipeline
+
+`.github/workflows/deploy.yml` deploys every push to `master` to the
+`huddleboard` App Service (`rg-default`, westus2, Windows). It runs `check`,
+runs `build`, and zip-deploys `dist/HuddleBoard-deploy.zip` — the artifact the
+build already produces, which is exactly `dist/deploy/` flattened, `web.config`
+included. Nothing in `dist/` is committed, so CI builds it from source.
+
+The deploy is gated on `check`, not on `dotnet test`. That is a deliberate
+trade for a fast sideline fix; the browser suite still has to be run by hand
+before anything that touches layout, storage or the service worker.
+
+CI stamps `HB_VERSION` as `yyyy.MM.dd-HHmm+<short sha>`. That string is the
+service worker's cache name and the version on the deck note, so it has to
+change on every deploy — a repeated version means tablets keep the old build.
+
+Auth is OIDC, so there is no Azure credential in this repository. The Entra app
+registration `huddle-board-github-deploy` holds a federated credential and holds
+Website Contributor scoped to the `huddleboard` site alone — not the resource
+group, not the subscription. GitHub stores only three identifiers, as repository
+*variables* — `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` —
+because they are not secrets and a failed login is easier to read unmasked.
+
+**The trust is bound to the environment, not the branch.** Because the job
+declares `environment: production`, GitHub presents the subject claim
+`repo:crawfordjustin/huddle-board:environment:production` — the `ref:refs/heads/...`
+form a branch-scoped credential would match is never sent. That caught us once
+already. The branch restriction is real but it lives on the GitHub side: the
+`production` environment has a deployment branch policy allowing only `master`.
+So there are two things to keep in step, and removing `environment:` from the
+workflow breaks the login outright.
+
+Publish profiles do not work here at all — SCM basic publishing credentials are
+disabled on the app, which is the Azure default and worth leaving alone.
+
 `dist/HuddleBoard.html` is the whole app in one file for a tablet with no
 network at all.
 
