@@ -41,9 +41,14 @@ app.UseStaticFiles(staticFiles);
 
 app.Run();
 
-// Development serves dist/deploy straight from the repo, so rebuilding the app
-// and refreshing the tab is the whole loop. A published site has the same files
-// copied into wwwroot.
+// Running from the repo serves dist/deploy, and rebuilds it first — every time,
+// not just when it is missing. F5 has to show the source you have right now; a
+// host that serves the previous build after you edit a play is worse than no
+// host at all, because it lies quietly. The build takes a few hundred
+// milliseconds, which is not worth being clever about.
+//
+// A published site has no repository above it, so the same files sit in wwwroot
+// and are served as they were staged at publish time.
 static string ResolveSiteRoot(WebApplication app)
 {
     string deploy;
@@ -53,15 +58,14 @@ static string ResolveSiteRoot(WebApplication app)
     }
     catch (InvalidOperationException)
     {
-        // published: there is no repository above us, so the files are in wwwroot
         return Path.Combine(app.Environment.ContentRootPath, "wwwroot");
     }
 
-    if (!Pipeline.IsBuilt)
+    if (Pipeline.Build(output: TextWriter.Null) != 0)
     {
-        app.Logger.LogInformation("no build in dist/ yet — building it");
-        if (Pipeline.Build(output: TextWriter.Null) != 0)
-            throw new InvalidOperationException("the build failed — run `check` to see why");
+        throw new InvalidOperationException(
+            "the play library failed its checks, so the site was not rebuilt — "
+            + "run `check` to see what is wrong");
     }
 
     return deploy;
