@@ -6,5 +6,11 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- MIT, across every project. Nothing here is packed today, but a licence
+         expression costs nothing and a mislabelled package is hard to recall. -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 Justin Crawford</Copyright>
+    <Authors>Justin Crawford</Authors>
   </PropertyGroup>
 </Project>

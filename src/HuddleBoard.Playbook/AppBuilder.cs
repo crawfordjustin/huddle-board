@@ -18,8 +18,41 @@ namespace HuddleBoard.Playbook;
 /// </remarks>
 public static class AppBuilder
 {
+    /// <summary>
+    /// The licence rides in the file. HuddleBoard.html is the redistributable —
+    /// somebody is going to end up with nothing but that one file on a tablet,
+    /// and they should still be able to see what they are allowed to do with it.
+    /// </summary>
+    private const string Licence = """
+        <!--
+          Huddle Board — a sideline play tool for 8U flag football.
+          Copyright (c) 2026 Justin Crawford. MIT licence.
+
+          Permission is hereby granted, free of charge, to any person obtaining a
+          copy of this software and associated documentation files (the "Software"),
+          to deal in the Software without restriction, including without limitation
+          the rights to use, copy, modify, merge, publish, distribute, sublicense,
+          and/or sell copies of the Software, and to permit persons to whom the
+          Software is furnished to do so, subject to the following conditions:
+
+          The above copyright notice and this permission notice shall be included in
+          all copies or substantial portions of the Software.
+
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+          FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+          DEALINGS IN THE SOFTWARE.
+
+          Source: https://github.com/crawfordjustin/huddle-board
+        -->
+        """;
+
     private const string Head = """
         <!doctype html>
+        __LICENCE__
         <html lang="en">
         <head>
         <meta charset="utf-8">
@@ -238,7 +271,8 @@ public static class AppBuilder
             .Replace("__INTRO_ART__", art.DataUri, StringComparison.Ordinal)
             .Replace("__VERSION__", version, StringComparison.Ordinal);
 
-        var page = Head + src + "\n</body>\n</html>\n";
+        var page = Head.Replace("__LICENCE__", Licence, StringComparison.Ordinal)
+                 + src + "\n</body>\n</html>\n";
 
         Workspace.WriteText(Path.Combine(dist, "huddle_artifact.html"), src);
         Workspace.WriteText(Path.Combine(dist, "HuddleBoard.html"), page);
@@ -250,6 +284,9 @@ public static class AppBuilder
         Workspace.WriteText(Path.Combine(deploy, "staticwebapp.config.json"), StaticWebApp());
         Workspace.WriteText(Path.Combine(deploy, "_headers"), Headers);
         Workspace.WriteText(Path.Combine(deploy, "README.md"), DeployReadme.For(version));
+        // the zip is a complete redistributable, so the licence goes in it
+        Workspace.WriteText(Path.Combine(deploy, "LICENSE.txt"),
+            Read(Path.Combine(Workspace.Root, "LICENSE")));
 
         var zipPath = Path.Combine(dist, "HuddleBoard-deploy.zip");
         var files = Directory.GetFiles(deploy).Select(Path.GetFileName)

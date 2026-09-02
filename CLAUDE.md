@@ -374,6 +374,22 @@ network at all.
 Full deploy notes, including how to get it onto a coach's tablet and lose the
 address bar, are generated into `dist/deploy/README.md`.
 
+## Licence
+
+MIT, and deliberately plain MIT — copy it, fork it, sell it with your changes,
+no attribution beyond keeping the notice with the copy. An extra clause bolted
+on would be a different licence wearing the MIT name, which is worse than
+choosing a different licence outright, so `LicenceChecks` asserts the text is
+unmodified and that no non-commercial, share-alike, patent or trademark wording
+has crept in.
+
+The licence travels with the thing being licensed. Neither shipping form carries
+the repository with it — a coach hands another coach one HTML file, or a zip
+lands on somebody's static host — so `AppBuilder` inlines the notice into both
+pages after the doctype (never before it: content ahead of the doctype is the
+classic route into quirks mode) and writes `LICENSE.txt` into `dist/deploy/`.
+`art/intro-art.png` ships under the same terms as the code.
+
 ## Out of scope (decided, not forgotten)
 
 - **Coach-authored plays.** The library grows by editing `PlaysMore.cs`, not

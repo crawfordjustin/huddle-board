@@ -21,7 +21,7 @@ internal static class DeployReadme
         `/home/site/wwwroot` on Linux). Any of these work:
 
         * **Zip deploy** — `az webapp deploy --resource-group <rg> --name <app> --src-path deploy.zip --type zip`
-        * **FTPS** — upload the six files
+        * **FTPS** — upload the whole folder
         * **GitHub Actions** — point `azure/webapps-deploy` at this folder
 
         ## Any static host works — the config for each is included
@@ -102,6 +102,14 @@ internal static class DeployReadme
         | `manifest.webmanifest` | name, icons, landscape, standalone launch |
         | `icon-*.png` | home screen icons |
         | `web.config` | IIS MIME types and cache headers |
+        | `LICENSE.txt` | MIT |
+
+        ## Licence
+
+        MIT. Copy it, fork it, put your own plays in it, put your team's name on it,
+        ship it to your league, sell it with your changes. Keep `LICENSE.txt` with the
+        copy and there is nothing else to ask for. Source and history are at
+        <https://github.com/crawfordjustin/huddle-board>.
 
         """;
 }

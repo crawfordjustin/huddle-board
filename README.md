@@ -1,5 +1,7 @@
 # Huddle Board
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 A sideline play tool for 8U flag football — 6-on-6, no blocking, rusher seven
 yards back, run and no-run zones.
 
@@ -55,6 +57,8 @@ sheet — as PDFs. The first test or print run downloads Chromium for Playwright
 | `src/HuddleBoard.Build` | the command line |
 | `src/HuddleBoard.Web` | an ASP.NET Core host for F5 and for Azure |
 | `tests/HuddleBoard.Tests` | verification — real browser, five tablet shapes |
+| `art/intro-art.png` | the intro illustration; swap the file and rebuild |
+| `LICENSE` | MIT |
 
 **`CLAUDE.md` is the file to read before changing anything.** It has the design
 rules that are load-bearing, the coordinate system, how to add a play, and the
@@ -67,3 +71,16 @@ a coach has forty seconds, six children, and one of them has never played
 before. So: no left and right, no letters on the field, one default rule that
 covers any kid who forgets his job, and a deck small enough to find a play
 without looking.
+
+## License
+
+[MIT](LICENSE). Copy it, fork it, put your own plays in it, put your team's name
+on it, ship it to your league, sell it with your changes. No attribution beyond
+keeping the licence text with the copy, no share-alike, no field-of-use
+restriction, nothing to ask permission for.
+
+The whole project is covered — the app, the play library, the checker, the build
+and the print documents. `art/intro-art.png` ships under the same terms.
+
+If it turns out to be useful to somebody else's eight-year-olds, that is the
+entire point.
