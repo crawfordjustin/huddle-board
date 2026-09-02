@@ -86,6 +86,21 @@ internal static class DeployReadme
         It swaps only when they tap it — never mid-play. The version is shown at the
         bottom of the Settings screen.
 
+        ## Keeping assistant coaches' tablets in step
+
+        Tablets do not talk to each other, and the sideline has no network, so a
+        tablet's choices travel as one small file. On the tablet that has it right:
+        Setup → **Sync tablets** → **Export**. The share sheet opens; pick **Quick
+        Share** and the tablet next to you, which works over Bluetooth with the radio
+        otherwise off. On that tablet: Setup → **Sync tablets** → **Import**, and pick
+        the file it just received (it lands in Downloads, named `huddle-setup-<date>.json`).
+
+        The file carries the deck, every custom play name, every setting and which
+        sideline is ours. Import replaces all of those with the file's — the point is
+        two tablets that agree. Each tablet's game log is its own and is never
+        touched. If the share sheet is not available, Export saves the file to
+        Downloads instead, and you can move it any way you like.
+
         ## Running it without a server
 
         `HuddleBoard.html` is the whole app in one file. Copy it to a tablet and open

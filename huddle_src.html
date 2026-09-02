@@ -113,6 +113,9 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   text-transform:uppercase;letter-spacing:.01em;line-height:1.05;color:#EDF0EC}
 .setlab span{display:block;font-size:clamp(10px,1.6vh,14px);color:#8E9A91;
   line-height:1.35;margin-top:4px;max-width:52ch}
+/* what just happened on this row — the one line of Setup that is an answer,
+   not a description, so it is the one line that is not grey */
+.setlab .setmsg{display:block;color:#EDF0EC;font-style:normal;margin-bottom:3px}
 .seg{display:flex;gap:6px;flex:none}
 .seg button{font-family:var(--disp);font-size:clamp(14px,2.3vh,21px);text-transform:uppercase;
   letter-spacing:.04em;min-width:clamp(56px,6vw,80px);min-height:52px;border-radius:9px;
@@ -609,6 +612,10 @@ addEventListener("pagehide", flushLog);
 // install picks up this default.
 const CFG_DEFAULTS = {v:1, clockSecs:40, warnAt:10, vibrate:true, showClock:true,
                       funNames:false};
+// Every value a setting can take. Setup's buttons are drawn from this and a
+// setup file from another tablet is checked against it, so the two cannot drift.
+const CFG_CHOICES = {clockSecs:[25,30,40,45], warnAt:[5,10,15], vibrate:[true,false],
+                     showClock:[true,false], funNames:[true,false]};
 let cfg = Object.assign({}, CFG_DEFAULTS);
 try {
   const saved = JSON.parse(localStorage.getItem("hb.settings") || "null");
@@ -668,6 +675,110 @@ function resetEverything(){
   stopClock();
   clk = {at:0, running:false, warned:false, expired:false};
   flushLog();
+}
+
+/* ---------------------------------------------------------- sync tablets
+   Assistant coaches carry their own tablets and the sideline has no network,
+   so a tablet's choices travel as one small file: the deck, every custom
+   name, every setting, and which sideline is ours. Export hands the file to
+   Android's share sheet — Quick Share reaches the tablet next to you over
+   Bluetooth with the radio otherwise off — and Import on that tablet reads it
+   back from Files. Import REPLACES rather than merges: the point is two
+   tablets that agree, and a merge would be a third deck neither coach chose.
+   The game log stays put, for the same reason Start over leaves it alone —
+   it is a recording of this tablet, not a preference to hand around. Nothing
+   in the file is trusted: play ids are checked against the library, settings
+   against CFG_CHOICES, names go through the same tidy-and-compare as typing. */
+const SETUP_FORMAT = "huddleboard.setup";
+function setupBlob(){
+  const settings = {};
+  for (const k of Object.keys(CFG_CHOICES)) settings[k] = cfg[k];
+  return JSON.stringify({
+    format: SETUP_FORMAT, v: 1, build: APP_BUILD, device: devId, exportedWall: Date.now(),
+    deck: deck.slice(), names, settings, ourSide,
+  });
+}
+// The file, read with suspicion. Returns what will be applied plus a count of
+// what was not recognised; throws when it is not a setup file at all.
+function readSetup(text){
+  let o = null;
+  try { o = JSON.parse(text); } catch(e){}
+  if (!o || o.format !== SETUP_FORMAT || o.v !== 1) throw new Error("not a setup file");
+  const known = id => typeof id === "string" && DATA.plays.some(p => p.id === id);
+  const s = {deck:[], names:{}, settings:{}, ourSide:null, dropped:0};
+  if (Array.isArray(o.deck)) for (const id of o.deck){
+    if (known(id) && !s.deck.includes(id)) s.deck.push(id); else s.dropped++;
+  }
+  if (o.names && typeof o.names === "object") for (const id of Object.keys(o.names)){
+    const n = o.names[id];
+    if (!known(id) || !n || typeof n !== "object"){ s.dropped++; continue; }
+    s.names[id] = {coach: typeof n.coach === "string" ? n.coach : "",
+                   kid:   typeof n.kid   === "string" ? n.kid   : ""};
+  }
+  const st = o.settings && typeof o.settings === "object" ? o.settings : {};
+  for (const k of Object.keys(CFG_CHOICES)){
+    if (CFG_CHOICES[k].includes(st[k])) s.settings[k] = st[k]; else s.dropped++;
+  }
+  if (o.ourSide === "blue" || o.ourSide === "orange") s.ourSide = o.ourSide; else s.dropped++;
+  return s;
+}
+function applySetup(s){
+  if (s.deck.length){ deck = s.deck.slice(); saveDeck(); } else s.dropped++;
+  names = {};
+  for (const id of Object.keys(s.names)) setNames(id, s.names[id].coach, s.names[id].kid);
+  saveNames();
+  cfg = Object.assign({}, CFG_DEFAULTS, s.settings); saveCfg();
+  if (s.ourSide) setOurSide(s.ourSide);
+  S.hintSeen = false;
+  stopClock();
+  clk = {at:0, running:false, warned:false, expired:false};
+  logEvent("sync_import", {deck: deck.slice(), renamed: renamedCount(), dropped: s.dropped});
+  flushLog();
+}
+let syncMsg = "";                 // shown once on the Sync row, then gone
+async function exportSetup(btn){
+  const text = setupBlob(),
+        name = "huddle-setup-" + new Date().toISOString().slice(0, 10) + ".json";
+  logEvent("sync_export", {deck: deck.slice(), renamed: renamedCount()});
+  let done = "";
+  try {                                    // best: the share sheet, Quick Share on it
+    const f = new File([text], name, {type: "application/json"});
+    if (navigator.canShare && navigator.canShare({files: [f]})){
+      await navigator.share({files: [f], title: "Huddle Board setup"});
+      done = "Shared";
+    }
+  } catch(e){                              // the coach closed the sheet: not a failure
+    if (e && e.name === "AbortError") done = "Export";
+  }
+  if (!done){
+    try {                                  // otherwise it lands in Downloads
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], {type: "application/json"}));
+      a.download = name; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      done = "Saved";
+    } catch(e){ done = "Failed"; }
+  }
+  btn.textContent = done;
+  setTimeout(() => { if (btn.isConnected) btn.textContent = "Export"; }, 1800);
+}
+async function importSetup(file){
+  let text = "";
+  try { text = await file.text(); } catch(e){}
+  let s = null;
+  try { s = readSetup(text); } catch(e){}
+  if (!s){
+    syncMsg = "That is not a Huddle Board setup file. Nothing was changed.";
+  } else {
+    applySetup(s);
+    const parts = [`${deck.length}-play deck`,
+                   `${renamedCount()} renamed play${renamedCount() === 1 ? "" : "s"}`,
+                   "settings", `${ourSide.toUpperCase()} sideline`];
+    const d = s.dropped;
+    syncMsg = "Imported: " + parts.join(", ") + "." +
+      (d ? ` ${d} thing${d === 1 ? "" : "s"} in the file ${d === 1 ? "was" : "were"} not recognised and skipped.` : "");
+  }
+  renderSettings();
 }
 
 /* ------------------------------------------------------------ play clock */
@@ -1135,11 +1246,13 @@ function confirmTap(id, label, act){
 
 function renderSettings(){
   S.screen = "settings";
+  const msg = syncMsg; syncMsg = "";        // shown once, on the render right after
+  const secs = k => CFG_CHOICES[k].map(s => [s, s + "s"]);
   const rows = [
     ["Clock length", "How long the referee gives you after the whistle. Check your league — 25 and 30 are both common.",
-     seg("clockSecs", [[25,"25s"],[30,"30s"],[40,"40s"],[45,"45s"]])],
+     seg("clockSecs", secs("clockSecs"))],
     ["Warn me at", "When the clock turns amber and buzzes once.",
-     seg("warnAt", [[5,"5s"],[10,"10s"],[15,"15s"]])],
+     seg("warnAt", secs("warnAt"))],
     ["Buzz the tablet", "A short buzz at the warning and a triple at zero, so you do not have to look.",
      seg("vibrate", [[true,"On"],[false,"Off"]])],
     ["Play names", "BULLDOZER or 22 DIVE. Fun names stick with the kids; real names are what you say to another coach.",
@@ -1150,6 +1263,14 @@ function renderSettings(){
      `<div class="seg"><button id="nmreset" ${renamedCount() ? "" : "disabled"}>Reset all</button></div>`],
     ["Show the clock", "Turn it off entirely if your league does not run one.",
      seg("showClock", [[true,"On"],[false,"Off"]])],
+    ["Sync tablets", `${msg ? `<em class="setmsg" id="syncmsg">${esc(msg)}</em>` : ""}Assistant
+      coaches' tablets do not talk to each other, so carry your choices across as one file: the
+      deck, your own names, every setting above, and which sideline is ours. Export shares the
+      file &mdash; Quick Share reaches the next tablet with no network. Import on the other
+      tablet replaces its choices with yours. The game log stays put.`,
+     `<div class="seg"><button id="syncexp">Export</button>
+      <button id="syncimp">Import</button>
+      <input type="file" id="syncfile" accept=".json,application/json" hidden></div>`],
     ["Game log", `${events.length} event${events.length === 1 ? "" : "s"} recorded on this tablet.
       Every play shown, every clock start, stamped to the millisecond.`,
      `<div class="seg"><button id="logexp">Export</button>
@@ -1173,6 +1294,10 @@ function renderSettings(){
     </div>`;
   document.getElementById("sdone").onclick = renderDeck;
   document.getElementById("logexp").onclick = e => exportLog(e.currentTarget);
+  document.getElementById("syncexp").onclick = e => exportSetup(e.currentTarget);
+  const pick = document.getElementById("syncfile");
+  document.getElementById("syncimp").onclick = () => pick.click();
+  pick.onchange = () => { if (pick.files[0]) importSetup(pick.files[0]); };
   confirmTap("logclr", "Clear", () => { events = []; flushLog(); renderSettings(); });
   confirmTap("nmreset", "Reset all", () => {
     resetNames(); logEvent("play_rename_reset", {play: "all"}); renderSettings(); });

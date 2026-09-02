@@ -154,6 +154,28 @@ run from three formations — REVERSE (SPREAD), JET REVERSE (TRIPS LEFT) and
 PITCH REVERSE (ACE) — and each starts as the exact sweep, jet or pitch the
 defense has already chased, because a reverse is the punishment for chasing.
 
+**10. Tablets sync by file, and the file is not trusted.** Assistant coaches
+carry their own tablets and the sideline has no network, so there is no server
+to sync through and never will be. Setup's **Sync tablets** row exports one
+small JSON file — the deck, every custom name, every setting, which sideline is
+ours — and imports it on the other tablet. Export goes to the share sheet
+first, because Quick Share reaches the tablet next to you over Bluetooth with
+the radio otherwise off, and falls back to a download; a coach closing the
+share sheet is a cancel, not a reason to download instead. Import **replaces**
+rather than merges: the goal is two tablets that agree, and a merge would be a
+third deck neither coach chose. The game log is left alone for the same reason
+Start over leaves it — it is this tablet's recording, not a preference.
+
+The file is the second string in the app somebody else wrote, so `readSetup`
+believes none of it: play ids are checked against the library, settings against
+`CFG_CHOICES` (which also draws Setup's buttons, so the two cannot drift), the
+sideline must be a colour, and names go through `setNames` exactly as typed
+ones do, then `esc()` on the way out. Whatever fails is counted and reported on
+the row rather than silently dropped. The settings that do land are applied
+over the shipped defaults, never over what the tablet had before, so the result
+depends on the file alone. `SyncChecks` holds all of it across two browser
+contexts, which is what gives two tablets two separate stores.
+
 ## Source layout
 
 ```
@@ -259,9 +281,12 @@ The app opens on an intro screen — art and one START button — so
 `AppFixture.OpenAppAsync` taps through it and hands every other check the deck.
 Pass `intro: true` to stay on it; `IntroChecks` is the only thing that does.
 
-`RenameChecks`, `ResetChecks` and `PwaChecks` run against the hosted build over a local
-`StaticSite` rather than the standalone file, because both are about storage and
-service workers and a `file://` origin has neither.
+`RenameChecks`, `ResetChecks`, `SyncChecks` and `PwaChecks` run against the hosted
+build over a local `StaticSite` rather than the standalone file, because all of
+them are about storage and service workers and a `file://` origin has neither.
+`SyncChecks` opens each tablet in its own browser context: headless Chromium has
+no share sheet, so Export falls through to a download that the check captures
+and feeds to the other tablet's hidden file input.
 
 `LabelChecks` sweeps 26 plays × 2 mirror states × 2 stages × 5 viewports = 520
 states. Several checks pad the library out to 100 plays
