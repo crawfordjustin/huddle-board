@@ -88,7 +88,7 @@ public sealed class MenuChecks(AppFixture app)
 
     /// <summary>
     /// Every row in Setup has to be reachable and thumb-sized on every tablet.
-    /// Seven rows do not fit 600px of landscape, so the screen scrolls — and a
+    /// Eight rows do not fit 600px of landscape, so the screen scrolls — and a
     /// scroller centred with justify-content puts its first row permanently
     /// above the top, which is the failure this is really watching for.
     /// </summary>
@@ -125,7 +125,7 @@ public sealed class MenuChecks(AppFixture app)
 
         await page.CloseAsync();
 
-        Assert.True(rows >= 7, $"{label}: only {rows} rows in Setup");
+        Assert.True(rows >= 8, $"{label}: only {rows} rows in Setup");
         Assert.True(short_.Length == 0, $"{label}: too small for a thumb: {string.Join(", ", short_)}");
         Assert.True(reachable, $"{label}: a row in Setup cannot be scrolled to");
         Assert.True(errors.Count == 0, string.Join("\n", errors));

@@ -607,6 +607,24 @@ function resetNames(id){
   saveNames();
 }
 
+/* ----------------------------------------------------------- start over
+   Everything a coach can change, back to the way the tablet arrived: the
+   starting deck, every play's shipped name, every setting above, and which
+   sideline is ours. The game log is deliberately NOT part of this. A log is a
+   recording, not a preference — it is the one thing here that cannot be
+   derived again — and it has its own Clear one row up. */
+function resetEverything(){
+  logEvent("reset_all", {deck: deck.slice(), renamed: renamedCount()});
+  resetNames();
+  deck = DATA.defaultDeck.slice(); saveDeck();
+  cfg = Object.assign({}, CFG_DEFAULTS); saveCfg();
+  setOurSide("blue");
+  S.hintSeen = false;
+  stopClock();
+  clk = {at:0, running:false, warned:false, expired:false};
+  flushLog();
+}
+
 /* ------------------------------------------------------------ play clock */
 let clk = {at:0, running:false, warned:false, expired:false};
 function buzz(p){
@@ -1082,6 +1100,21 @@ async function exportLog(btn){
   setTimeout(() => { btn.textContent = "Export"; }, 1800);
 }
 
+/* Two taps, never one. These buttons throw away something a coach cannot get
+   back, and Setup is exactly where a thumb lands on the way to somewhere else.
+   The arming lapses on its own, so a stray first tap costs nothing. */
+function confirmTap(id, label, act){
+  const b = document.getElementById(id);
+  if (!b) return;
+  b.onclick = () => {
+    if (b.dataset.armed){ act(); return; }
+    b.dataset.armed = "1"; b.textContent = "Sure?";
+    setTimeout(() => {
+      if (b.isConnected){ delete b.dataset.armed; b.textContent = label; }
+    }, 2500);
+  };
+}
+
 function renderSettings(){
   S.screen = "settings";
   const rows = [
@@ -1103,6 +1136,10 @@ function renderSettings(){
       Every play shown, every clock start, stamped to the millisecond.`,
      `<div class="seg"><button id="logexp">Export</button>
       <button id="logclr">Clear</button></div>`],
+    ["Start over", `Puts this tablet back the way it came &mdash; the ${DATA.defaultDeck.length}-play
+      starting deck, every play's shipped name, and every setting above. The game log is left
+      alone; clear that with the row above.`,
+     `<div class="seg"><button id="allreset">Reset tablet</button></div>`],
   ];
   app.innerHTML = `
     <div class="deck">
@@ -1118,21 +1155,10 @@ function renderSettings(){
     </div>`;
   document.getElementById("sdone").onclick = renderDeck;
   document.getElementById("logexp").onclick = e => exportLog(e.currentTarget);
-  const nmr = document.getElementById("nmreset");
-  if (nmr) nmr.onclick = e => {
-    const b = e.currentTarget;
-    if (b.dataset.armed){
-      resetNames(); logEvent("play_rename_reset", {play: "all"}); renderSettings(); return;
-    }
-    b.dataset.armed = "1"; b.textContent = "Sure?";
-    setTimeout(() => { if (b.isConnected){ delete b.dataset.armed; b.textContent = "Reset all"; } }, 2500);
-  };
-  document.getElementById("logclr").onclick = e => {
-    const b = e.currentTarget;
-    if (b.dataset.armed){ events = []; flushLog(); renderSettings(); return; }
-    b.dataset.armed = "1"; b.textContent = "Sure?";
-    setTimeout(() => { if (b.isConnected){ delete b.dataset.armed; b.textContent = "Clear"; } }, 2500);
-  };
+  confirmTap("logclr", "Clear", () => { events = []; flushLog(); renderSettings(); });
+  confirmTap("nmreset", "Reset all", () => {
+    resetNames(); logEvent("play_rename_reset", {play: "all"}); renderSettings(); });
+  confirmTap("allreset", "Reset tablet", () => { resetEverything(); renderSettings(); });
   app.querySelectorAll(".seg").forEach(g => g.addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
     const key = g.dataset.key, raw = b.dataset.v;

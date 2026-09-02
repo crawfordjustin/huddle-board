@@ -96,6 +96,14 @@ it, including the survives-an-update part, against a real new build taken throug
 the service worker. Custom names are per tablet and do not reach the printed
 playbook, which is built from source.
 
+Setup's last row, **Start over**, puts the whole tablet back: the starting deck,
+every shipped name, every setting, and which sideline is ours. It deliberately
+leaves the game log alone. A log is a recording rather than a preference — the
+one thing on the tablet that cannot be derived again — and it has its own Clear
+one row up. Everything destructive in Setup arms on the first tap and acts on the
+second (`confirmTap`), and the arming lapses on its own, so a stray thumb on the
+way past costs nothing. `ResetChecks` holds all of that, including the log.
+
 **7. An update never interrupts a live play.** The service worker installs a new
 build as a *waiting* worker and shows "Update ready". It swaps only on tap.
 
@@ -188,7 +196,7 @@ The app opens on an intro screen — art and one START button — so
 `AppFixture.OpenAppAsync` taps through it and hands every other check the deck.
 Pass `intro: true` to stay on it; `IntroChecks` is the only thing that does.
 
-`RenameChecks` and `PwaChecks` run against the hosted build over a local
+`RenameChecks`, `ResetChecks` and `PwaChecks` run against the hosted build over a local
 `StaticSite` rather than the standalone file, because both are about storage and
 service workers and a `file://` origin has neither.
 
