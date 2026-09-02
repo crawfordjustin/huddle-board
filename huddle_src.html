@@ -97,8 +97,14 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .tiles.compact .coach{font-size:clamp(9px,1.4vh,12px)}
 
 /* settings */
-.setrows{flex:1;display:flex;flex-direction:column;justify-content:center;
-  gap:clamp(10px,1.8vh,20px);padding:clamp(12px,2vh,22px) 0;min-height:0}
+.setrows{flex:1;display:flex;flex-direction:column;
+  gap:clamp(10px,1.8vh,20px);padding:clamp(12px,2vh,22px) 0;min-height:0;
+  overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-gutter:stable}
+/* centred while the rows fit, scrolled once they do not. justify-content:center
+   puts the first row above the top of a scroller and out of reach forever;
+   auto margins resolve to zero the moment free space goes negative. */
+.setrows>:first-child{margin-top:auto}
+.setrows>:last-child{margin-bottom:auto}
 .setrow{flex:0 0 auto;display:flex;align-items:center;gap:clamp(14px,2vw,28px);
   background:#242C27;border:1.5px solid #333D36;border-radius:12px;
   padding:clamp(10px,1.8vh,18px) clamp(14px,1.6vw,22px)}
@@ -186,6 +192,42 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   display:flex;align-items:center;justify-content:center;border-radius:8px;
   background:#39433C;color:#A3AFA6}
 .lrow.on .lmark{background:var(--green);color:#fff}
+/* the pencil. Big enough for a thumb in a glove, quiet enough that the row
+   still reads as one tap target for adding the play to the deck. */
+.lren{font-size:clamp(13px,2vh,18px);width:34px;height:34px;flex:none;
+  display:flex;align-items:center;justify-content:center;border-radius:8px;
+  color:#7E8A81;background:transparent;border:1.5px solid #39433C;cursor:pointer;
+  line-height:1}
+.lren.on{color:var(--ball);border-color:#6B5A2A}
+.lren:active{transform:scale(.94)}
+.lrow.on .lren{color:#6F7C73;border-color:#C6D0C7}
+.lrow.on .lren.on{color:#9A6E12;border-color:#D9BE7A}
+
+/* the rename sheet — the only place in the app a coach types */
+.sheetwrap{position:fixed;inset:0;z-index:60;display:flex;align-items:center;
+  justify-content:center;padding:clamp(14px,3vh,32px);background:rgba(9,13,11,.72)}
+.sheet{width:min(560px,100%);max-height:100%;overflow-y:auto;background:#1F2622;
+  border:1.5px solid #3B453E;border-radius:16px;padding:clamp(16px,2.6vh,26px)}
+.sheet h2{font-family:var(--disp);font-size:clamp(15px,2.2vh,20px);text-transform:uppercase;
+  letter-spacing:.1em;color:#8E9A91;font-weight:700;margin-bottom:clamp(10px,1.8vh,18px)}
+.nfield{display:block;margin-bottom:clamp(10px,1.6vh,16px)}
+.nfield span{display:block;font-size:clamp(10px,1.5vh,13px);font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:#8E9A91;margin-bottom:6px}
+.nfield input{width:100%;font-family:var(--disp);font-size:clamp(20px,3.4vh,32px);
+  text-transform:uppercase;letter-spacing:.01em;color:#EDF0EC;background:#141A16;
+  border:1.5px solid #39433C;border-radius:10px;padding:clamp(9px,1.5vh,14px) 14px}
+.nfield input{-webkit-user-select:text;user-select:text}
+.nfield input:focus{outline:none;border-color:var(--green-2)}
+.sheetnote{font-size:clamp(10px,1.6vh,14px);color:#8E9A91;line-height:1.4;
+  margin:clamp(6px,1vh,12px) 0 clamp(12px,2vh,20px)}
+.sheetnote b{color:#C9D2CB}
+.sheetbtns{display:flex;gap:8px;justify-content:flex-end}
+.sbtn{font-family:var(--disp);font-size:clamp(14px,2.3vh,21px);text-transform:uppercase;
+  letter-spacing:.04em;min-width:clamp(84px,9vw,116px);min-height:52px;border-radius:9px;
+  background:#1A211D;border:1.5px solid #39433C;color:#A3AFA6}
+.sbtn.go{background:var(--green);border-color:var(--green-2);color:#fff}
+.sbtn:active{transform:scale(.96)}
+.sbtn[disabled],.seg button[disabled]{opacity:.4}
 /* names were sized in vh, so rotating the tablet grew the type while the tile
    got narrower — the exact recipe for clipping. Size against the card itself. */
 .tile{container-type:inline-size;
@@ -529,6 +571,42 @@ try {
 } catch(e){}
 function saveCfg(){ try { localStorage.setItem("hb.settings", JSON.stringify(cfg)); } catch(e){} }
 
+/* -------------------------------------------------------- custom names
+   Every team ends up with its own word for a play. The overrides live here,
+   keyed by play id and nowhere near the build, so a coach who renames 22 DIVE
+   to BULLDOZER still has BULLDOZER after the next update lands. Both halves
+   are editable: the real name is what you say to another coach, the fun name
+   is what the kids shout. Clearing a field puts the shipped name back, so a
+   coach can drop one half without losing the other. */
+const NAME_CAP = 22;
+let names = {};
+try {
+  const saved = JSON.parse(localStorage.getItem("hb.names") || "null");
+  if (saved && saved.v === 1 && saved.byId) names = saved.byId;
+} catch(e){}
+function saveNames(){
+  try { localStorage.setItem("hb.names", JSON.stringify({v:1, byId:names})); } catch(e){}
+}
+const tidyName = s => (s || "").replace(/\s+/g, " ").trim().slice(0, NAME_CAP);
+const coachNameOf = p => (names[p.id] && names[p.id].coach) || p.coachName;
+const kidNameOf   = p => (names[p.id] && names[p.id].kid)   || p.kidName;
+const isRenamed = p => !!names[p.id];
+const renamedCount = () => Object.keys(names).length;
+// Only what actually differs is stored. A coach who retypes the shipped name
+// has not renamed anything, and the pencil should not claim otherwise.
+function setNames(id, coach, kid){
+  const p = DATA.plays.find(x => x.id === id);
+  const c = tidyName(coach), k = tidyName(kid), o = {};
+  if (c && c !== p.coachName) o.coach = c;
+  if (k && k !== p.kidName) o.kid = k;
+  if (o.coach || o.kid) names[id] = o; else delete names[id];
+  saveNames();
+}
+function resetNames(id){
+  if (id) delete names[id]; else names = {};
+  saveNames();
+}
+
 /* ------------------------------------------------------------ play clock */
 let clk = {at:0, running:false, warned:false, expired:false};
 function buzz(p){
@@ -639,12 +717,19 @@ function thumbSVG(p){
 }
 const isRun = p => p.ball.mode === "carry";
 /* Fun name if there is one and the coach wants it; otherwise the real name
-   is promoted so a tile is never left with nothing to say. */
+   is promoted so a tile is never left with nothing to say. Both come through
+   the override lookup, so a renamed play reads the same everywhere. */
 function nameOf(p){
-  return (cfg.funNames && p.kidName)
-    ? {big: p.kidName, small: p.coachName}
-    : {big: p.coachName, small: ""};
+  const coach = coachNameOf(p), kid = kidNameOf(p);
+  return (cfg.funNames && kid)
+    ? {big: kid, small: coach}
+    : {big: coach, small: ""};
 }
+
+/* Play names are the one string in the app a coach can type, so they are the
+   one string that has to be escaped before it goes into markup. */
+const ESCAPES = {"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;"};
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ESCAPES[c]);
 
 /* ---------------------------------------------------- fit names to the box
    Sizing in CSS assumes a font's metrics. Offline the webfont is missing and
@@ -928,8 +1013,8 @@ function renderDeck(){
               <span class="kind">${isRun(p) ? "Run" : "Pass"}</span>
               <span class="catchip">${p.category}</span>
             </span>
-            <span class="kid">${nameOf(p).big}</span>
-            <span class="coach">${[nameOf(p).small, p.formation].filter(Boolean).join(" &middot; ")}</span>
+            <span class="kid">${esc(nameOf(p).big)}</span>
+            <span class="coach">${[esc(nameOf(p).small), p.formation].filter(Boolean).join(" &middot; ")}</span>
             ${compact ? "" : `<span class="tag">${p.tagline}</span>`}
           </span>
           <span class="thumb">${thumbSVG(p)}</span>
@@ -1008,6 +1093,10 @@ function renderSettings(){
      seg("vibrate", [[true,"On"],[false,"Off"]])],
     ["Play names", "BULLDOZER or 22 DIVE. Fun names stick with the kids; real names are what you say to another coach.",
      seg("funNames", [[true,"Fun"],[false,"Real"]])],
+    ["Your own names", `${renamedCount()} play${renamedCount() === 1 ? "" : "s"} renamed on this
+      tablet. Rename any play from Change plays &mdash; tap the pencil on its row. Your names
+      are kept through an update; Reset all puts every shipped name back.`,
+     `<div class="seg"><button id="nmreset" ${renamedCount() ? "" : "disabled"}>Reset all</button></div>`],
     ["Show the clock", "Turn it off entirely if your league does not run one.",
      seg("showClock", [[true,"On"],[false,"Off"]])],
     ["Game log", `${events.length} event${events.length === 1 ? "" : "s"} recorded on this tablet.
@@ -1029,6 +1118,15 @@ function renderSettings(){
     </div>`;
   document.getElementById("sdone").onclick = renderDeck;
   document.getElementById("logexp").onclick = e => exportLog(e.currentTarget);
+  const nmr = document.getElementById("nmreset");
+  if (nmr) nmr.onclick = e => {
+    const b = e.currentTarget;
+    if (b.dataset.armed){
+      resetNames(); logEvent("play_rename_reset", {play: "all"}); renderSettings(); return;
+    }
+    b.dataset.armed = "1"; b.textContent = "Sure?";
+    setTimeout(() => { if (b.isConnected){ delete b.dataset.armed; b.textContent = "Reset all"; } }, 2500);
+  };
   document.getElementById("logclr").onclick = e => {
     const b = e.currentTarget;
     if (b.dataset.armed){ events = []; flushLog(); renderSettings(); return; }
@@ -1038,6 +1136,7 @@ function renderSettings(){
   app.querySelectorAll(".seg").forEach(g => g.addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
     const key = g.dataset.key, raw = b.dataset.v;
+    if (!key || raw === undefined) return;      // Export / Clear / Reset all: not a setting
     cfg[key] = raw === "true" ? true : raw === "false" ? false : Number(raw);
     saveCfg(); logEvent("setting", {key, value: cfg[key]});
     stopClock(); clk.warned = clk.expired = false;
@@ -1062,7 +1161,8 @@ function libMatch(p, f){
   if (f.cat !== "all" && p.category !== f.cat) return false;
   const q = f.q.trim().toUpperCase();
   if (!q) return true;
-  return [p.coachName, p.kidName, p.formation, p.category]
+  // both the custom names and the shipped ones, so renaming never hides a play
+  return [coachNameOf(p), kidNameOf(p), p.coachName, p.kidName, p.formation, p.category]
     .join(" ").toUpperCase().includes(q);
 }
 // count as if one facet were changed — so a chip shows what tapping it yields
@@ -1090,6 +1190,66 @@ function libFilterHTML(){
                          `style="--cat:${CAT[k]}"`)).join("")}`;
 }
 
+/* --------------------------------------------------------- rename sheet
+   Renaming lives on the library screen and nowhere else. That screen is the
+   coach's, never turned around at the kids, so a stray tap here cannot rewrite
+   a play name in the middle of a huddle. */
+function closeRename(){
+  const w = document.getElementById("rensheet");
+  if (w) w.remove();
+}
+function openRename(id, after){
+  closeRename();
+  const p = DATA.plays.find(x => x.id === id);
+  if (!p) return;
+  const w = document.createElement("div");
+  w.className = "sheetwrap";
+  w.id = "rensheet";
+  w.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rentitle">
+      <h2 id="rentitle">Play ${p.num} &middot; ${p.formation}</h2>
+      <label class="nfield"><span>Real name</span>
+        <input id="rn-real" type="text" maxlength="${NAME_CAP}"
+          value="${esc(coachNameOf(p))}" autocomplete="off" autocorrect="off"
+          autocapitalize="characters" spellcheck="false"></label>
+      <label class="nfield"><span>Fun name</span>
+        <input id="rn-fun" type="text" maxlength="${NAME_CAP}"
+          value="${esc(kidNameOf(p))}" autocomplete="off" autocorrect="off"
+          autocapitalize="characters" spellcheck="false"></label>
+      <p class="sheetnote">The real name is what you say to another coach. The fun
+        name is what the kids shout &mdash; switch between them in Setup. Empty a box
+        to go back to <b>${esc(p.coachName)}</b> / <b>${esc(p.kidName)}</b>.</p>
+      <div class="sheetbtns">
+        <button class="sbtn" id="rn-cancel">Cancel</button>
+        <button class="sbtn" id="rn-reset" ${isRenamed(p) ? "" : "disabled"}>Reset</button>
+        <button class="sbtn go" id="rn-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(w);
+
+  const done = () => { closeRename(); if (after) after(); };
+  w.addEventListener("click", e => { if (e.target === w) closeRename(); });
+  w.addEventListener("keydown", e => {
+    if (e.key === "Escape"){ e.stopPropagation(); closeRename(); }
+    if (e.key === "Enter" && e.target.tagName === "INPUT") save();
+  });
+  const save = () => {
+    const real = document.getElementById("rn-real").value;
+    const fun = document.getElementById("rn-fun").value;
+    setNames(id, real, fun);
+    logEvent("play_renamed", {play: id, real: coachNameOf(p), fun: kidNameOf(p),
+                              custom: isRenamed(p)});
+    done();
+  };
+  document.getElementById("rn-save").onclick = save;
+  document.getElementById("rn-cancel").onclick = () => closeRename();
+  document.getElementById("rn-reset").onclick = () => {
+    resetNames(id); logEvent("play_rename_reset", {play: id}); done();
+  };
+  const first = document.getElementById("rn-real");
+  first.focus(); first.select();
+}
+
 function renderLibrary(){
   S.screen = "library";
   libF = {q:"", kind:"all", cat:"all", deckOnly:false};
@@ -1099,9 +1259,11 @@ function renderLibrary(){
     return `<button class="lrow ${on ? "on" : ""}" data-id="${p.id}"
               style="--cat:${CAT[p.category]}">
       <span class="lnum">${p.num}</span>
-      <span class="lname"><b>${nm.big}</b><i>${nm.small ? nm.small + " &middot; " : ""}${p.formation}</i></span>
+      <span class="lname"><b>${esc(nm.big)}</b><i>${nm.small ? esc(nm.small) + " &middot; " : ""}${p.formation}</i></span>
       <span class="lthumb">${thumbSVG(p)}</span>
       <span class="lkind ${isRun(p) ? "run" : "pass"}">${isRun(p) ? "Run" : "Pass"}</span>
+      <span class="lren ${isRenamed(p) ? "on" : ""}" data-ren="${p.id}" role="button"
+        tabindex="0" aria-label="Rename ${esc(nameOf(p).big)}" title="Rename">&#9998;</span>
       <span class="lmark">${on ? "&#10003;" : "&#43;"}</span>
     </button>`;
   };
@@ -1127,7 +1289,16 @@ function renderLibrary(){
       libF = {q:"", kind:"all", cat:"all", deckOnly:false};
       drawFilters(); drawRows();
     };
-    lib.querySelectorAll(".lrow").forEach(b => b.addEventListener("click", () => {
+    lib.querySelectorAll("[data-ren]").forEach(e => {
+      const open = ev => { ev.stopPropagation(); ev.preventDefault();
+                           openRename(e.dataset.ren, () => { drawCounts(); drawRows(); }); };
+      e.addEventListener("click", open);
+      e.addEventListener("keydown", ev => {
+        if (ev.key === "Enter" || ev.key === " ") open(ev);
+      });
+    });
+    lib.querySelectorAll(".lrow").forEach(b => b.addEventListener("click", ev => {
+      if (ev.target.closest("[data-ren]")) return;   // the pencil, not the row
       const id = b.dataset.id;
       if (deck.includes(id)){
         if (deck.length === 1) return;          // never leave the deck empty
@@ -1192,7 +1363,7 @@ function renderLibrary(){
 function openPlay(id){
   S.screen = "play"; S.play = DATA.plays.find(p => p.id === id); S.tl = buildTimeline(S.play);
   S.openedAt = performance.now();
-  logEvent("play_opened", {play: id, num: S.play.num, name: S.play.coachName});
+  logEvent("play_opened", {play: id, num: S.play.num, name: coachNameOf(S.play)});
   S.stage = "lineup"; S.solo = null; S.running = false;
   mTarget = mAnim = 0;
   const p = S.play;
@@ -1201,8 +1372,8 @@ function openPlay(id){
       <div class="bar">
         <button class="back" id="back">&larr; Deck</button>
         <div class="titlewrap">
-          <span class="kid">${nameOf(p).big}</span>
-          ${nameOf(p).small ? `<span class="coach">${nameOf(p).small}</span>` : ""}
+          <span class="kid">${esc(nameOf(p).big)}</span>
+          ${nameOf(p).small ? `<span class="coach">${esc(nameOf(p).small)}</span>` : ""}
         </div>
         <div class="barright">${clockHTML()}<span class="chip">${p.formation}</span></div>
       </div>

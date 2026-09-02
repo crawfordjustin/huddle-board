@@ -81,7 +81,22 @@ The football itself (`BALL_BODY`/`BALL_LACES`) is one shape shared with the play
 screen's ball marker — a kid should not have to learn two pictures of the same
 object. `BallChecks` holds that marker's shape, heading and landing spot.
 
-**6. An update never interrupts a live play.** The service worker installs a new
+**6. A coach's own play names outlive the build.** Every team ends up calling
+22 DIVE something else. Both halves of a name are editable — the real name you
+say to another coach and the fun name the kids shout — from the pencil on a
+library row, which is the coach's screen and never the one turned around at the
+kids. The overrides live in `localStorage` under `hb.names`, keyed by play id
+and never in the build, so they survive an update; only what actually differs
+from the shipped name is stored, so a play the coach retyped identically is not
+"renamed". Search matches the custom name *and* the shipped one, so renaming can
+never hide a play. Setup shows how many are renamed and resets them all. This is
+also the one string in the app a coach types, so it is the one string that has to
+be escaped before it reaches markup — see `esc()`. `RenameChecks` holds all of
+it, including the survives-an-update part, against a real new build taken through
+the service worker. Custom names are per tablet and do not reach the printed
+playbook, which is built from source.
+
+**7. An update never interrupts a live play.** The service worker installs a new
 build as a *waiting* worker and shows "Update ready". It swaps only on tap.
 
 ## Source layout
@@ -173,6 +188,10 @@ The app opens on an intro screen — art and one START button — so
 `AppFixture.OpenAppAsync` taps through it and hands every other check the deck.
 Pass `intro: true` to stay on it; `IntroChecks` is the only thing that does.
 
+`RenameChecks` and `PwaChecks` run against the hosted build over a local
+`StaticSite` rather than the standalone file, because both are about storage and
+service workers and a `file://` origin has neither.
+
 `LabelChecks` sweeps 24 plays × 2 mirror states × 2 stages × 5 viewports = 480
 states. Several checks pad the library out to 100 plays
 (`AppFixture.InjectPlaysAsync`) to judge the UI at a size it has not reached yet.
@@ -198,6 +217,11 @@ whole sweep cannot pass vacuously.
 - **The webfont is absent offline** and the fallback is much wider. CSS sizing
   alone will clip. `fitText()` measures and shrinks; deck names then all drop to
   the smallest fitted size so the grid scans as one.
+- **`justify-content: center` on a scroller hides its first row.** Setup grew
+  past what 600px of landscape can hold, so `.setrows` scrolls — and centring it
+  with `justify-content` puts the first row above the top of the scroll range,
+  permanently out of reach. Auto margins on the first and last child centre the
+  group while it fits and collapse to zero once it does not.
 - **Reserve the scrollbar gutter.** A scrollbar appearing after render narrows
   rows and ellipsises names that had already been fitted.
 - **`.chip` was taken.** The play screen's formation badge already used it; the
