@@ -123,7 +123,22 @@ one row up. Everything destructive in Setup arms on the first tap and acts on th
 second (`confirmTap`), and the arming lapses on its own, so a stray thumb on the
 way past costs nothing. `ResetChecks` holds all of that, including the log.
 
-**7. An update never interrupts a live play.** The service worker installs a new
+**7. The deck answers the same two questions the library does.** On the sideline
+the thought is "I need a goal line play", not "I need play 13", so the deck
+carries the same run/pass and situation chips the library has, with the same
+`.fchip` styling — two screens should not teach two controls for one idea. Every
+tile shows its situation at every column count; it used to be hidden the moment
+the grid went past two columns, which is every deck size big enough to have to
+hunt through.
+
+The filter is in memory only, never saved. A deck filtered to GOAL LINE and then
+persisted would have a coach pick the tablet up next week, see two plays and
+think his deck had been eaten — so the header count reads "2 of 14" whenever a
+filter is on, and going back through the intro clears it. The bar stays away
+below six plays, where the whole deck is on screen at a glance and a filter is
+just one more thing to read. `DeckFilterChecks` holds all of that.
+
+**8. An update never interrupts a live play.** The service worker installs a new
 build as a *waiting* worker and shows "Update ready". It swaps only on tap.
 
 ## Source layout
@@ -254,6 +269,23 @@ whole sweep cannot pass vacuously.
   with `justify-content` puts the first row above the top of the scroll range,
   permanently out of reach. Auto margins on the first and last child centre the
   group while it fits and collapse to zero once it does not.
+- **`.tilemain` is taller than the tile it sits in.** The card is
+  `display:flex; align-items:center`, so its child is sized to its own content
+  and cheerfully overflows the card — which means `.tilemain`'s own box never
+  reports the overflow, and anything measuring against it sees nothing wrong.
+  The card clips, so the card is what you measure against. This cost a real bug
+  twice: once in `fitTiles`, and once in `NameChecks`, which had been asserting
+  against `.tilemain` and therefore could not see the clipping it existed to
+  catch.
+- **`fitText()` only ever asked a horizontal question** — does this run past the
+  side, does it take more than two lines. Nothing asked whether the block fits
+  the card's height, so a two-line name on a tight grid pushed the content
+  taller than the tile; and because the tile centres its children, the clipping
+  landed evenly on the top and bottom — on the RUN/PASS row and the formation,
+  the two things a coach reads first, while the tagline sat there in full.
+  `fitDeck()` adds the vertical pass: the tagline goes first because it is the
+  only optional line, then the name shrinks for the whole deck at once, because
+  one size across the grid is what makes it scannable.
 - **Reserve the scrollbar gutter.** A scrollbar appearing after render narrows
   rows and ellipsises names that had already been fitted.
 - **`.chip` was taken.** The play screen's formation badge already used it; the

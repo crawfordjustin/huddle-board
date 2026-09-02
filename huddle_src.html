@@ -120,10 +120,13 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .seg button.on{background:var(--green);border-color:var(--green-2);color:#fff}
 .seg button:active{transform:scale(.96)}
 
-/* play library — filter bar. Wraps rather than scrolling sideways: a filter
-   you cannot see is a filter nobody uses. */
-.lfilt{flex:none;display:flex;flex-wrap:wrap;align-items:center;
+/* filter bar, on the library and on the deck. Wraps rather than scrolling
+   sideways: a filter you cannot see is a filter nobody uses. */
+.lfilt,.dfilt{flex:none;display:flex;flex-wrap:wrap;align-items:center;
   gap:clamp(5px,.8vw,9px);padding:clamp(8px,1.2vh,14px) 0 clamp(2px,.6vh,6px)}
+/* on the deck the bar is chrome above the plays, so it sits a size down and
+   never competes with the tiles for the eye */
+.dfilt .fchip{font-size:clamp(11px,1.6vh,15px);min-height:clamp(34px,4.4vh,42px)}
 .fchip{font-family:var(--disp);font-size:clamp(12px,1.85vh,17px);text-transform:uppercase;
   letter-spacing:.05em;min-height:clamp(36px,5vh,46px);padding:0 clamp(9px,1vw,15px);
   border-radius:9px;background:#1A211D;border:1.5px solid #39433C;color:#A3AFA6;
@@ -257,7 +260,10 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .catchip{font-size:clamp(7px,1.05vh,9.5px);font-weight:700;letter-spacing:.1em;
   text-transform:uppercase;color:#fff;background:var(--cat);padding:3px 7px;border-radius:4px;
   white-space:nowrap}
-.tiles.compact .catchip{display:none}
+/* the situation is the thing a coach is actually looking for under pressure
+   ("I need a goal line play"), so it stays on the tile at every column count.
+   It used to be hidden here — on the only deck sizes big enough to need it. */
+.tiles.compact .catchip{font-size:clamp(6.5px,.95vh,8.5px);padding:2px 5px}
 .tile.run .kind{color:var(--run)}
 .tile.pass .kind{color:var(--pass)}
 .tile:active{transform:scale(.985);box-shadow:inset 0 0 0 3px var(--green)}
@@ -776,6 +782,48 @@ function fitText(el, minPx, maxLines){
     el.style.fontSize = size + "px";
   }
 }
+/* ------------------------------------------------------ fitting the deck
+   fitText() only ever asked a horizontal question: does this name run past the
+   side of its box, and does it take more than two lines. Nothing asked the
+   vertical one. So on a tight grid — fourteen plays on a 1024x600 tablet, or
+   two-up in portrait — a two-line name pushed the block taller than the card,
+   and because the card centres its content the clipping landed evenly on the
+   top and the bottom: the RUN/PASS row and the formation, the two things a
+   coach reads first, while the tagline sat there in full.
+
+   Two things give, in order. The tagline is the only line on a tile that is
+   genuinely optional, so it goes first. Then the name shrinks — for the whole
+   deck at once, because one size across the grid is what makes it scannable,
+   and a name that fit at 26px fits at 20px. */
+function tileSpills(t){
+  const r = t.getBoundingClientRect(), cs = getComputedStyle(t);
+  const lid = r.top + parseFloat(cs.paddingTop);
+  const floor = r.bottom - parseFloat(cs.paddingBottom);
+  return [...t.querySelectorAll(".kindrow,.kid,.coach,.tag")].some(e => {
+    const b = e.getBoundingClientRect();
+    return b.height > 0.5 && (b.top < lid - 1 || b.bottom > floor + 1);
+  });
+}
+
+function fitDeck(){
+  const tiles = [...document.querySelectorAll(".tiles .tile")];
+  if (!tiles.length) return;
+  const tags = tiles.map(t => t.querySelector(".tag")).filter(Boolean);
+  tags.forEach(g => { g.style.display = ""; });
+
+  fitNames();                                   // the horizontal fit, as before
+  if (!tiles.some(tileSpills)) return;
+
+  tags.forEach(g => { g.style.display = "none"; });
+  const kids = tiles.map(t => t.querySelector(".kid"));
+  let px = Math.min(...kids.map(e => parseFloat(getComputedStyle(e).fontSize)));
+  let guard = 40;
+  while (px > 13 && guard-- && tiles.some(tileSpills)){
+    px -= 1;
+    kids.forEach(e => { e.style.fontSize = px + "px"; });
+  }
+}
+
 function fitNames(){
   // Fit each name, then drop the whole grid to the smallest of them. One size
   // across the deck scans far faster than fourteen individually-optimal ones,
@@ -816,6 +864,7 @@ const INTRO_ART = "__INTRO_ART__";
 /* ------------------------------------------------------------ intro ui */
 function renderIntro(){
   S.screen = "intro";
+  deckF = {kind:"all", cat:"all"};   // never come back to a deck that looks empty
   app.innerHTML = `
     <div class="intro">
       <div class="introart">
@@ -856,10 +905,68 @@ addEventListener("pointerdown", e => {
 }, true);
 addEventListener("keydown", e => { if (e.key === "Escape") closeMenu(); });
 
+/* ---------------------------------------------------------- deck filters
+   The same two questions the library answers — run or pass, and which
+   situation — asked of the deck a coach actually carries. On the sideline the
+   thought is "I need a goal line play", not "I need play 13".
+
+   Deliberately in memory only. A deck filtered to GOAL LINE and then saved
+   would have a coach pick the tablet up next week, see two plays and think his
+   deck had been eaten. It resets when the app goes back to the intro, and the
+   count in the header always says how many of how many are showing. */
+let deckF = {kind:"all", cat:"all"};
+const deckMatch = (p, f) =>
+  (f.kind === "all" || (f.kind === "run") === isRun(p)) &&
+  (f.cat === "all" || p.category === f.cat);
+
+// counted as if one facet were changed, so a chip shows what tapping it yields
+function deckCount(all, over){
+  const f = Object.assign({}, deckF, over);
+  return all.reduce((n, p) => n + (deckMatch(p, f) ? 1 : 0), 0);
+}
+
+/* Same markup and the same .fchip styling as the library's bar, so the two
+   screens do not teach two different controls for the same idea. */
+function deckFilterHTML(all, cats){
+  const chip = (on, attr, label, n, extra) =>
+    `<button class="fchip ${on ? "on" : ""}" ${attr} ${extra || ""}>${label}` +
+    (n === null ? "" : `<span class="n">${n}</span>`) + `</button>`;
+  return `
+    ${chip(deckF.kind === "all",  'data-kind="all"',  "All",  deckCount(all, {kind:"all"}))}
+    ${chip(deckF.kind === "run",  'data-kind="run"',  "Run",  deckCount(all, {kind:"run"}))}
+    ${chip(deckF.kind === "pass", 'data-kind="pass"', "Pass", deckCount(all, {kind:"pass"}))}
+    <span class="lsep"></span>
+    ${chip(deckF.cat === "all", 'data-cat="all"', "All situations", null)}
+    ${cats.map(k => chip(deckF.cat === k, `data-cat="${k}"`, k, deckCount(all, {cat:k}),
+                         `style="--cat:${CAT[k]}"`)).join("")}`;
+}
+
+function bindDeckFilters(){
+  const f = document.getElementById("dfilt");
+  if (f){
+    const pick = (key, value) => {
+      deckF[key] = value;
+      logEvent("deck_filter", {kind: deckF.kind, cat: deckF.cat});
+      renderDeck();
+    };
+    f.querySelectorAll("[data-kind]").forEach(b =>
+      b.onclick = () => pick("kind", b.dataset.kind));
+    f.querySelectorAll("[data-cat]").forEach(b =>
+      b.onclick = () => pick("cat", b.dataset.cat));
+  }
+  const clear = document.getElementById("dclear");
+  if (clear) clear.onclick = () => { deckF = {kind:"all", cat:"all"}; renderDeck(); };
+}
+
 /* ------------------------------------------------------------ deck ui */
 function renderDeck(){
   S.screen = "deck";
-  const list = inDeck();
+  const all = inDeck();
+  const list = all.filter(p => deckMatch(p, deckF));
+  // Below six plays the whole deck is on screen at a glance and a filter bar is
+  // just something else to read. It earns its room above that.
+  const cats = CAT_ORDER.filter(k => all.some(p => p.category === k));
+  const showFilters = all.length >= 6 && (cats.length > 1 || all.some(isRun) !== all.every(isRun));
   // columns follow the room available, not just how many plays there are —
   // four columns on a narrow tablet leaves tiles too small to read
   const roomFor = Math.max(1, Math.min(4, Math.floor(innerWidth / 340)));
@@ -875,7 +982,9 @@ function renderDeck(){
           ${(!isImmersive() && canFullscreen())
               ? `<button class="edit" id="fs">Full screen</button>` : ""}
           ${clockHTML()}
-          <p>${list.length} play${list.length === 1 ? "" : "s"}</p>
+          <p>${list.length === all.length
+              ? `${all.length} play${all.length === 1 ? "" : "s"}`
+              : `${list.length} of ${all.length}`}</p>
           <button class="edit" id="edit">Change plays</button>
           <div class="menuwrap">
             <button class="ham" id="ham" aria-label="Menu" aria-haspopup="true"
@@ -887,6 +996,7 @@ function renderDeck(){
           </div>
         </div>
       </div>
+      ${showFilters ? `<div class="dfilt" id="dfilt">${deckFilterHTML(all, cats)}</div>` : ""}
       <div class="tiles ${compact ? "compact" : ""}" style="--cols:${cols}">
         ${list.map(p => `
         <button class="tile ${isRun(p) ? "run" : "pass"}" data-id="${p.id}"
@@ -902,10 +1012,16 @@ function renderDeck(){
           </span>
           <span class="thumb">${thumbSVG(p)}</span>
         </button>`).join("")}
+        ${list.length ? "" : `<div class="lempty">Nothing in your deck matches.
+           <button class="fchip" id="dclear">Show all ${all.length}</button></div>`}
       </div>
-      <div class="decknote">Tap a play &rarr; line them up &rarr; run it. Tap any player to show
-        that kid his own job. Every play mirrors, so this is really ${list.length * 2} looks.</div>
+      <div class="decknote">${list.length
+        ? `Tap a play &rarr; line them up &rarr; run it. Tap any player to show
+           that kid his own job. Every play mirrors, so this is really
+           ${list.length * 2} looks.`
+        : `Your deck still has ${all.length} play${all.length === 1 ? "" : "s"} in it.`}</div>
     </div>`;
+  bindDeckFilters();
   document.getElementById("edit").onclick = renderLibrary;
   const ham = document.getElementById("ham");
   ham.onclick = () => {
@@ -924,7 +1040,7 @@ function renderDeck(){
   bindClock(); paintClock();
   app.querySelectorAll(".tile").forEach(b =>
     b.addEventListener("click", () => openPlay(b.dataset.id)));
-  fitNames();
+  fitDeck();
 }
 
 function seg(key, opts){

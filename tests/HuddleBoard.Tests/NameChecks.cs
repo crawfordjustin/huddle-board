@@ -33,8 +33,13 @@ public sealed class NameChecks(AppFixture app)
           const tops = new Set(rects.map(b => Math.round(b.top * 2)));
           const box = e.getBoundingClientRect();
           const wide = rects.some(b => b.right > box.right + 1 || b.left < box.left - 1);
-          const host = e.closest('.tilemain').getBoundingClientRect();
-          const spill = box.bottom > host.bottom + 1 || box.top < host.top - 1;
+          // measured against the CARD, not .tilemain: the card centres its
+          // children, so .tilemain is sized to its own content and is happily
+          // taller than the tile it sits in — it never reports the overflow
+          const tile = e.closest('.tile'), card = tile.getBoundingClientRect();
+          const cs = getComputedStyle(tile);
+          const spill = box.bottom > card.bottom - parseFloat(cs.paddingBottom) + 1.5
+                     || box.top < card.top + parseFloat(cs.paddingTop) - 1.5;
           return wide || tops.size > 2 || spill;
         }).map(e => e.textContent.trim())
         """;
