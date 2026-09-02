@@ -141,6 +141,19 @@ just one more thing to read. `DeckFilterChecks` holds all of that.
 **8. An update never interrupts a live play.** The service worker installs a new
 build as a *waiting* worker and shows "Update ready". It swaps only on tap.
 
+**9. The ball is wherever the kid holding it is.** A play has one ball target,
+the kid who ends up with it, and for 23 plays that was the whole story: the
+football rode that kid's path from the snap. On REVERSE it put the ball in the
+second runner's hands at the line before the first handoff had happened, while
+the first runner ran his two steps empty-handed — the opposite of what the
+coach was teaching. Now every handoff names who takes it, the exporter turns
+the chain into legs, and the marker follows the first runner until he reaches
+the end of the second arrow, then the second. `BallChecks` reads a frame either
+side of that exchange on all three reverses. The reverse family is one concept
+run from three formations — REVERSE (SPREAD), JET REVERSE (TRIPS LEFT) and
+PITCH REVERSE (ACE) — and each starts as the exact sweep, jet or pitch the
+defense has already chased, because a reverse is the punishment for chasing.
+
 ## Source layout
 
 ```
@@ -155,10 +168,10 @@ src/HuddleBoard.Playbook/
   Model.cs, Geometry.cs         the record types; Pt and Num
   Formations.cs                 where everybody lines up
   Plays.cs                      the first 14 plays: route geometry in yards
-  PlaysMore.cs                  plays 15-24
+  PlaysMore.cs                  plays 15-26
   Spots.cs                      spot names, the 9 shapes, the default rule
   PlayTexts.cs                  what the tablet says, plays 1-14
-  PlayTextsMore.cs              the same for 15-24
+  PlayTextsMore.cs              the same for 15-26
   Library.cs                    joins the two halves of each pair
   PlayChecker.cs                the legality/safety/vocabulary checker
   ProtoExporter.cs              plays + spots -> dist/proto_data.json
@@ -192,7 +205,12 @@ is at `|x| = 15.7`, the goal line at `y = 15`.
    display. Getting this backwards means the label will not resolve and the
    export will throw.
 3. Add `KidNames[num]` and `Ball[num]` in `ProtoExporter.cs`. `Ball` is the
-   thrower's *first read*, or the ball carrier — one rule, no judgement calls.
+   thrower's *first read*, or the kid who *ends up* with the ball — one rule, no
+   judgement calls. Every `Handoff` segment names who takes it (`To:`); the
+   exporter follows that chain from the thrower and refuses a play where it does
+   not end at `Ball`. A reverse is two handoffs in a row, the second drawn from
+   the first runner's line to the second runner's. On a pass play a handoff is a
+   fake and the ball stays with the thrower.
 4. `check` until clean, then `dotnet test`.
 
 Prefer **concept × formation** over inventing concepts. Most concepts port to
@@ -213,6 +231,12 @@ case. It models every kid at 6 yd/s from the snap (pre-snap motion is a head
 start) and flags pairs that are genuinely within 1.6 yards at the same instant.
 A purely geometric rule produced constant false positives on legitimate
 concepts.
+
+The handoff rule is time-aware in the same way. A handoff segment starts on
+the giver's line and ends where the receiver is at the moment the giver gets
+there, within 2 yards; the pitch is the long case at 1.4. Before this, the
+second exchange of a reverse was two run lines passing within half a yard of
+each other, which the checker could not see and the tablet could not animate.
 
 Calibration note: **the original fourteen plays pass with zero errors**, and
 nothing was tuned to make that true. If a change makes them fail, the change is
@@ -239,7 +263,7 @@ Pass `intro: true` to stay on it; `IntroChecks` is the only thing that does.
 `StaticSite` rather than the standalone file, because both are about storage and
 service workers and a `file://` origin has neither.
 
-`LabelChecks` sweeps 24 plays × 2 mirror states × 2 stages × 5 viewports = 480
+`LabelChecks` sweeps 26 plays × 2 mirror states × 2 stages × 5 viewports = 520
 states. Several checks pad the library out to 100 plays
 (`AppFixture.InjectPlaysAsync`) to judge the UI at a size it has not reached yet.
 

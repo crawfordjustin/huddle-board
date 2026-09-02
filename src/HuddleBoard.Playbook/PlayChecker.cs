@@ -45,6 +45,13 @@ public static class PlayChecker
     /// <summary>Closest two downfield routes may come to each other.</summary>
     private const double MinLane = 1.6;
 
+    /// <summary>Farthest the receiver may be from the end of a handoff at the
+    /// moment the giver gets there. A pitch is the long case.</summary>
+    private const double MaxExchange = 2.0;
+
+    /// <summary>A handoff has to start on the line the giver is actually running.</summary>
+    private const double MaxOffLine = 0.5;
+
     /// <summary>Only judge separation past here; everyone is tight at the line.</summary>
     private const double Downfield = 1.5;
 
@@ -189,6 +196,35 @@ public static class PlayChecker
         return pts[^1];
     }
 
+    /// <summary>
+    /// How far a point is from a path, and how far along the path the closest
+    /// approach is — which, at <see cref="Speed"/>, is when the runner gets there.
+    /// </summary>
+    private static (double Gap, double Along) Nearest(IReadOnlyList<Pt> pts, double[] cum, Pt q)
+    {
+        if (pts.Count == 1)
+            return (q.DistanceTo(pts[0]), 0.0);
+
+        double best = double.MaxValue, along = 0.0;
+        for (var i = 0; i < pts.Count - 1; i++)
+        {
+            Pt a = pts[i], b = pts[i + 1];
+            double dx = b.X - a.X, dy = b.Y - a.Y;
+            var len2 = (dx * dx) + (dy * dy);
+            var f = len2 < 1e-9 ? 0.0
+                : Math.Clamp((((q.X - a.X) * dx) + ((q.Y - a.Y) * dy)) / len2, 0.0, 1.0);
+            var at = new Pt(a.X + (f * dx), a.Y + (f * dy));
+            var gap = q.DistanceTo(at);
+            if (gap < best)
+            {
+                best = gap;
+                along = cum[i] + (f * Math.Sqrt(len2));
+            }
+        }
+
+        return (best, along);
+    }
+
     private static int TrackOrder(PathType type) => type switch
     {
         PathType.Motion => 0,
@@ -204,7 +240,12 @@ public static class PlayChecker
     {
         var pts = new List<Pt>();
         var head = 0.0;
-        foreach (var seg in paths.OrderBy(q => TrackOrder(q.Type)))
+        var segs = paths.ToList();
+        // a handoff by somebody who also runs is the exchange, not his movement —
+        // his run already says where he is
+        if (segs.Any(q => q.Type is PathType.Run or PathType.Route or PathType.Fake))
+            segs.RemoveAll(q => q.Type == PathType.Handoff);
+        foreach (var seg in segs.OrderBy(q => TrackOrder(q.Type)))
         {
             var chunk = seg.Pts.AsEnumerable();
             if (pts.Count > 0 && seg.Pts[0].DistanceTo(pts[^1]) < 0.4)
@@ -296,13 +337,69 @@ public static class PlayChecker
                 continue;
             }
 
-            var first = paths.MinBy(q => q.Type is PathType.Motion or PathType.Handoff ? 0 : 1)!;
+            // motion comes first; a mid-run handoff is never where he starts
+            var first = paths.FirstOrDefault(q => q.Type == PathType.Motion)
+                ?? paths.FirstOrDefault(q => q.Type != PathType.Handoff)
+                ?? paths[0];
             var start = first.Pts[0];
             if (start.DistanceTo(origin) > 0.35)
             {
                 rep.Err(num, "SAFE/start",
                     $"{key}'s route starts at ({F(start.X)}, {F(start.Y)}) but he lines up at " +
                     $"({F(origin.X)}, {F(origin.Y)})");
+            }
+        }
+
+        // ---- a handoff starts in the giver's hands and ends in the receiver's,
+        // at the same moment. Two lines crossing on paper is not an exchange if
+        // one kid is not there yet, and on a reverse the second exchange is the
+        // whole play, so this is judged on position-at-time like the collision
+        // rule below.
+        foreach (var path in p.Paths.Where(q => q.Type == PathType.Handoff))
+        {
+            if (path.To is null)
+            {
+                rep.Err(num, "LEGAL/handoff",
+                    $"{path.Who} hands the ball to nobody — every handoff names who takes it");
+                continue;
+            }
+
+            if (path.To == path.Who || !spots.ContainsKey(path.To))
+            {
+                rep.Err(num, "LEGAL/handoff",
+                    $"{path.Who} hands the ball to {path.To}, who is not in formation {fm}");
+                continue;
+            }
+
+            if (!seen.TryGetValue(path.To, out var takerPaths)
+                || !takerPaths.Any(q => q.Type is PathType.Run or PathType.Route))
+            {
+                rep.Err(num, "LEGAL/handoff",
+                    $"{path.To} takes the ball from {path.Who} and has nowhere to run — draw him a run");
+                continue;
+            }
+
+            var giver = PlayerTrack(seen[path.Who]);
+            var taker = PlayerTrack(takerPaths);
+            var (giverCum, _) = Arc(giver.Pts);
+            var (takerCum, _) = Arc(taker.Pts);
+
+            var (offLine, _) = Nearest(giver.Pts, giverCum, path.Pts[0]);
+            if (offLine > MaxOffLine)
+            {
+                rep.Err(num, "LEGAL/handoff",
+                    $"{path.Who}'s handoff starts {F(offLine)} yd from anywhere he actually runs");
+            }
+
+            var (_, along) = Nearest(giver.Pts, giverCum, path.Pts[^1]);
+            var when = Math.Max(0.0, (along - giver.Head) / Speed);
+            var there = At(taker.Pts, takerCum, taker.Head + (Speed * when));
+            var gap = there.DistanceTo(path.Pts[^1]);
+            if (gap > MaxExchange)
+            {
+                rep.Err(num, "LEGAL/handoff",
+                    $"{path.Who} hands off at ({F(path.Pts[^1].X)}, {F(path.Pts[^1].Y)}) {F(when)}s " +
+                    $"into the play, but {path.To} is {F(gap)} yd away at that moment (needs {F(MaxExchange)})");
             }
         }
 

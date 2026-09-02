@@ -1,7 +1,7 @@
 ﻿namespace HuddleBoard.Playbook;
 
 /// <summary>
-/// Spot-language text for plays 15-24. Same rule as the first fourteen: every
+/// Spot-language text for plays 15 onward. Same rule as the first fourteen: every
 /// job in a call strip is one of the nine shapes, and anybody the coach does not
 /// name runs GO. Sides are BLUE and ORANGE in the spoken text; the labels stay
 /// LEFT/RIGHT because that is what the formation map is keyed on.
@@ -276,5 +276,67 @@ public static partial class PlayTexts
                 "The most grown-up concept in the book, and it still only uses CORNER, SIT and SWING. No new vocabulary for the kids to learn.",
                 "Read it low to high: sit first, corner if he is covered, swing if they both are.",
             ]),
+        [25] = new(
+            Calls:
+            [
+                new("SLOT LEFT", "MOTION → CARRY to orange, then hand it off"),
+                new("WIDE RIGHT", "take it back and CARRY to blue"),
+                new("WIDE LEFT", "IN at 5 — clear the sideline"),
+                new("EVERYONE ELSE", "GO"),
+            ],
+            Assign:
+            [
+                new("SLOT LEFT",
+                    "MOTION, then CARRY. Same start as Rocket: be at FULL SPEED when you pass the thrower and take the ball going toward orange. Run two more steps, then hand it to the Wide Orange coming the other way. Keep running after you give it up — sell it."),
+                new("WIDE RIGHT",
+                    "CARRY. Come back behind the thrower and let him get past you first, THEN take the ball with both hands. Run all the way to the blue sideline before you turn up."),
+                new("WIDE LEFT",
+                    "IN. Break inside at 5 yards. You are clearing the blue sideline — that is where the ball is going."),
+                new("TIGHT LEFT",
+                    "GO. Sprint straight downfield and take your defender with you."),
+                new("THROWER",
+                    "Same as Rocket: hold it out at belly height and let him take it. Then turn and look toward blue — that is where it is going."),
+                new("SNAPPER",
+                    "GO. Snap and release up the middle, away from both handoffs."),
+            ],
+            Mistake: "The Wide Orange leaving early. If he takes off before the ball is in his hands, the sweep man is handing it to nobody.",
+            Notes:
+            [
+                "Rocket first, then this. The whole play is the defense chasing the motion — call it once they have started flying to it.",
+                "Two handoffs, two chances to put it on the ground. Walk it before you run it.",
+                "It is Pinwheel out of a different picture. Kids who know Pinwheel already know this.",
+            ]),
+        [26] = new(
+            Calls:
+            [
+                new("BACK", "CARRY to orange, then hand it off"),
+                new("WIDE RIGHT", "take it back and CARRY to blue"),
+                new("WIDE LEFT", "IN at 5 — clear the sideline"),
+                new("THROWER", "soft pitch out in front"),
+                new("EVERYONE ELSE", "GO"),
+            ],
+            Assign:
+            [
+                new("BACK",
+                    "CARRY. Same start as Racecar: run for the orange sideline and catch the pitch on the move. Two more steps, then hand it to the Wide Orange coming back the other way. Keep running after you give it up — sell it."),
+                new("WIDE RIGHT",
+                    "CARRY. Drop back behind the Back and let him get past you first, THEN take the ball with both hands. Run all the way to the blue sideline before you turn up."),
+                new("THROWER",
+                    "Catch the snap and pitch it underhanded, out in front of him — same as Racecar. Then turn and look toward blue."),
+                new("WIDE LEFT",
+                    "IN. Break inside at 5 yards. You are clearing the blue sideline — that is where the ball is going."),
+                new("TIGHT RIGHT",
+                    "GO. Sprint straight downfield and take your defender with you."),
+                new("SNAPPER",
+                    "GO. Snap and release up the middle, away from both handoffs."),
+            ],
+            Mistake: "The Wide Orange taking it standing still. Be moving toward blue when the ball arrives.",
+            Notes:
+            [
+                "Racecar first, then this. The pitch has to have gone to the orange edge a couple of times before anybody bites on it.",
+                "A pitch is already a live ball, and this adds a second handoff. Walk it at practice before you call it in a game.",
+                "It is Pinwheel out of the backfield. One idea, three pictures.",
+            ]),
+
     };
 }

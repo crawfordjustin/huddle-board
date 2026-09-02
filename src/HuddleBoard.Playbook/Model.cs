@@ -23,12 +23,20 @@ public enum EndStyle
 
 /// <summary>One drawn segment: who runs it, what kind of segment it is, and the
 /// points it passes through in yards.</summary>
+/// <remarks>
+/// A <see cref="PathType.Handoff"/> names who takes the ball in <paramref name="To"/>.
+/// It starts in the giver's hands and ends in the receiver's, so a play can hand
+/// the ball on more than once — a reverse is two of these in a row — and the
+/// checker can hold that the two kids are actually in the same place at the same
+/// moment. On a pass play a handoff is a fake and the ball stays with the thrower.
+/// </remarks>
 public sealed record PathSeg(
     string Who,
     PathType Type,
     IReadOnlyList<Pt> Pts,
     EndStyle? End = null,
-    bool? Delay = null);
+    bool? Delay = null,
+    string? To = null);
 
 /// <summary>One line of coaching for one spot, or a slash-separated group of
 /// spots ("WIDE LEFT / SLOT RIGHT").</summary>

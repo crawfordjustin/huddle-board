@@ -17,13 +17,14 @@ public static class ProtoExporter
         [11] = "MAGIC TRICK", [12] = "SPIDERWEB", [13] = "RAINBOW", [14] = "STAIRCASE",
         [15] = "STOP SIGN", [16] = "SLINGSHOT", [17] = "PINBALL", [18] = "ELEVATOR", [19] = "SEESAW",
         [20] = "FIREWORKS", [21] = "MOUSETRAP", [22] = "PINWHEEL", [23] = "DRAWBRIDGE",
-        [24] = "FISHHOOK",
+        [24] = "FISHHOOK", [25] = "YO-YO", [26] = "U-TURN",
     };
 
     /// <summary>
     /// How the ball gets there, and to whom. The target is always the thrower's
-    /// FIRST read, or the ball carrier — one rule for every play, no judgement
-    /// calls.
+    /// FIRST read, or the kid who ENDS UP with the ball — one rule for every play,
+    /// no judgement calls. On a reverse that is the second runner; the exchanges
+    /// on the way come from the handoff segments and are checked against him.
     /// </summary>
     private static readonly IReadOnlyDictionary<int, (string Mode, string Who)> Ball =
         new Dictionary<int, (string, string)>
@@ -36,7 +37,7 @@ public static class ProtoExporter
             [15] = ("pass", "Y"), [16] = ("pass", "Y"), [17] = ("pass", "Z"),
             [18] = ("pass", "Z"), [19] = ("pass", "Z"), [20] = ("pass", "Y"),
             [21] = ("carry", "H"), [22] = ("carry", "Y"), [23] = ("pass", "H"),
-            [24] = ("pass", "Z"),
+            [24] = ("pass", "Z"), [25] = ("carry", "H"), [26] = ("carry", "Z"),
         };
 
     /// <summary>The four a new team starts with, straight from the playbook's
@@ -121,6 +122,63 @@ public static class ProtoExporter
         return hits;
     }
 
+    /// <summary>
+    /// The order the ball changes hands: from the thrower, along each handoff's
+    /// <see cref="PathSeg.To"/>, until somebody keeps it. That somebody has to
+    /// be the play's ball target, which is what makes a reverse honest — the
+    /// second exchange is data the tablet animates, not a note in the margin.
+    /// </summary>
+    private static List<(string Who, int Path, int Handoff)> Exchanges(Play p, string carrier)
+    {
+        var legs = new List<(string, int, int)>();
+        var holder = "QB";
+        while (true)
+        {
+            var hand = IndexOf(p.Paths, q => q.Type == PathType.Handoff && q.Who == holder);
+            if (hand < 0)
+                break;
+
+            var to = p.Paths[hand].To
+                ?? throw new InvalidOperationException($"play {p.Num}: {holder}'s handoff names nobody");
+            var run = IndexOf(p.Paths, q => q.Who == to && q.Type is PathType.Run or PathType.Route);
+            if (run < 0)
+                throw new InvalidOperationException($"play {p.Num}: {to} takes the ball and has no run");
+            if (legs.Any(l => l.Item1 == to))
+                throw new InvalidOperationException($"play {p.Num}: the ball goes round in circles");
+
+            legs.Add((to, run, hand));
+            holder = to;
+        }
+
+        if (holder != carrier)
+        {
+            throw new InvalidOperationException(
+                $"play {p.Num}: the handoffs end with {holder} but the ball target is {carrier}");
+        }
+
+        if (legs.Count == 0)
+        {
+            // a keeper: the thrower is the carrier and the ball never leaves him
+            var run = IndexOf(p.Paths, q => q.Who == carrier && q.Type is PathType.Run or PathType.Route);
+            if (run < 0)
+                throw new InvalidOperationException($"play {p.Num}: no path for ball target {carrier}");
+            legs.Add((carrier, run, -1));
+        }
+
+        return legs;
+    }
+
+    private static int IndexOf(IReadOnlyList<PathSeg> paths, Func<PathSeg, bool> test)
+    {
+        for (var i = 0; i < paths.Count; i++)
+        {
+            if (test(paths[i]))
+                return i;
+        }
+
+        return -1;
+    }
+
     /// <summary>Builds the JSON document for the whole library.</summary>
     public static string Serialise(IReadOnlyList<Play> plays)
     {
@@ -141,9 +199,10 @@ public static class ProtoExporter
             if (!formation.ContainsKey(who))
                 throw new InvalidOperationException($"play {num}: ball target {who} not in {fm}");
 
-            var hasPath = p.Paths.Any(pa =>
-                pa.Who == who && (mode != "carry" || pa.Type is PathType.Run or PathType.Route));
-            if (!hasPath)
+            // a carry is a chain of exchanges ending with the carrier; a pass just
+            // needs its first read to be running something
+            var legs = mode == "carry" ? Exchanges(p, who) : [];
+            if (mode != "carry" && !p.Paths.Any(pa => pa.Who == who))
                 throw new InvalidOperationException($"play {num}: no path for ball target {who}");
 
             var jobs = txt.Calls
@@ -196,6 +255,8 @@ public static class ProtoExporter
                     j.Pair("end", end == EndStyle.Bar ? "bar" : "arrow");
                 if (path.Delay is true)
                     j.Pair("delay", true);
+                if (path.To is { } to)
+                    j.Pair("to", to);
                 j.EndObject();
             }
 
@@ -230,6 +291,22 @@ public static class ProtoExporter
             j.Key("ball").StartObject();
             j.Pair("mode", mode);
             j.Pair("who", who);
+            if (legs.Count > 0)
+            {
+                j.Key("legs").StartArray();
+                foreach (var (legWho, legPath, legHand) in legs)
+                {
+                    j.StartObject();
+                    j.Pair("who", legWho);
+                    j.Pair("path", legPath);
+                    if (legHand >= 0)
+                        j.Pair("handoff", legHand);
+                    j.EndObject();
+                }
+
+                j.EndArray();
+            }
+
             j.EndObject();
 
             j.EndObject();

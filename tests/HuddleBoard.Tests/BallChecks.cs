@@ -52,6 +52,7 @@ public sealed class BallChecks(AppFixture app)
     [Theory]
     [InlineData("p_18", "a pass")]
     [InlineData("p_01", "a handoff")]
+    [InlineData("p_22", "a reverse")]
     public async Task TheBallIsAFootballAndItLandsWhereThePlaySaysEvenMirrored(
         string play, string kind)
     {
@@ -91,4 +92,81 @@ public sealed class BallChecks(AppFixture app)
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
+    private sealed record Hands(
+        [property: JsonPropertyName("legs")] int Legs,
+        [property: JsonPropertyName("first")] string First,
+        [property: JsonPropertyName("last")] string Last,
+        [property: JsonPropertyName("beforeGiver")] double BeforeGiver,
+        [property: JsonPropertyName("beforeTaker")] double BeforeTaker,
+        [property: JsonPropertyName("afterTaker")] double AfterTaker,
+        [property: JsonPropertyName("afterGiver")] double AfterGiver);
+
+    /// <summary>
+    /// Draw a frame just before and just after the second exchange, and read
+    /// how far the ball is from each of the two runners at both moments. The
+    /// distances are in viewBox units; a yard is 31.25 of them.
+    /// </summary>
+    private const string Exchange = """
+        () => {
+          const tl = S.tl, b = tl.ball, p = S.play;
+          const legs = b.legs || [];
+          const kid = (leg, t) => {
+            const seg = tl.paths[leg.pathIdx];
+            const prog = Math.max(0, Math.min(1, (t - seg.start) / seg.dur));
+            const e = walk(p.paths[leg.pathIdx].pts, prog).end;
+            return W2S(e[0], e[1]);
+          };
+          const ball = (t) => {
+            S.stage = 'run'; S.t0 = 0; frame(t);
+            const m = /translate\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/.exec(SC.ball.getAttribute('transform') || '');
+            return m ? [+m[1], +m[2]] : [9999, 9999];
+          };
+          const gap = (a, c) => +Math.hypot(a[0]-c[0], a[1]-c[1]).toFixed(1);
+          if (legs.length < 2) return JSON.stringify({legs: legs.length, first: '', last: ''});
+          const g = legs[0], k = legs[1];
+          const t1 = k.start - 150, t2 = k.start + 400;
+          const b1 = ball(t1), b2 = ball(t2);
+          return JSON.stringify({legs: legs.length, first: g.who, last: k.who,
+            beforeGiver: gap(b1, kid(g, t1)), beforeTaker: gap(b1, kid(k, t1)),
+            afterTaker: gap(b2, kid(k, t2)), afterGiver: gap(b2, kid(g, t2))});
+        }
+        """;
+
+    /// <summary>
+    /// A reverse used to show the second runner holding the ball from the snap,
+    /// because a play had one ball target and the marker rode that kid's whole
+    /// path. Now the ball is wherever the kid holding it is, and it changes
+    /// hands where the second handoff arrow says it does.
+    /// </summary>
+    [Theory]
+    [InlineData("p_22", "H", "Y")]
+    [InlineData("p_25", "Y", "H")]
+    [InlineData("p_26", "H", "Z")]
+    public async Task OnAReverseTheBallChangesHandsWhereTheSecondArrowSaysItDoes(
+        string play, string giver, string taker)
+    {
+        var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], settle: 350);
+        await page.EvaluateAsync($"openPlay('{play}')");
+        await page.WaitForTimeoutAsync(400);
+
+        var g = JsonSerializer.Deserialize<Hands>(
+            await page.EvaluateAsync<string>(Exchange))!;
+
+        Assert.Equal(2, g.Legs);
+        Assert.Equal(giver, g.First);
+        Assert.Equal(taker, g.Last);
+
+        // a moment before the exchange the ball is in the first runner's hands,
+        // and clearly not in the second's
+        Assert.True(g.BeforeGiver < 3, $"{play}: before the exchange the ball is {g.BeforeGiver} off {giver}");
+        Assert.True(g.BeforeTaker > 25, $"{play}: before the exchange the ball is already on {taker} ({g.BeforeTaker} away)");
+
+        // and a moment after, the other way round
+        Assert.True(g.AfterTaker < 3, $"{play}: after the exchange the ball is {g.AfterTaker} off {taker}");
+        Assert.True(g.AfterGiver > 25, $"{play}: after the exchange the ball is still on {giver} ({g.AfterGiver} away)");
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
 }

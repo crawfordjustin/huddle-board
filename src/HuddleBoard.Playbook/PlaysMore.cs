@@ -4,7 +4,7 @@ using static HuddleBoard.Playbook.PathType;
 namespace HuddleBoard.Playbook;
 
 /// <summary>
-/// Second batch of concepts, plays 15-24. Chosen to fill the gaps in the first
+/// Second batch of concepts, plays 15 onward. Chosen to fill the gaps in the first
 /// fourteen rather than to hit a number: NO-RUN ZONE went from one concept to
 /// four, RUN ZONE gained the two actions 6-on-6 flag has left once you own dive,
 /// sweep, keep and pitch, and SHOT PLAY gained FOUR VERTS, which is the default
@@ -126,9 +126,14 @@ public static partial class PlayLibrary
             Paths:
             [
                 new("H", Motion, [new(5, 0), new(2.2, -1.6), new(-0.4, -1.8)]),
-                new("QB", Handoff, [new(0, -3), new(-1.1, -2.0)]),
-                new("H", Run, [new(-0.4, -1.8), new(-3.4, -2.1), new(-6.2, -1.8)]),
-                new("Y", Run, [new(-5, 0), new(-6.6, -1.6), new(-3.2, -2.4), new(2.5, -1.6), new(8.2, 0.6), new(10, 8)]),
+                new("QB", Handoff, [new(0, -3), new(-1.1, -2.0)], To: "H"),
+                // H carries toward blue; Y comes back underneath him and takes it
+                // going the other way. The two lines are drawn 0.75 yd apart so
+                // the second exchange is visible as its own arrow, and the timing
+                // is real: both kids reach x = -5.1 about 0.78 s after the snap.
+                new("H", Run, [new(-0.4, -1.8), new(-3.4, -1.6), new(-6.2, -1.4)]),
+                new("H", Handoff, [new(-5.1, -1.5), new(-5.1, -2.25)], To: "Y"),
+                new("Y", Run, [new(-5, 0), new(-7, -1.8), new(-3.2, -2.7), new(2.5, -2.2), new(8.2, 0.6), new(10, 8)]),
                 new("X", Route, [new(-10, 0), new(-10, 9)]),
                 new("Z", Route, [new(10, 0), new(10, 5), new(5.4, 5)]),
                 new("C", Route, [new(0, 0), new(-1.8, 4.5)]),
@@ -300,7 +305,7 @@ public static partial class PlayLibrary
             Mistake: "Handing it off too early. Let the rusher commit upfield first — count one, then give it.",
             Paths:
             [
-                new("QB", Handoff, [new(0, -3), new(-1.5, -4.9)]),
+                new("QB", Handoff, [new(0, -3), new(-1.5, -4.9)], To: "H"),
                 new("H", Run, [new(-2.6, -4.4), new(-3.3, -5.5), new(-1.5, -4.9), new(0.9, -1.6), new(2.0, 7.5)]),
                 new("X", Route, [new(-9, 0), new(-9, 6), new(-12.5, 6)]),
                 new("Y", Route, [new(6, 0), new(6, 6), new(9.6, 6)]),
@@ -361,5 +366,91 @@ public static partial class PlayLibrary
                 "Inside the 5, every defender's eyes go to the end zone. The flat is the emptiest grass on the field.",
                 "Pairs with Pylon Fade out of the same formation — same picture, opposite answer.",
             ]),
+        new(
+            Num: 25,
+            Name: "JET REVERSE",
+            Formation: "TRIPS LEFT",
+            Category: "RUN ZONE",
+            Tagline: "Jet Sweep one way, hand it back the other. The reverse out of your trips look.",
+            Mistake: "The second runner leaving before he has the ball. Let the sweep man get past you, take it, then go.",
+            Paths:
+            [
+                // the same motion and the same handoff as Jet Sweep, so the first
+                // second of the play is a picture the defense has already chased
+                new("Y", Motion, [new(-7.5, 0), new(-4.5, -1.6), new(-1.5, -1.6)]),
+                new("QB", Handoff, [new(0, -3), new(-1, -1.8)], To: "Y"),
+                new("Y", Run, [new(-1.5, -1.6), new(2.9, -1.3), new(7, -0.4), new(9.5, 1.2)]),
+                // H comes back underneath the sweep and takes it going the other
+                // way; both kids reach x = 3 about 0.76 s after the snap
+                new("Y", Handoff, [new(2.9, -1.3), new(3.2, -2.0)], To: "H"),
+                new("H", Run, [new(7, 0), new(5.4, -1.2), new(3.2, -2.0), new(-2, -2.8), new(-7, -2.4), new(-10.5, 0.5), new(-13, 8)]),
+                new("X", Route, [new(-11, 0), new(-11, 5), new(-7.6, 5)]),
+                new("Z", Route, [new(-4, 0), new(-4.5, 9)]),
+                new("C", Route, [new(0, 0), new(0, 5)]),
+            ],
+            Assign:
+            [
+                new("Y",
+                    "Same start as Jet Sweep: full speed past the QB, take the ball going right. Two more steps, then hand it to H coming the other way. Keep running right after you give it up."),
+                new("H",
+                    "Come back behind the QB. Let Y get past you, take the ball with both hands, and run all the way to the left sideline before you turn up."),
+                new("QB",
+                    "Hand it to Y on the move, exactly like Jet Sweep. Then turn and look left — do not watch the sweep."),
+                new("X",
+                    "Break inside at 5 yards. You are clearing the left sideline for H."),
+                new("Z",
+                    "Sprint downfield and take your defender with you."),
+                new("C",
+                    "Snap and release up the middle, away from both exchanges."),
+            ],
+            Notes:
+            [
+                "Jet Sweep first, then this. The reverse only works on a defense that has started chasing the motion.",
+                "Two exchanges means two chances to fumble. Practise it at walking speed first.",
+                "This is Reverse (22) out of a different formation. A team that knows one already knows the other.",
+            ]),
+        new(
+            Num: 26,
+            Name: "PITCH REVERSE",
+            Formation: "ACE",
+            Category: "RUN ZONE",
+            Tagline: "Pitch it to the edge, then hand it back against the grain. The reverse out of the backfield.",
+            Mistake: "The second runner taking it standing still. Be moving toward the far sideline when the ball arrives.",
+            Paths:
+            [
+                // the same pitch as Pitch Right, so the defense sees the play it
+                // has been chasing
+                new("QB", Handoff, [new(0, -3), new(3.5, -4.2)], To: "H"),
+                new("H", Run, [new(-1.5, -5), new(2, -4.2), new(5, -3.0), new(8.5, -2.0), new(11, 0.5)]),
+                // Z drops in behind H and takes it going the other way; both kids
+                // are at x = 4.6 about 1.0 s after the snap
+                new("H", Handoff, [new(5, -3.0), new(4.6, -3.8)], To: "Z"),
+                new("Z", Run, [new(9, 0), new(8.2, -2.4), new(4.6, -3.8), new(0, -4.4), new(-5, -3.8), new(-9.5, -0.5), new(-12, 7)]),
+                new("X", Route, [new(-9, 0), new(-9, 5), new(-5.6, 5)]),
+                new("Y", Route, [new(3, 0), new(3.5, 9)]),
+                new("C", Route, [new(0, 0), new(-0.5, 5)]),
+            ],
+            Assign:
+            [
+                new("H",
+                    "Same start as Pitch Right: run for the right sideline and catch the pitch on the move. Two more steps, then hand it to Z coming back the other way. Keep running right after you give it up."),
+                new("Z",
+                    "Drop back behind H. Let him get past you, take the ball with both hands, and run all the way to the left sideline before you turn up."),
+                new("QB",
+                    "Pitch it out in front of H, exactly like Pitch Right. Then turn and look left."),
+                new("X",
+                    "Break inside at 5 yards. You are clearing the left sideline for Z."),
+                new("Y",
+                    "Sprint downfield and take your defender with you."),
+                new("C",
+                    "Snap and release up the middle, away from both exchanges."),
+            ],
+            Notes:
+            [
+                "Pitch Right first, then this. The pitch has to have gone to the edge a couple of times before anybody bites on it.",
+                "A pitch is already a live ball, and the reverse adds a second exchange. Walk it at practice before you call it in a game.",
+                "This is Reverse (22) out of the backfield. One concept, three formations — that is how the library grows.",
+            ]),
+
     ];
 }

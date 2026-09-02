@@ -461,6 +461,21 @@ function walk(pts, t){            // t 0..1 of total length -> {pts:[...], end:[
   }
   return {pts:keep, end:pts[pts.length-1]};
 }
+function fracNear(pts, q){        // fraction along pts of the point nearest q
+  const L = lens(pts), total = L[L.length-1];
+  if (total === 0) return 0;
+  let best = Infinity, along = 0;
+  for (let i = 1; i < pts.length; i++){
+    const ax = pts[i-1][0], ay = pts[i-1][1], dx = pts[i][0]-ax, dy = pts[i][1]-ay;
+    const l2 = dx*dx + dy*dy;
+    const f = l2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((q[0]-ax)*dx + (q[1]-ay)*dy) / l2));
+    const d = Math.hypot(q[0] - (ax + f*dx), q[1] - (ay + f*dy));
+    if (d < best){ best = d; along = L[i-1] + f*Math.sqrt(l2); }
+  }
+  return along / total;
+}
+const runPathOf = (play, who) =>
+  play.paths.findIndex(p => p.who === who && (p.type === "run" || p.type === "route"));
 function qbez(a, b, c, t){
   const u = 1 - t;
   return [u*u*a[0] + 2*u*t*b[0] + t*t*c[0], u*u*a[1] + 2*u*t*b[1] + t*t*c[1]];
@@ -487,14 +502,36 @@ function buildTimeline(play){
     const dur = quick ? Math.max(240, L*140) : Math.max(480, L*YD);
     tl.paths[i] = {start:tl.tSnap, dur};
   });
+  // A handoff by a kid who is already running starts when he gets there, not
+  // at the snap — the second exchange of a reverse is most of a second in.
+  play.paths.forEach((p, i) => {
+    if (p.type !== "handoff") return;
+    const ri = runPathOf(play, p.who);
+    if (ri < 0) return;
+    const rs = tl.paths[ri];
+    tl.paths[i].start = rs.start + rs.dur * fracNear(play.paths[ri].pts, p.pts[0]);
+  });
   // ball
   const b = play.ball;
-  const idx = play.paths.findIndex(p => p.who === b.who &&
-        (b.mode === "carry" ? (p.type === "run" || p.type === "route") : true));
-  const tp = tl.paths[idx] || {start:tl.tSnap, dur:1200};
   if (b.mode === "carry"){
-    tl.ball = {mode:"carry", pathIdx:idx, start:tp.start, dur:tp.dur};
+    // The ball is wherever the kid holding it is. It changes hands where a
+    // handoff arrow ends, at the moment the giver gets there — so a reverse
+    // shows the first runner carrying it and then the second, instead of the
+    // second runner holding it from the snap.
+    const legs = (b.legs || [{who:b.who, path:runPathOf(play, b.who)}])
+      .map(l => ({who:l.who, pathIdx:l.path, handoff:l.handoff}));
+    legs.forEach((l, k) => {
+      if (k === 0){ l.start = tl.paths[l.pathIdx].start; return; }
+      const giver = legs[k-1], seg = tl.paths[giver.pathIdx];
+      const h = play.paths[l.handoff], to = h.pts[h.pts.length-1];
+      l.start = seg.start + seg.dur * fracNear(play.paths[giver.pathIdx].pts, to);
+    });
+    const last = legs[legs.length-1], ls = tl.paths[last.pathIdx];
+    tl.ball = {mode:"carry", pathIdx:last.pathIdx, legs,
+               start:legs[0].start, dur:ls.start + ls.dur - legs[0].start};
   } else {
+    const idx = play.paths.findIndex(p => p.who === b.who);
+    const tp = tl.paths[idx] || {start:tl.tSnap, dur:1200};
     const arrive = tp.start + tp.dur;
     tl.ball = {mode:"pass", pathIdx:idx, start:Math.max(tl.tSnap + 120, arrive - 620),
                dur:Math.min(620, arrive - tl.tSnap - 100), arrive};
@@ -1761,10 +1798,12 @@ function frame(now){
   let show = false, bp = null, ahead = null;
   if (running && !S.solo){
     if (b.mode === "carry"){
-      const seg = tl.paths[b.pathIdx];
-      const prog = Math.max(0, Math.min(1, (t - seg.start) / seg.dur));
-      if (t >= seg.start){
-        const pts = p.paths[b.pathIdx].pts;
+      // whoever is holding it: the last leg that has started
+      let leg = null;
+      for (const l of b.legs) if (t >= l.start) leg = l;
+      if (leg){
+        const seg = tl.paths[leg.pathIdx], pts = p.paths[leg.pathIdx].pts;
+        const prog = Math.max(0, Math.min(1, (t - seg.start) / seg.dur));
         bp = walk(pts, prog).end;
         ahead = walk(pts, Math.min(1, prog + STEP)).end;
         show = true;
