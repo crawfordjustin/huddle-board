@@ -232,8 +232,10 @@ public static class AppBuilder
         }
 
         var data = Read(dataPath);
+        var art = IntroArt.Build();
         var src = Read(Workspace.Source)
             .Replace("__DATA__", data, StringComparison.Ordinal)
+            .Replace("__INTRO_ART__", art.DataUri, StringComparison.Ordinal)
             .Replace("__VERSION__", version, StringComparison.Ordinal);
 
         var page = Head + src + "\n</body>\n</html>\n";
@@ -260,6 +262,8 @@ public static class AppBuilder
         }
 
         o.WriteLine("version {0}", version);
+        o.WriteLine("intro art   {0} {1}x{2} {3,6} KB inline",
+            art.Mime, art.Width, art.Height, (art.Bytes + 512) / 1024);
         o.WriteLine("standalone  HuddleBoard.html      {0,6} KB", Kb(Path.Combine(dist, "HuddleBoard.html")));
         o.WriteLine("deploy zip  HuddleBoard-deploy.zip {0,6} KB", Kb(zipPath));
         foreach (var name in files)

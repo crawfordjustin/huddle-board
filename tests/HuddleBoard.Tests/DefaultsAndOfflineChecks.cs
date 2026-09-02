@@ -80,9 +80,15 @@ public sealed class DefaultsAndOfflineChecks(AppFixture app)
         await page.GotoAsync(app.AppUri);
         await page.WaitForTimeoutAsync(900);
 
-        // the intro is the first thing offline too, and its art is drawn rather
-        // than fetched precisely so that this holds
-        Assert.Equal(6, await page.Locator(".introart .introkid").CountAsync());
+        // the intro is the first thing offline too, and its art is inlined
+        // rather than fetched precisely so that this holds. naturalWidth is the
+        // assertion that matters: a broken src leaves the layout intact and the
+        // panel empty, which no geometry check would notice.
+        Assert.True(
+            await page.EvaluateAsync<bool>(
+                "() => { const i = document.querySelector('.introimg');"
+                + " return !!i && i.complete && i.naturalWidth > 400; }"),
+            "the intro illustration did not decode offline from file://");
         await page.ClickAsync("#start");
         await page.WaitForTimeoutAsync(300);
 

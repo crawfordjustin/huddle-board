@@ -355,10 +355,12 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   padding:clamp(14px,3vh,36px) clamp(16px,3vw,44px)}
 .introart{flex:1 1 58%;min-width:0;min-height:0;height:100%;
   display:flex;align-items:center;justify-content:center}
-/* aspect-ratio matches the viewBox, so "meet" never letterboxes and never
-   crops — the kid nearest the camera keeps both his feet. */
-.introart svg{width:100%;height:auto;max-height:100%;max-width:100%;
-  aspect-ratio:2/1;display:block;
+/* Capped in both directions with auto sizing, so the picture scales to fit and
+   is never squashed — and so swapping in art of a different shape needs no CSS.
+   Hard-coding an aspect ratio here would crop or distort the next illustration
+   somebody drops in. */
+.introimg{max-width:100%;max-height:100%;width:auto;height:auto;
+  object-fit:contain;display:block;
   border-radius:16px;border:1.5px solid #39433C}
 .introsay{flex:0 1 clamp(230px,30%,400px);min-width:0;min-height:0;
   display:flex;flex-direction:column;justify-content:center;gap:clamp(9px,1.6vh,18px)}
@@ -799,164 +801,27 @@ addEventListener("resize", refit);
 addEventListener("orientationchange", refit);
 
 /* ------------------------------------------------------------ intro art
-   Drawn rather than photographed, for the same reason everything else here is:
-   the app is one file that has to open on a tablet with the radio off, and a
-   photograph big enough to fill a 10" screen is a megabyte of base64 that
-   nothing else in the build needs. It is also six kids, which no stock photo
-   of flag football reliably is.
+   One illustration, authored as art/intro-art.png and inlined by the build as
+   a data URI — because the app is one file that has to open on a tablet with
+   the radio off, so a second request is not available to it. The build
+   downsamples and re-encodes; see IntroArt.cs for why that matters.
 
-   The art obeys the same rules the field does — teams are BLUE and ORANGE,
-   never left and right, and there is not a letter anywhere on it. */
-const SKIN = ["#F0C49A", "#C98A5C", "#8D5524", "#EFD3B3", "#6B4423", "#DDA173"];
-const HAIR = ["#2B2119", "#5A3A1E", "#C9962F", "#1A1512", "#7B4A22", "#3E2A17"];
-
-function limb(pts, w, c){
-  return `<polyline points="${pts.map(p => p.join(",")).join(" ")}" fill="none"
-    stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
-}
-
-// Every pose is arms and legs only; the head, torso and flag belt never change.
-// Feet sit at the local origin and a kid stands about 145 units tall. Legs are
-// deliberately 40% of that: give a figure this big a short leg and it stops
-// reading as a seven-year-old and starts reading as a barrel with a head on it.
-// Every pose faces right; a kid facing the other way is the same pose flipped.
-const HIP = -58, SHO = -94;
-const POSE = {
-  throw:  {arms:[[[-8,SHO],[-26,-84],[-34,-66]], [[8,SHO],[28,-108],[44,-126]]],
-           legs:[[[-7,HIP],[-20,-30],[-34,-4]], [[7,HIP],[22,-32],[34,-4]]]},
-  run:    {arms:[[[-8,SHO],[-26,-86],[-30,-68]], [[8,SHO],[26,-96],[30,-114]]],
-           legs:[[[-7,HIP],[-22,-32],[-32,-2]], [[7,HIP],[26,-44],[34,-24]]]},
-  reach:  {arms:[[[-8,SHO],[-22,-122],[-16,-164]], [[8,SHO],[24,-122],[18,-164]]],
-           legs:[[[-7,HIP],[-20,-32],[-26,-2]], [[7,HIP],[22,-38],[32,-18]]]},
-  chase:  {arms:[[[-8,SHO],[-26,-84],[-28,-66]], [[8,SHO],[32,-92],[52,-84]]],
-           legs:[[[-7,HIP],[-22,-32],[-32,-2]], [[7,HIP],[26,-44],[34,-24]]]},
-  ready:  {arms:[[[-8,SHO],[-30,-86],[-40,-70]], [[8,SHO],[30,-86],[40,-70]]],
-           legs:[[[-7,HIP],[-22,-32],[-24,-2]], [[7,HIP],[22,-32],[24,-2]]]},
-};
-
-// Head is a 19-radius circle centred at -122, so every hair style is cut to sit
-// on that circle and nothing else needs to know the shape of a head.
-function hairSVG(style, c){
-  if (style === 1)                              // puff tied up on top
-    return `<circle cx="-2" cy="-146" r="10" fill="${c}"/>
-            <path d="M-19-124c0-13 8-21 19-21s19 8 19 21c0 4-38 4-38 0z" fill="${c}"/>`;
-  if (style === 2)                              // longer, past the ears
-    return `<path d="M-20-124c0-14 9-22 20-22s20 8 20 22v18c0 3-6 3-6 0v-12
-             c-9 4-20 4-28-2v14c0 3-6 3-6 0z" fill="${c}"/>`;
-  if (style === 3)                              // curls
-    return [[-13,-134,8],[-1,-140,9],[11,-134,8],[-18,-125,6],[18,-125,6]]
-      .map(k => `<circle cx="${k[0]}" cy="${k[1]}" r="${k[2]}" fill="${c}"/>`).join("");
-  return `<path d="M-20-124c0-14 9-22 20-22s20 8 20 22c0 3-5 3-6 0c-2-7-27-9-28 0
-           c-1 3-6 3-6 0z" fill="${c}"/>`;      // short cap
-}
-
-function kidSVG(o){
-  const p = POSE[o.pose], skin = SKIN[o.skin], hair = HAIR[o.hair];
-  const shorts = o.shirt === "blue" ? "#123F79" : "#8C3708";
-  const shirt = o.shirt === "blue" ? "var(--blue)" : "var(--orange)";
-  const shoe = o.shirt === "blue" ? "#0E2E58" : "#5E2405";
-  // knee is the middle point of a leg; the shorts stop a little short of it
-  const thigh = l => [l[0], [(l[0][0] + l[1][0]) / 2, (l[0][1] + l[1][1]) / 2]];
-  const foot = l => `<ellipse cx="${l[2][0]}" cy="${l[2][1] + 2}" rx="9" ry="5"
-    fill="${shoe}" transform="rotate(${l[2][1] < -12 ? -22 : 0} ${l[2][0]} ${l[2][1]})"/>`;
-  // introkid, not kid — .kid is the play name on a deck tile, and this is a
-  // single-file app where that collision would be found the hard way
-  return `<g class="introkid" data-side="${o.shirt}"
-    transform="translate(${o.x},${o.y}) scale(${o.flip ? -o.s : o.s},${o.s})">
-    <ellipse cx="0" cy="4" rx="32" ry="7" fill="#000" opacity=".15"/>
-    ${p.legs.map(l => limb(l, 11, skin) + foot(l)).join("")}
-    ${p.legs.map(l => limb(thigh(l), 15, shorts)).join("")}
-    ${p.arms.map(a => limb(a, 10, skin)).join("")}
-    <path d="M-18-100h36a6 6 0 0 1 6 6v32a6 6 0 0 1-6 6h-36a6 6 0 0 1-6-6v-32a6 6 0 0 1 6-6z"
-      fill="${shirt}"/>
-    ${p.arms.map(a => limb([a[0], [a[0][0] * 1.9, a[0][1] + 4]], 13, shirt)).join("")}
-    <rect x="-21" y="-66" width="42" height="8" rx="3" fill="#2B322C"/>
-    <rect x="-18" y="-62" width="8" height="17" rx="2" fill="var(--ball)"
-      transform="rotate(-9 -14 -53)"/>
-    <rect x="10" y="-62" width="8" height="17" rx="2" fill="var(--ball)"
-      transform="rotate(9 14 -53)"/>
-    <rect x="-5" y="-106" width="10" height="9" rx="3" fill="${skin}"/>
-    <circle cx="0" cy="-122" r="19" fill="${skin}"/>
-    ${hairSVG(o.hairStyle, hair)}
-    <circle cx="2" cy="-122" r="2" fill="#2B2119"/>
-    <circle cx="12" cy="-122" r="2" fill="#2B2119"/>
-    <path d="M2-114q5 5 10 0" fill="none" stroke="#2B2119" stroke-width="2"
-      stroke-linecap="round"/>
-  </g>`;
-}
-
-function introArt(){
-  // Back to front: the far kids are drawn first and smaller, which is the whole
-  // of the perspective. Sorted by y so the order cannot drift as poses change.
-  // Blue is throwing and catching, orange is chasing — the ball goes left to
-  // right and so does the eye.
-  const kids = [
-    {x:838, y:370, s:.60, pose:"ready", shirt:"orange", skin:1, hair:1, hairStyle:1, flip:1},
-    {x:432, y:396, s:.68, pose:"run",   shirt:"blue",   skin:4, hair:0, hairStyle:3},
-    {x:330, y:472, s:.92, pose:"run",   shirt:"orange", skin:0, hair:2, hairStyle:0, flip:1},
-    {x:596, y:544, s:1.06, pose:"chase", shirt:"orange", skin:3, hair:3, hairStyle:2},
-    {x:706, y:524, s:1.04, pose:"reach", shirt:"blue",  skin:2, hair:0, hairStyle:0},
-    {x:152, y:562, s:1.14, pose:"throw", shirt:"blue",  skin:5, hair:4, hairStyle:1},
-  ].sort((a, b) => a.y - b.y);
-
-  // The pass starts in the thrower's hand and ends in the receiver's, both read
-  // off the poses rather than eyeballed, so moving a kid moves the ball with him.
-  const q = kids.find(k => k.pose === "throw"), r = kids.find(k => k.pose === "reach");
-  const hand = POSE.throw.arms[1][2], catchAt = POSE.reach.arms[1][2];
-  const from = [q.x + hand[0] * q.s, q.y + hand[1] * q.s];
-  const to = [r.x + catchAt[0] * r.s, r.y + catchAt[1] * r.s];
-  const ctrl = [(from[0] + to[0]) / 2, Math.min(from[1], to[1]) - 190];
-  const at = t => [                                   // where the ball is now
-    (1-t)*(1-t)*from[0] + 2*(1-t)*t*ctrl[0] + t*t*to[0],
-    (1-t)*(1-t)*from[1] + 2*(1-t)*t*ctrl[1] + t*t*to[1]];
-  const ball = at(.62);
-
-  // Mown stripes and yard lines crowd together toward the horizon; that spacing
-  // is doing the same job the shrinking kids are.
-  const bands = [252, 268, 290, 320, 362, 420, 500, 600];
-  const stripes = bands.slice(0, -1).map((t, i) =>
-    `<rect x="0" y="${t}" width="960" height="${bands[i+1] - t}"
-      fill="${i % 2 ? "#2F7F4F" : "#357F53"}"/>`).join("");
-  const lines = bands.slice(1, -1).map(y =>
-    `<rect x="0" y="${y - 1}" width="960" height="${y > 400 ? 3 : 2}"
-      fill="#EAF3EC" opacity="${y > 400 ? .5 : .34}"/>`).join("");
-  const trees = `<rect x="0" y="222" width="960" height="32" fill="#1F4A33"/>`
-    + Array.from({length: 26}, (_, i) => {
-        const x = i * 39 + (i % 3) * 7;
-        return `<circle cx="${x}" cy="${234 - (i % 4) * 11}" r="${23 + (i % 3) * 8}" fill="#1F4A33"/>`;
-      }).join("");
-
-  return `<svg viewBox="0 120 960 480" preserveAspectRatio="xMidYMid meet"
-    role="img" aria-label="Six kids playing flag football, three in blue and three in orange">
-    <defs>
-      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#7FBCE5"/><stop offset=".7" stop-color="#C6E2F1"/>
-        <stop offset="1" stop-color="#EFE7D2"/>
-      </linearGradient>
-    </defs>
-    <rect y="120" width="960" height="133" fill="url(#sky)"/>
-    ${trees}
-    ${stripes}
-    ${lines}
-    <path d="M${from[0]} ${from[1]}Q${ctrl[0]} ${ctrl[1]} ${to[0]} ${to[1]}"
-      fill="none" stroke="#FBFCFA" stroke-width="4" stroke-linecap="round"
-      stroke-dasharray="3 18" opacity=".8"/>
-    ${kids.map(kidSVG).join("")}
-    <g transform="translate(${ball[0].toFixed(1)},${ball[1].toFixed(1)}) rotate(14)">
-      <path d="${BALL_BODY}" fill="${BALL_FILL}" stroke="${BALL_EDGE}" stroke-width="2.5"
-        stroke-linejoin="round"/>
-      <path d="${BALL_LACES}" fill="none" stroke="${BALL_LACE}" stroke-width="2.6"
-        stroke-linecap="round"/>
-    </g>
-  </svg>`;
-}
+   This used to be six kids drawn from pose data in SVG. It was replaced
+   because the figures were flat and front-on but standing on a receding field,
+   so nothing sat in the same space, and no amount of tuning a pose table fixes
+   a perspective that was never coherent. Art is art; the checker cannot help
+   here and neither can more code. */
+const INTRO_ART = "__INTRO_ART__";
 
 /* ------------------------------------------------------------ intro ui */
 function renderIntro(){
   S.screen = "intro";
   app.innerHTML = `
     <div class="intro">
-      <div class="introart">${introArt()}</div>
+      <div class="introart">
+        <img class="introimg" src="${INTRO_ART}" alt="Kids playing flag football"
+             draggable="false">
+      </div>
       <div class="introsay">
         <h1>Huddle&nbsp;Board</h1>
         <p>Pick a play, turn the tablet around, and show them what to do.</p>

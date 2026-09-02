@@ -73,13 +73,32 @@ routes and the ball — it mirrors. `F2S()` transforms field paint — it never
 moves. Mirroring the paint with the players is physically wrong and was a real
 bug. The call strip rewrites BLUE↔ORANGE on mirror instead.
 
-**5. The intro art is drawn, not photographed.** Six kids, three BLUE and three
-ORANGE, in inline SVG — because the app is one file that opens with the radio
-off, and because the art follows the same rules the field does: colour instead
-of left/right, and not a letter anywhere on it. `IntroChecks` holds both.
-The football itself (`BALL_BODY`/`BALL_LACES`) is one shape shared with the play
-screen's ball marker — a kid should not have to learn two pictures of the same
-object. `BallChecks` holds that marker's shape, heading and landing spot.
+**5. The intro art ships inside the file.** It is one illustration, authored at
+`art/intro-art.png` and inlined by the build as a data URI, because the app is
+one file that opens with the radio off and a second request is not available to
+it. Replacing that file is the entire process for changing the art. `IntroArt.cs`
+downsamples to 1600px and re-encodes, picking whichever of WebP, JPEG and PNG
+comes out smallest — a full-bleed illustration is the case PNG is worst at, and
+the art's weight is the app's weight on every cold open and every service-worker
+update. `IntroChecks` holds the size ceiling, and holds that the picture actually
+decoded: a data URI the build got wrong fails silently, with a correct layout, a
+working button and an empty panel.
+
+This replaced six kids drawn from a pose table in SVG. The figures were flat and
+front-on but standing on a receding field, so nothing sat in the same space, and
+no amount of tuning pose data fixes a perspective that was never coherent. The
+cost of the swap is honest and worth writing down: **rule 3 no longer reaches the
+intro art.** A raster cannot be swept for letters, and the illustration in the
+repo today has jersey numbers and a lettered scoreboard in it. It is also blue
+against **red**, not blue against ORANGE. Neither is on the field diagram, where
+the rules bite, but the first screen a kid sees is now teaching a different
+colour pair than every screen after it. That is a live design debt, not a
+decision.
+
+The football (`BALL_BODY`/`BALL_LACES`) is one shape shared between the play
+screen's ball marker and nothing else now — a kid should not have to learn two
+pictures of the same object. `BallChecks` holds that marker's shape, heading and
+landing spot.
 
 **6. A coach's own play names outlive the build.** Every team ends up calling
 22 DIVE something else. Both halves of a name are editable — the real name you
@@ -110,9 +129,12 @@ build as a *waiting* worker and shows "Update ready". It swaps only on tap.
 ## Source layout
 
 ```
-huddle_src.html                 the whole app — markup, CSS, JS. __DATA__ and
-                                __VERSION__ are substituted at build time. This
-                                is the only UI file, and it is not C#.
+huddle_src.html                 the whole app — markup, CSS, JS. __DATA__,
+                                __INTRO_ART__ and __VERSION__ are substituted at
+                                build time. This is the only UI file, and it is
+                                not C#.
+art/intro-art.png               the intro illustration, as authored. Swap this
+                                file and rebuild; nothing else changes.
 
 src/HuddleBoard.Playbook/
   Model.cs, Geometry.cs         the record types; Pt and Num
@@ -128,6 +150,8 @@ src/HuddleBoard.Playbook/
   AppBuilder.cs                 proto_data + huddle_src -> the shipping forms
   DeployReadme.cs               the notes that ship inside dist/deploy/
   IconRenderer.cs               app icons, drawn to still read at 48px
+  IntroArt.cs                   art/intro-art.png -> a data URI small enough to
+                                inline in the one file the app ships as
   JsonWriter.cs                 exact control over how the data is spelled
   Pipeline.cs, Workspace.cs     what "build" means, and where the repo is
   Print/                        the paper playbook, cards and rotation sheet

@@ -16,6 +16,8 @@ obj/
 # scratch screenshots from ad-hoc checks
 *.png
 !docs/*.png
+# art/ is source, not scratch — the intro illustration lives there
+!art/*.png
 
 # editors
 .vscode/
