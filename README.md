@@ -72,6 +72,14 @@ before. So: no left and right, no letters on the field, one default rule that
 covers any kid who forgets his job, and a deck small enough to find a play
 without looking.
 
+## Thanks
+
+The football in this tool is better than one developer could have made it.
+
+- **Nick Acosta**, whose coaching expertise shaped the plays, the situations
+  they answer and how they are taught. None of it went through a code editor,
+  and all of it is on the field.
+
 ## License
 
 [MIT](LICENSE). Copy it, fork it, put your own plays in it, put your team's name
