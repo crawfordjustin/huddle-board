@@ -48,6 +48,7 @@ public sealed class PwaChecks(AppFixture app) : IDisposable
         await context.SetOfflineAsync(true);
         await page.GotoAsync(url);
         await page.WaitForTimeoutAsync(1200);
+        Assert.Equal(0, await page.Locator("#upd").CountAsync());
         await page.ClickAsync("#start");
         await page.WaitForTimeoutAsync(300);
         Assert.True(await page.Locator(".tile").CountAsync() > 0, "offline reload showed no tiles");
@@ -60,6 +61,14 @@ public sealed class PwaChecks(AppFixture app) : IDisposable
         await page.WaitForTimeoutAsync(2500);
 
         Assert.Equal(1, await page.Locator("#upd").CountAsync());
+        Assert.Equal(installed, await page.EvaluateAsync<string>("APP_BUILD"));
+
+        // the intro makes the same offer — it is where a coach lands opening the
+        // app before a game, the one moment an update costs nothing
+        await page.ClickAsync("#ham");
+        await page.ClickAsync("#exit");
+        await page.WaitForSelectorAsync("#start");
+        Assert.Equal(1, await page.Locator(".introsay #upd").CountAsync());
         Assert.Equal(installed, await page.EvaluateAsync<string>("APP_BUILD"));
 
         await page.ClickAsync("#upd");

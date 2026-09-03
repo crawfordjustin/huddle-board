@@ -387,6 +387,11 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   max-width:30ch}
 .introsay .sub{color:#6E7A72;font-size:clamp(10px,1.5vh,13px);letter-spacing:.1em;
   text-transform:uppercase;font-weight:600}
+/* the update offer sits under START, the same button the deck shows, and
+   never wider than the thing it is not: a second green button competing
+   with the one that starts the game */
+.introsay .upd{align-self:flex-start;margin-top:clamp(4px,1vh,10px)}
+@media (orientation:portrait){.introsay .upd{align-self:center}}
 .start{font-family:var(--disp);text-transform:uppercase;letter-spacing:.05em;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:2px;background:var(--green);border:1.5px solid var(--green-2);color:#fff;
@@ -1032,12 +1037,18 @@ function renderIntro(){
         <p>Pick a play, turn the tablet around, and show them what to do.</p>
         <button class="start" id="start">Start<small>go to your deck</small></button>
         <p class="sub">${deck.length} play${deck.length === 1 ? "" : "s"} in your deck</p>
+        ${updateReady ? `<button class="edit upd" id="upd">Update ready</button>` : ""}
       </div>
     </div>`;
   document.getElementById("start").onclick = () => {
     logEvent("intro_start");
     renderDeck();
   };
+  // The same offer the deck makes. The intro is where a coach lands when he
+  // opens the app before a game, which is the one moment an update costs
+  // nothing — no play is live and nobody is waiting on the tablet.
+  const up = document.getElementById("upd");
+  if (up) up.onclick = () => { up.textContent = "Updating"; applyUpdate(); };
 }
 
 /* --------------------------------------------------------- the deck menu
@@ -2018,7 +2029,10 @@ function applyUpdate(){
 function markUpdate(worker){
   swWaiting = worker; updateReady = true;
   logEvent("update_ready");
-  if (S.screen === "deck") renderDeck();      // never interrupt a live play
+  // never interrupt a live play: only the two screens that offer the button
+  // redraw, and neither of them is the one turned around at the kids
+  if (S.screen === "deck") renderDeck();
+  else if (S.screen === "intro") renderIntro();
 }
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")){
   navigator.serviceWorker.register("./sw.js").then(reg => {

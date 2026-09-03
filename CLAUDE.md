@@ -151,7 +151,11 @@ deck is something a coach does between series, not with six kids waiting.
 bar.
 
 **8. An update never interrupts a live play.** The service worker installs a new
-build as a *waiting* worker and shows "Update ready". It swaps only on tap.
+build as a *waiting* worker and shows "Update ready". It swaps only on tap. The
+offer appears on the deck and on the intro — the intro because it is where a
+coach lands opening the app before a game, the one moment an update costs
+nothing — and on no other screen, because the others are the ones turned
+around at the kids. `PwaChecks` walks the offer through both screens.
 
 **9. The ball is wherever the kid holding it is.** A play has one ball target,
 the kid who ends up with it, and for 23 plays that was the whole story: the
