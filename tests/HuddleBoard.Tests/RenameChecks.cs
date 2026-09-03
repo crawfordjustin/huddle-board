@@ -61,6 +61,7 @@ public sealed class RenameChecks(AppFixture app) : IDisposable
 
         async Task<string> RowName() => (await page.InnerTextAsync(Row + " .lname b")).Trim();
 
+        await page.ClickAsync("#ham");
         await page.ClickAsync("#edit");
         await page.WaitForSelectorAsync(Row);
         await page.WaitForTimeoutAsync(400);

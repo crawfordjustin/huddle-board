@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace HuddleBoard.Tests;
 
 /// <summary>
-/// The deck menu: one hamburger in the top right holding Setup and Exit.
+/// The deck menu: one hamburger in the top right holding Change plays, Setup and Exit.
 /// </summary>
 /// <remarks>
 /// A dropdown is the one piece of chrome in this app that is drawn outside its
@@ -58,8 +58,8 @@ public sealed class MenuChecks(AppFixture app)
         var size = new Viewport(label, w, h);
         var (page, errors) = await app.OpenAppAsync(size);
 
-        // Setup left the header; it is in the menu, and the menu starts shut
-        Assert.Equal(0, await page.Locator(".dh-right > #setup").CountAsync());
+        // Setup and Change plays left the header; they are in the menu, and the menu starts shut
+        Assert.Equal(0, await page.Locator(".dh-right > #setup, .dh-right > #edit").CountAsync());
         Assert.False(await page.Locator("#menu").IsVisibleAsync());
 
         await page.ClickAsync("#ham");
@@ -68,7 +68,7 @@ public sealed class MenuChecks(AppFixture app)
         var panel = JsonSerializer.Deserialize<Panel>(
             await page.EvaluateAsync<string>(Measure))!;
 
-        Assert.Equal(2, panel.Items);
+        Assert.Equal(3, panel.Items);
         Assert.True(panel.Rightmost, $"{size}: the hamburger is not the last thing in the header");
         Assert.True(panel.Left >= 0 && panel.Right <= panel.Width + 0.5,
             $"{size}: the panel runs off the side ({panel.Left} to {panel.Right} of {panel.Width})");

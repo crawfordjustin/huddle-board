@@ -134,9 +134,21 @@ hunt through.
 The filter is in memory only, never saved. A deck filtered to GOAL LINE and then
 persisted would have a coach pick the tablet up next week, see two plays and
 think his deck had been eaten — so the header count reads "2 of 14" whenever a
-filter is on, and going back through the intro clears it. The bar stays away
-below six plays, where the whole deck is on screen at a glance and a filter is
-just one more thing to read. `DeckFilterChecks` holds all of that.
+filter is on, and going back through the intro clears it. `DeckFilterChecks`
+holds all of that.
+
+The deck has no title row. It is the screen a coach picks plays from, so every
+line of chrome above the tiles is a row of plays he cannot see. The chips sit on
+the left of one top bar and the clock, the count and the menu on its right.
+Because they cost no row of their own, they show for any deck with something to
+narrow by, and stay away only when every play in the deck would answer both
+questions the same way. (They used to hide below six plays, when the bar was a
+row of its own and the whole deck was already on screen; with the bar there
+anyway, an empty left half is just wasted space.)
+**Change plays** is in the hamburger with Setup and Exit, because changing the
+deck is something a coach does between series, not with six kids waiting.
+`MenuChecks` holds the three items and that the menu is the last thing in the
+bar.
 
 **8. An update never interrupts a live play.** The service worker installs a new
 build as a *waiting* worker and shows "Update ready". It swaps only on tap.

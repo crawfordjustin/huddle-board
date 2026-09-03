@@ -32,9 +32,17 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   border-bottom:2px solid #39433C;padding-bottom:10px;flex:none}
 .deckhead h1{font-family:var(--disp);font-size:clamp(26px,4.4vh,40px);margin:0;letter-spacing:.01em;
   text-transform:uppercase;color:#F2F4F1}
-.deckhead p{margin:0;font-size:clamp(11px,1.6vh,14px);color:#8A968C;letter-spacing:.13em;
+.deckhead p,.decktop p{margin:0;font-size:clamp(11px,1.6vh,14px);color:#8A968C;letter-spacing:.13em;
   text-transform:uppercase;font-weight:600}
 .dh-right{display:flex;align-items:center;gap:clamp(10px,1.5vw,20px)}
+/* The deck has no title row. It is the screen a coach picks plays from, so
+   every line of chrome above the tiles is a row of plays he cannot see: the
+   filter chips sit on the left of one bar and the clock, the count and the
+   menu on its right. Change plays lives in the menu with Setup and Exit. */
+.decktop{flex:none;display:flex;align-items:center;justify-content:space-between;
+  gap:clamp(10px,1.5vw,20px)}
+.decktop .dfilt{flex:1 1 0;min-width:0;padding:0}
+.decktop .dh-right{flex:none;margin-left:auto;align-self:flex-start}
 .barright{justify-self:end;display:flex;align-items:center;gap:clamp(8px,1.2vw,16px)}
 
 /* play clock — same dark instrument on every screen */
@@ -1111,10 +1119,12 @@ function renderDeck(){
   S.screen = "deck";
   const all = inDeck();
   const list = all.filter(p => deckMatch(p, deckF));
-  // Below six plays the whole deck is on screen at a glance and a filter bar is
-  // just something else to read. It earns its room above that.
+  // The chips share the top bar with the clock and the menu, so they cost no
+  // row of their own. They show whenever there is something to narrow by, and
+  // stay away only when every play in the deck would answer both questions
+  // the same way — one chip lit with nothing to switch to teaches nothing.
   const cats = CAT_ORDER.filter(k => all.some(p => p.category === k));
-  const showFilters = all.length >= 6 && (cats.length > 1 || all.some(isRun) !== all.every(isRun));
+  const showFilters = cats.length > 1 || all.some(isRun) !== all.every(isRun);
   // columns follow the room available, not just how many plays there are —
   // four columns on a narrow tablet leaves tiles too small to read
   const roomFor = Math.max(1, Math.min(4, Math.floor(innerWidth / 340)));
@@ -1123,8 +1133,8 @@ function renderDeck(){
   const compact = cols > 2;
   app.innerHTML = `
     <div class="deck">
-      <div class="deckhead">
-        <h1>Your Deck</h1>
+      <div class="decktop">
+        ${showFilters ? `<div class="dfilt" id="dfilt">${deckFilterHTML(all, cats)}</div>` : ""}
         <div class="dh-right">
           ${updateReady ? `<button class="edit upd" id="upd">Update ready</button>` : ""}
           ${(!isImmersive() && canFullscreen())
@@ -1133,18 +1143,17 @@ function renderDeck(){
           <p>${list.length === all.length
               ? `${all.length} play${all.length === 1 ? "" : "s"}`
               : `${list.length} of ${all.length}`}</p>
-          <button class="edit" id="edit">Change plays</button>
           <div class="menuwrap">
             <button class="ham" id="ham" aria-label="Menu" aria-haspopup="true"
               aria-expanded="false"><i></i><i></i><i></i></button>
             <div class="menu" id="menu" role="menu" hidden>
+              <button id="edit" role="menuitem">Change plays</button>
               <button id="setup" role="menuitem">Setup</button>
               <button id="exit" role="menuitem">Exit</button>
             </div>
           </div>
         </div>
       </div>
-      ${showFilters ? `<div class="dfilt" id="dfilt">${deckFilterHTML(all, cats)}</div>` : ""}
       <div class="tiles ${compact ? "compact" : ""}" style="--cols:${cols}">
         ${list.map(p => `
         <button class="tile ${isRun(p) ? "run" : "pass"}" data-id="${p.id}"
@@ -1170,7 +1179,7 @@ function renderDeck(){
         : `Your deck still has ${all.length} play${all.length === 1 ? "" : "s"} in it.`}</div>
     </div>`;
   bindDeckFilters();
-  document.getElementById("edit").onclick = renderLibrary;
+  document.getElementById("edit").onclick = () => { closeMenu(); renderLibrary(); };
   const ham = document.getElementById("ham");
   ham.onclick = () => {
     const open = !ham.parentElement.classList.contains("open");
@@ -1258,7 +1267,7 @@ function renderSettings(){
     ["Play names", "BULLDOZER or 22 DIVE. Fun names stick with the kids; real names are what you say to another coach.",
      seg("funNames", [[true,"Fun"],[false,"Real"]])],
     ["Your own names", `${renamedCount()} play${renamedCount() === 1 ? "" : "s"} renamed on this
-      tablet. Rename any play from Change plays &mdash; tap the pencil on its row. Your names
+      tablet. Rename any play from Change plays in the menu &mdash; tap the pencil on its row. Your names
       are kept through an update; Reset all puts every shipped name back.`,
      `<div class="seg"><button id="nmreset" ${renamedCount() ? "" : "disabled"}>Reset all</button></div>`],
     ["Show the clock", "Turn it off entirely if your league does not run one.",

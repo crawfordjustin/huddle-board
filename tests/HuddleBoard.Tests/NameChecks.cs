@@ -88,6 +88,7 @@ public sealed class NameChecks(AppFixture app)
         var deck = await page.EvalOnSelectorAllAsync<string[]>(".tile .kid", DeckClipped);
         var reachable = await page.EvaluateAsync<bool>(EveryTileReachable);
 
+        await page.ClickAsync("#ham");
         await page.ClickAsync("#edit");
         await page.WaitForTimeoutAsync(350);
         var library = await page.EvalOnSelectorAllAsync<string[]>(".lname b", Clipped);

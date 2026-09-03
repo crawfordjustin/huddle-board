@@ -13,6 +13,7 @@ public sealed class LibraryChecks(AppFixture app)
     public async Task FiltersAndSearchNarrowTheList()
     {
         var (page, errors) = await app.OpenAppAsync(Desk);
+        await page.ClickAsync("#ham");
         await page.ClickAsync("#edit");
         await page.WaitForTimeoutAsync(500);
 

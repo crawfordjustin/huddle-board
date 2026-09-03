@@ -91,17 +91,24 @@ public sealed class DeckFilterChecks(AppFixture app)
     }
 
     /// <summary>
-    /// The bar is chrome. Below six plays the whole deck is on screen at a
-    /// glance and a filter is just one more thing to read.
+    /// The chips share the top bar with the clock and the menu, so they cost
+    /// nothing and show for any deck with something to narrow by. They stay
+    /// away only when every play would answer both questions the same way.
     /// </summary>
     [Fact]
-    public async Task TheBarStaysAwayFromASmallDeck()
+    public async Task TheBarStaysAwayOnlyWhenThereIsNothingToNarrow()
     {
         var (page, errors) = await app.OpenAppAsync(Desk);
 
-        await page.EvaluateAsync(DeckOf(4));
+        // one play: one run, one situation — nothing to switch to
+        await page.EvaluateAsync(DeckOf(1));
         await page.WaitForTimeoutAsync(300);
         Assert.Equal(0, await page.Locator("#dfilt").CountAsync());
+
+        // the shipped starting deck of four mixes run and pass, so it filters
+        await page.EvaluateAsync("deck = DATA.defaultDeck.slice(); saveDeck(); renderDeck();");
+        await page.WaitForTimeoutAsync(300);
+        Assert.Equal(1, await page.Locator("#dfilt").CountAsync());
 
         await page.EvaluateAsync(DeckOf(14));
         await page.WaitForTimeoutAsync(300);
