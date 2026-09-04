@@ -302,6 +302,19 @@ timing bug that only appears on screen at a particular size. Checks run across
 five tablet shapes (`AppFixture.Sizes`) — two landscape, two portrait, and a
 short landscape that catches anything relying on vertical room.
 
+**Match the verification to the change.** The full suite is about four minutes
+and most changes do not need it. `check` runs in seconds and is always run —
+it is what gates the deploy. A change to one screen's drawing or behaviour
+gets the one class that covers it:
+
+```
+dotnet test --filter "FullyQualifiedName~BallChecks"
+```
+
+The whole suite is for what it was built to catch: layout across the five
+sizes, storage, sync and the service worker. Text, copy and colours need
+`check` and nothing more.
+
 The app opens on an intro screen — art and one START button — so
 `AppFixture.OpenAppAsync` taps through it and hands every other check the deck.
 Pass `intro: true` to stay on it; `IntroChecks` is the only thing that does.
