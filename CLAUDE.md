@@ -203,12 +203,16 @@ over the shipped defaults, never over what the tablet had before, so the result
 depends on the file alone. `SyncChecks` holds all of it across two browser
 contexts, which is what gives two tablets two separate stores.
 
-**11. A coach starts from a pack, not from an empty deck.** The playbook's own
-advice is "master four, then add a play a week", so the shipped play packs
-(`PlayPacks.cs`) are that advice as decks: Week 1 through Week 6, each the
-week before plus two plays, chosen by name from a strip on the Change plays
-screen. Packs are cumulative on purpose — a team does not forget 22 DIVE in
-week three. The first pack *is* the starting deck: `ProtoExporter` reads
+**11. A coach starts from a pack, not from an empty deck.** The shipped play
+packs (`PlayPacks.cs`) are six complete game decks, Week 1 through Week 6,
+chosen by name from a strip on the Change plays screen. Every week stands on
+its own — a run, a quick pass, something downfield or for the no-run zone, and
+a goal line call, four to six plays — because a deck is what a coach carries
+into one game, and six he can find without looking beats fourteen he has to
+hunt through. The weeks are not cumulative: where one brings a reverse, the
+sweep or pitch it punishes was a week or two before, and across the season a
+team sees every play in the library once. `PlayLibraryChecks` pins all of
+that. The first pack *is* the starting deck: `ProtoExporter` reads
 `defaultDeck` from it, so Start over and Week 1 cannot disagree.
 
 Taking a pack replaces the deck, the same way a sync import does and for the

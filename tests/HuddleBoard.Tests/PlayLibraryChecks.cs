@@ -83,12 +83,23 @@ public sealed class PlayLibraryChecks
         Assert.True(findings.Count == 0, string.Join("\n", findings));
         Assert.Equal([1, 5, 7, 13], PlayPacks.Starting);
 
-        // a week is the week before plus something: nothing a team learned is taken away
-        for (var i = 1; i < PlayPacks.All.Count; i++)
+        // every week is a whole game deck on its own: a run, a pass, a goal line call,
+        // and small enough to find a play in without looking
+        var cat = PlayLibrary.All.ToDictionary(p => p.Num, p => p.Category);
+        foreach (var pack in PlayPacks.All)
         {
-            var (prev, next) = (PlayPacks.All[i - 1], PlayPacks.All[i]);
-            Assert.True(prev.Plays.All(next.Plays.Contains) && next.Plays.Count > prev.Plays.Count,
-                $"{next.Name} is not {prev.Name} plus more");
+            var cats = pack.Plays.Select(n => cat[n]).ToList();
+            Assert.True(cats.Contains("RUN ZONE"), $"{pack.Name} has no run");
+            Assert.True(cats.Any(c => c != "RUN ZONE" && c != "GOAL LINE"), $"{pack.Name} has no pass");
+            Assert.True(cats.Contains("GOAL LINE"), $"{pack.Name} has no goal line call");
+            Assert.InRange(pack.Plays.Count, 4, 6);
         }
+
+        // no two weeks are the same deck, and the season shows a team every play once
+        Assert.Equal(PlayPacks.All.Count,
+            PlayPacks.All.Select(k => string.Join(",", k.Plays.Order())).Distinct().Count());
+        var seen = PlayPacks.All.SelectMany(k => k.Plays).ToHashSet();
+        var unseen = PlayLibrary.All.Select(p => p.Num).Where(n => !seen.Contains(n)).ToList();
+        Assert.True(unseen.Count == 0, "no week plays: " + string.Join(", ", unseen));
     }
 }
