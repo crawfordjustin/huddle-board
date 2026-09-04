@@ -173,7 +173,9 @@ exchange; a throw used to be the ball alone on an invisible arc, which six
 routes could swallow. Now the arc is drawn as the same dashed grey line
 (`SC.throw`), growing under the ball as it flies and left in place after the
 catch, so there is one picture for "where the ball goes" whether it is handed
-or thrown. `BallChecks` holds that a pass has the line ending at the catch and
+or thrown. The deck and library thumbnails draw the same arc from the same
+three points (`throwArc`), so a tile is a small picture of what the big screen
+will show. `BallChecks` holds that a pass has the line ending at the catch and
 a run has none. The reverse family is one concept
 run from three formations — REVERSE (SPREAD), JET REVERSE (TRIPS LEFT) and
 PITCH REVERSE (ACE) — and each starts as the exact sweep, jet or pitch the

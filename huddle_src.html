@@ -496,6 +496,22 @@ function qbez(a, b, c, t){
   const u = 1 - t;
   return [u*u*a[0] + 2*u*t*b[0] + t*t*c[0], u*u*a[1] + 2*u*t*b[1] + t*t*c[1]];
 }
+/* The throw: one arc from the thrower's spot to the end of the target's route,
+   bowed a little so it reads as a flight and not a fourth route. The play
+   screen and the thumbnail both draw it from these three points, so a tile is
+   a small picture of exactly what the big screen will show. Null on a run. */
+function throwArc(play){
+  if (play.ball.mode === "carry") return null;
+  const idx = play.paths.findIndex(p => p.who === play.ball.who);
+  if (idx < 0) return null;
+  const src = [play.spots.QB.x, play.spots.QB.y];
+  const dst = play.paths[idx].pts[play.paths[idx].pts.length - 1];
+  const mid = [(src[0]+dst[0])/2, (src[1]+dst[1])/2];
+  const dx = dst[0]-src[0], dy = dst[1]-src[1];
+  return {idx, src, ctrl:[mid[0] - dy*0.16, mid[1] + dx*0.16], dst};
+}
+const throwPts = (arc, n = 24) =>
+  Array.from({length:n + 1}, (_, i) => qbez(arc.src, arc.ctrl, arc.dst, i / n));
 
 /* ------------------------------------------------------------ timeline */
 const HOLD = 700, YD = 150, TAIL = 1500;
@@ -549,15 +565,9 @@ function buildTimeline(play){
     const idx = play.paths.findIndex(p => p.who === b.who);
     const tp = tl.paths[idx] || {start:tl.tSnap, dur:1200};
     const arrive = tp.start + tp.dur;
-    // The throw is one arc from the thrower's spot to the end of the target's
-    // route, bowed a little so it reads as a flight and not a fourth route.
-    // The frame draws the ball along it and the dashed throw line behind it,
-    // so both come from the same three points.
-    const src = [play.spots.QB.x, play.spots.QB.y];
-    const dst = play.paths[idx].pts[play.paths[idx].pts.length - 1];
-    const mid = [(src[0]+dst[0])/2, (src[1]+dst[1])/2];
-    const dx = dst[0]-src[0], dy = dst[1]-src[1];
-    const ctrl = [mid[0] - dy*0.16, mid[1] + dx*0.16];
+    // the frame draws the ball along the arc and the dashed throw line behind
+    // it, so both come from the same three points
+    const {src, ctrl, dst} = throwArc(play);
     tl.ball = {mode:"pass", pathIdx:idx, start:Math.max(tl.tSnap + 120, arrive - 620),
                dur:Math.min(620, arrive - tl.tSnap - 100), arrive, src, ctrl, dst};
   }
@@ -900,6 +910,12 @@ function thumbSVG(p){
       stroke-linecap="round" opacity="${strong ? 1 : .34}"
       ${dash ? `stroke-dasharray="${dash}"` : ""}/>`);
   });
+  // the throw, dashed like a handoff, so a tile says where the ball goes the
+  // same way the play screen does
+  const arc = throwArc(p);
+  if (arc) o.push(`<polyline points="${poly(throwPts(arc))}" fill="none"
+    stroke="${col.handoff}" stroke-width="2.4" stroke-linejoin="round"
+    stroke-linecap="round" stroke-dasharray="3 2"/>`);
   for (const k in p.spots){
     const sp = p.spots[k], c = tx(sp.x, sp.y);
     const isBall = k === p.primary;
