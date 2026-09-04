@@ -24,7 +24,10 @@ public sealed class BallChecks(AppFixture app)
         [property: JsonPropertyName("opacity")] double Opacity,
         [property: JsonPropertyName("rotated")] bool Rotated,
         [property: JsonPropertyName("dx")] double Dx,
-        [property: JsonPropertyName("dy")] double Dy);
+        [property: JsonPropertyName("dy")] double Dy,
+        [property: JsonPropertyName("throwOpacity")] double ThrowOpacity,
+        [property: JsonPropertyName("throwDx")] double ThrowDx,
+        [property: JsonPropertyName("throwDy")] double ThrowDy);
 
     /// <summary>Jump the animation to just before it loops, so the ball has arrived.</summary>
     private const string Settle = """
@@ -39,7 +42,14 @@ public sealed class BallChecks(AppFixture app)
           const want = W2S(dst[0], dst[1]);
           const tr = SC.ball.getAttribute('transform') || '';
           const m = /translate\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/.exec(tr);
+          // the dashed throw line, if this play has one: where its last point is
+          const th = SC.throw;
+          const last = th ? (th.getAttribute('points') || '').trim().split(' ').pop() : '';
+          const te = last ? last.split(',').map(Number) : null;
           return JSON.stringify({
+            throwOpacity: th ? +(th.getAttribute('opacity') || 0) : -1,
+            throwDx: te ? +(te[0] - want[0]).toFixed(2) : 9999,
+            throwDy: te ? +(te[1] - want[1]).toFixed(2) : 9999,
             circles: SC.ball.querySelectorAll('circle').length,
             shapes: SC.ball.querySelectorAll('path').length,
             opacity: +(SC.ball.getAttribute('opacity') || 0),
@@ -87,6 +97,20 @@ public sealed class BallChecks(AppFixture app)
             // and it is sitting on the end of the ball's path, not near it
             Assert.True(Math.Abs(g.Dx) < 1.5 && Math.Abs(g.Dy) < 1.5,
                 $"{at}: the ball finished {g.Dx},{g.Dy} away from the end of its path");
+
+            // A pass leaves a dashed throw line behind the ball, the way a handoff
+            // leaves its dashed arrow, and it ends where the ball does. A run has
+            // no such line — its ball rides the run and the handoff arrows.
+            if (kind == "a pass")
+            {
+                Assert.True(g.ThrowOpacity == 1, $"{at}: the throw line is not showing");
+                Assert.True(Math.Abs(g.ThrowDx) < 1.5 && Math.Abs(g.ThrowDy) < 1.5,
+                    $"{at}: the throw line ends {g.ThrowDx},{g.ThrowDy} away from the catch");
+            }
+            else
+            {
+                Assert.True(g.ThrowOpacity == -1, $"{at}: a run play drew a throw line");
+            }
         }
 
         await page.CloseAsync();

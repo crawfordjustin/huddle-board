@@ -165,7 +165,16 @@ the first runner ran his two steps empty-handed — the opposite of what the
 coach was teaching. Now every handoff names who takes it, the exporter turns
 the chain into legs, and the marker follows the first runner until he reaches
 the end of the second arrow, then the second. `BallChecks` reads a frame either
-side of that exchange on all three reverses. The reverse family is one concept
+side of that exchange on all three reverses.
+
+A pass shows its flight the same way a handoff does. The handoff arrow is a
+dashed grey line the ball rides along, and it stays on screen after the
+exchange; a throw used to be the ball alone on an invisible arc, which six
+routes could swallow. Now the arc is drawn as the same dashed grey line
+(`SC.throw`), growing under the ball as it flies and left in place after the
+catch, so there is one picture for "where the ball goes" whether it is handed
+or thrown. `BallChecks` holds that a pass has the line ending at the catch and
+a run has none. The reverse family is one concept
 run from three formations — REVERSE (SPREAD), JET REVERSE (TRIPS LEFT) and
 PITCH REVERSE (ACE) — and each starts as the exact sweep, jet or pitch the
 defense has already chased, because a reverse is the punishment for chasing.

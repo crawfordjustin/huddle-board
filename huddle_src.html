@@ -549,8 +549,17 @@ function buildTimeline(play){
     const idx = play.paths.findIndex(p => p.who === b.who);
     const tp = tl.paths[idx] || {start:tl.tSnap, dur:1200};
     const arrive = tp.start + tp.dur;
+    // The throw is one arc from the thrower's spot to the end of the target's
+    // route, bowed a little so it reads as a flight and not a fourth route.
+    // The frame draws the ball along it and the dashed throw line behind it,
+    // so both come from the same three points.
+    const src = [play.spots.QB.x, play.spots.QB.y];
+    const dst = play.paths[idx].pts[play.paths[idx].pts.length - 1];
+    const mid = [(src[0]+dst[0])/2, (src[1]+dst[1])/2];
+    const dx = dst[0]-src[0], dy = dst[1]-src[1];
+    const ctrl = [mid[0] - dy*0.16, mid[1] + dx*0.16];
     tl.ball = {mode:"pass", pathIdx:idx, start:Math.max(tl.tSnap + 120, arrive - 620),
-               dur:Math.min(620, arrive - tl.tSnap - 100), arrive};
+               dur:Math.min(620, arrive - tl.tSnap - 100), arrive, src, ctrl, dst};
   }
   tl.tEnd = Math.max(...tl.paths.map(p => p.start + p.dur),
                      tl.ball.start + tl.ball.dur) + TAIL;
@@ -1743,6 +1752,18 @@ function buildScene(){
     svg.appendChild(g.line); if (g.bar) svg.appendChild(g.bar);
     SC.paths.push(g);
   });
+  // The throw. A handoff already leaves a dashed grey line behind the ball, so
+  // a pass leaves the same one: one picture for "this is where the ball goes",
+  // whether it is handed or thrown. It draws out under the ball as it flies
+  // and stays put after the catch, because the ball alone was too easy to
+  // miss on a screen with six routes on it.
+  SC.throw = null;
+  if (p.ball.mode !== "carry"){
+    SC.throw = mk("polyline",{fill:"none",stroke:"#5B6472","stroke-width":6,
+      "stroke-linejoin":"round","stroke-linecap":"round","stroke-dasharray":"13 9",
+      "marker-end":"url(#a-handoff)",opacity:0});
+    svg.appendChild(SC.throw);
+  }
 
   for (const key in p.spots){
     const sp = p.spots[key];
@@ -1953,20 +1974,31 @@ function frame(now){
         ahead = walk(pts, Math.min(1, prog + STEP)).end;
         show = true;
       }
-    } else {
-      const path = p.paths[b.pathIdx], seg = tl.paths[b.pathIdx];
-      const src = [p.spots.QB.x, p.spots.QB.y];
-      const dst = path.pts[path.pts.length - 1];
-      if (t >= b.start){
-        const f = Math.max(0, Math.min(1, (t - b.start) / b.dur));
-        const mid = [(src[0]+dst[0])/2, (src[1]+dst[1])/2];
-        const dx = dst[0]-src[0], dy = dst[1]-src[1], d = Math.hypot(dx,dy) || 1;
-        const ctrl = [mid[0] - dy/d*d*0.16, mid[1] + dx/d*d*0.16];
-        bp = qbez(src, ctrl, dst, f);
-        ahead = qbez(src, ctrl, dst, Math.min(1, f + STEP));
-        show = true;
-      }
+    } else if (t >= b.start){
+      const f = Math.max(0, Math.min(1, (t - b.start) / b.dur));
+      bp = qbez(b.src, b.ctrl, b.dst, f);
+      ahead = qbez(b.src, b.ctrl, b.dst, Math.min(1, f + STEP));
+      show = true;
     }
+  }
+  // the throw line grows under the ball and stays after the catch. It keeps
+  // drawing in solo, dimmed like the other routes, so tapping the receiver
+  // still shows the ball coming to him.
+  if (SC.throw){
+    const f = running && t >= b.start ? Math.max(0, Math.min(1, (t - b.start) / b.dur)) : 0;
+    let op = 0;
+    if (f > 0){
+      const who = p.paths[b.pathIdx].who;
+      op = S.solo ? ((S.solo === who || S.solo === "QB") ? 1 : 0.07) : 1;
+      const n = Math.max(2, Math.ceil(f * 24));
+      const arc = [];
+      for (let i = 0; i <= n; i++){
+        const w = qbez(b.src, b.ctrl, b.dst, f * i / n);
+        arc.push(pt(w));
+      }
+      SC.throw.setAttribute("points", arc.join(" "));
+    }
+    SC.throw.setAttribute("opacity", op);
   }
   if (show && bp){
     const s = W2S(bp[0], bp[1]), s2 = W2S(ahead[0], ahead[1]);
