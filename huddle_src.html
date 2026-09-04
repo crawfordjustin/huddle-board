@@ -177,6 +177,14 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .pack[data-armed]{background:#8A5A00;border-style:solid;border-color:#C58A16;color:#fff}
 .pack:active{transform:scale(.96)}
 .pack:focus-visible{outline:3px solid #5FBF8F;outline-offset:2px}
+/* a week the coach saved his own deck into wears the same pencil as a renamed row */
+.pack .pmark{font-size:.85em;color:#8FC9A8;margin-right:-2px}
+.pack.on .pmark{color:#CBE8DA}
+/* Save deck sits at the far end, plain: it is a verb, not a week */
+.psave{margin-left:auto;border-style:solid;border-color:#39433C;color:#A3AFA6;background:#1A211D}
+/* saving: every week is a target, in the same amber as an armed button */
+.packs.saving .pack:not(.psave){border-style:solid;border-color:#C58A16;color:#F2D9A6;background:#3A2A08}
+.psave.on{background:#8A5A00;border-color:#C58A16;color:#fff}
 .lempty{grid-column:1/-1;align-self:start;display:flex;align-items:center;gap:14px;
   color:#8A968C;font-size:clamp(13px,2vh,18px);padding:clamp(14px,2.5vh,28px) 4px}
 
@@ -711,6 +719,40 @@ function resetNames(id){
   saveNames();
 }
 
+/* ----------------------------------------------------------- saved decks
+   A coach can save the deck he built into one of the week slots, so Week 3
+   on this tablet is HIS week 3. Same shape as names: keyed by pack id, only
+   what differs from the shipped pack is stored, kept through an update, and
+   carried in the sync file — where every slot is spelled out, so the tablet
+   that imports ends up with exactly the weeks the file has, shipped or saved. */
+let packSaves = {};
+try {
+  const saved = JSON.parse(localStorage.getItem("hb.packs") || "null");
+  if (saved && saved.v === 1 && saved.byId) packSaves = saved.byId;
+} catch(e){}
+function savePackSaves(){
+  try { localStorage.setItem("hb.packs", JSON.stringify({v:1, byId:packSaves})); } catch(e){}
+}
+const sameDeck = (a, b) => a.length === b.length && a.every(id => b.includes(id));
+const knownPlay = id => typeof id === "string" && DATA.plays.some(p => p.id === id);
+// the weeks as this tablet has them: shipped, with a coach's deck in any slot he filled
+const packsNow = () => DATA.packs.map(k => packSaves[k.id]
+  ? Object.assign({}, k, {plays: packSaves[k.id].slice(), mine: true}) : k);
+const savedPackCount = () => Object.keys(packSaves).length;
+// Only what differs is stored: saving the shipped deck back into its own slot
+// is not a change, and the mark on the chip should not claim otherwise.
+function setPack(id, plays){
+  const k = DATA.packs.find(x => x.id === id);
+  if (!k || !Array.isArray(plays)) return false;
+  const list = [];
+  for (const p of plays) if (knownPlay(p) && !list.includes(p)) list.push(p);
+  if (!list.length) return false;
+  if (sameDeck(list, k.plays)) delete packSaves[id]; else packSaves[id] = list;
+  savePackSaves();
+  return true;
+}
+function resetPacks(){ packSaves = {}; savePackSaves(); }
+
 /* ----------------------------------------------------------- start over
    Everything a coach can change, back to the way the tablet arrived: the
    starting deck, every play's shipped name, every setting above, and which
@@ -718,8 +760,9 @@ function resetNames(id){
    recording, not a preference — it is the one thing here that cannot be
    derived again — and it has its own Clear one row up. */
 function resetEverything(){
-  logEvent("reset_all", {deck: deck.slice(), renamed: renamedCount()});
+  logEvent("reset_all", {deck: deck.slice(), renamed: renamedCount(), savedWeeks: savedPackCount()});
   resetNames();
+  resetPacks();
   deck = DATA.defaultDeck.slice(); saveDeck();
   cfg = Object.assign({}, CFG_DEFAULTS); saveCfg();
   setOurSide("blue");
@@ -748,6 +791,8 @@ function setupBlob(){
   return JSON.stringify({
     format: SETUP_FORMAT, v: 1, build: APP_BUILD, device: devId, exportedWall: Date.now(),
     deck: deck.slice(), names, settings, ourSide,
+    // every week as this tablet has it, shipped or saved, so the file stands alone
+    packs: Object.fromEntries(packsNow().map(k => [k.id, k.plays.slice()])),
   });
 }
 // The file, read with suspicion. Returns what will be applied plus a count of
@@ -772,6 +817,15 @@ function readSetup(text){
     if (CFG_CHOICES[k].includes(st[k])) s.settings[k] = st[k]; else s.dropped++;
   }
   if (o.ourSide === "blue" || o.ourSide === "orange") s.ourSide = o.ourSide; else s.dropped++;
+  // saved weeks: a slot the build knows, holding plays the library has, once each
+  s.packs = {};
+  if (o.packs && typeof o.packs === "object") for (const id of Object.keys(o.packs)){
+    const list = o.packs[id];
+    if (!DATA.packs.some(k => k.id === id) || !Array.isArray(list)){ s.dropped++; continue; }
+    const ok = [];
+    for (const p of list){ if (knownPlay(p) && !ok.includes(p)) ok.push(p); else s.dropped++; }
+    if (ok.length) s.packs[id] = ok; else s.dropped++;
+  }
   return s;
 }
 function applySetup(s){
@@ -779,6 +833,9 @@ function applySetup(s){
   names = {};
   for (const id of Object.keys(s.names)) setNames(id, s.names[id].coach, s.names[id].kid);
   saveNames();
+  // every week comes from the file: a slot it does not fill goes back to shipped
+  resetPacks();
+  for (const id of Object.keys(s.packs)) setPack(id, s.packs[id]);
   cfg = Object.assign({}, CFG_DEFAULTS, s.settings); saveCfg();
   if (s.ourSide) setOurSide(s.ourSide);
   S.hintSeen = false;
@@ -825,6 +882,7 @@ async function importSetup(file){
     applySetup(s);
     const parts = [`${deck.length}-play deck`,
                    `${renamedCount()} renamed play${renamedCount() === 1 ? "" : "s"}`,
+                   `${savedPackCount()} saved week${savedPackCount() === 1 ? "" : "s"}`,
                    "settings", `${ourSide.toUpperCase()} sideline`];
     const d = s.dropped;
     syncMsg = "Imported: " + parts.join(", ") + "." +
@@ -1327,11 +1385,15 @@ function renderSettings(){
       tablet. Rename any play from Change plays in the menu &mdash; tap the pencil on its row. Your names
       are kept through an update; Reset all puts every shipped name back.`,
      `<div class="seg"><button id="nmreset" ${renamedCount() ? "" : "disabled"}>Reset all</button></div>`],
+    ["Your own decks", `${savedPackCount()} of ${DATA.packs.length} weeks hold a deck saved on this
+      tablet. From Change plays, tap Save deck and then the week to keep it in. Your decks are kept
+      through an update; Reset all puts every shipped week back.`,
+     `<div class="seg"><button id="pkreset" ${savedPackCount() ? "" : "disabled"}>Reset all</button></div>`],
     ["Show the clock", "Turn it off entirely if your league does not run one.",
      seg("showClock", [[true,"On"],[false,"Off"]])],
     ["Sync tablets", `${msg ? `<em class="setmsg" id="syncmsg">${esc(msg)}</em>` : ""}Assistant
       coaches' tablets do not talk to each other, so carry your choices across as one file: the
-      deck, your own names, every setting above, and which sideline is ours. Export shares the
+      deck, your own names and decks, every setting above, and which sideline is ours. Export shares the
       file &mdash; Quick Share reaches the next tablet with no network. Import on the other
       tablet replaces its choices with yours. The game log stays put.`,
      `<div class="seg"><button id="syncexp">Export</button>
@@ -1342,7 +1404,7 @@ function renderSettings(){
      `<div class="seg"><button id="logexp">Export</button>
       <button id="logclr">Clear</button></div>`],
     ["Start over", `Puts this tablet back the way it came &mdash; the ${DATA.defaultDeck.length}-play
-      starting deck, every play's shipped name, and every setting above. The game log is left
+      starting deck, every play's shipped name, every week's shipped deck, and every setting above. The game log is left
       alone; clear that with the row above.`,
      `<div class="seg"><button id="allreset">Reset tablet</button></div>`],
   ];
@@ -1367,6 +1429,8 @@ function renderSettings(){
   confirmTap("logclr", () => { events = []; flushLog(); renderSettings(); });
   confirmTap("nmreset", () => {
     resetNames(); logEvent("play_rename_reset", {play: "all"}); renderSettings(); });
+  confirmTap("pkreset", () => {
+    resetPacks(); logEvent("pack_reset", {pack: "all"}); renderSettings(); });
   confirmTap("allreset", () => { resetEverything(); renderSettings(); });
   app.querySelectorAll(".seg").forEach(g => g.addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
@@ -1516,7 +1580,7 @@ function renderLibrary(){
     document.getElementById("lnote").innerHTML = list.length !== DATA.plays.length
       ? `Showing ${list.length} of ${DATA.plays.length} plays.`
       : pack
-      ? `<b>${esc(pack.name)}.</b> ${esc(pack.blurb)}`
+      ? `<b>${esc(pack.name)}.</b> ${esc(blurbOf(pack))}`
       : `Tap to add or remove. Keep the deck small &mdash; four plays you can find
          without looking beats ${DATA.plays.length} you have to hunt through.`;
     // after layout settles — row width can still change as the list reflows
@@ -1573,26 +1637,47 @@ function renderLibrary(){
      tap like everything else that throws a choice away. A pack whose plays
      this library does not have is not offered at all — a deck with holes in
      it is worse than no pack. The strip is rebuilt only when the deck changes,
-     so an armed chip survives until it lapses or is taken. */
-  const packs = () => DATA.packs.filter(k => k.plays.every(id => DATA.plays.some(p => p.id === id)));
-  const packOf = () => packs().find(k => k.plays.length === deck.length &&
-                                          k.plays.every(id => deck.includes(id))) || null;
+     so an armed chip survives until it lapses or is taken.
+
+     Save deck runs the other way: the coach's deck goes INTO a week. It is
+     the same two taps — Save deck, then the week — and the strip says which
+     question it is asking, so the second tap cannot be mistaken for taking a
+     pack. The mode lapses on its own like an armed button does. */
+  let saving = false, saveTimer = 0;
+  const packs = () => packsNow().filter(k => k.plays.every(knownPlay));
+  const packOf = () => packs().find(k => sameDeck(k.plays, deck)) || null;
+  const blurbOf = k => k.mine ? "Your own deck, saved on this tablet." : k.blurb;
   const drawPacks = () => {
     const el = document.getElementById("packs");
     if (!el) return;
-    const list = packs(), cur = packOf();
+    const list = packs(), cur = packOf(), isCur = k => !!cur && cur.id === k.id;
     el.hidden = !list.length;
-    el.innerHTML = `<span class="plab">Start from</span>` + list.map(k =>
-      `<button class="pack ${cur === k ? "on" : ""}" id="pack-${k.id}" data-pack="${k.id}"
-         title="${esc(k.blurb)}">${esc(k.name)}<span class="n">${k.plays.length}</span></button>`).join("");
+    el.classList.toggle("saving", saving);
+    el.innerHTML = `<span class="plab">${saving ? "Save into" : "Start from"}</span>` + list.map(k =>
+      `<button class="pack ${isCur(k) ? "on" : ""} ${k.mine ? "mine" : ""}" id="pack-${k.id}"
+         data-pack="${k.id}" title="${esc(blurbOf(k))}">${k.mine ? `<span class="pmark">&#9998;</span>` : ""}${esc(k.name)}<span class="n">${k.plays.length}</span></button>`).join("") +
+      `<button class="pack psave ${saving ? "on" : ""}" id="psave">${saving ? "Cancel" : "Save deck"}</button>`;
+    document.getElementById("psave").onclick = () => setSaving(!saving);
     for (const k of list){
-      if (cur === k) continue;                  // already the deck: nothing to take
-      confirmTap("pack-" + k.id, () => {
-        deck = k.plays.slice(); saveDeck();
-        logEvent("deck_pack", {pack: k.id, deck: deck.slice()});
-        drawCounts(); drawRows();
-      });
+      if (saving){
+        document.getElementById("pack-" + k.id).onclick = () => {
+          setPack(k.id, deck);
+          logEvent("deck_pack_saved", {pack: k.id, deck: deck.slice()});
+          setSaving(false); drawRows();
+        };
+      } else if (!isCur(k)){                    // already the deck: nothing to take
+        confirmTap("pack-" + k.id, () => {
+          deck = k.plays.slice(); saveDeck();
+          logEvent("deck_pack", {pack: k.id, deck: deck.slice()});
+          drawCounts(); drawRows();
+        });
+      }
     }
+  };
+  const setSaving = on => {
+    clearTimeout(saveTimer); saving = on;
+    if (on) saveTimer = setTimeout(() => { saving = false; drawPacks(); }, 6000);
+    drawPacks();
   };
 
   const drawFilters = () => {

@@ -228,8 +228,26 @@ with holes in it is worse than no pack. `PlayPacks.Check` runs inside `check`
 (not inside `PlayChecker.Check`, which is also run on the original fourteen
 alone) so a pack naming a play that does not exist fails the deploy gate.
 `PackChecks` holds the two taps, the exact replacement, the lapse, the hidden
-strip, and the strip's fit across the five sizes. The file import is untouched
-and still the way one coach's deck reaches another tablet.
+strip, and the strip's fit across the five sizes.
+
+A week is also a slot a coach can save his own deck into. **Save deck** sits at
+the far end of the strip; tapping it turns the strip into the question "save
+into which week?", the weeks go amber, and the next tap on a week puts the
+current deck in that slot. It is the same two-tap shape as taking a pack, and
+the strip says which question it is asking so the second tap cannot be
+mistaken for the other one; the mode lapses on its own. Saved weeks live in
+`localStorage` under `hb.packs`, keyed by pack id, with the same discipline as
+names: only a slot that differs from the shipped pack is stored, so saving the
+shipped deck back into its own week is not a save, and the pencil on the chip
+cannot claim otherwise. Setup shows how many weeks are saved and resets them;
+Start over resets them too. The sync file spells out **every** week as the
+exporting tablet has it, shipped or saved, and import starts from the shipped
+weeks and applies the file's — so a week the importing tablet had saved on its
+own goes back to shipped when the file does not carry it, and the result
+depends on the file alone. `readSetup` trusts none of it: a slot must be one
+the build knows, its plays must exist in the library, once each. `SyncChecks`
+carries a saved week across two tablets, and `PackChecks` holds the save, the
+take-back, the not-a-save, the lapse and the reset.
 
 ## Source layout
 

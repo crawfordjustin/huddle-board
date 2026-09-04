@@ -27,8 +27,8 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
 
     /// <summary>Everything the file carries, in one comparable line.</summary>
     private const string StateProbe = """
-        () => [deck.join(','), JSON.stringify(names), cfg.clockSecs, cfg.warnAt, cfg.vibrate,
-               cfg.funNames, cfg.showClock, ourSide].join('|')
+        () => [deck.join(','), JSON.stringify(names), JSON.stringify(packSaves), cfg.clockSecs,
+               cfg.warnAt, cfg.vibrate, cfg.funNames, cfg.showClock, ourSide].join('|')
         """;
 
     /// <summary>A fresh tablet: its own context, its own storage, past the intro.</summary>
@@ -80,6 +80,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
             () => {
               setNames('p_01', 'POWER O', 'STAMPEDE');
               setNames('p_05', '', 'TANGLE');
+              setPack('week2', DATA.plays.slice(4, 9).map(p => p.id));
               deck = DATA.plays.slice(2, 13).map(p => p.id); saveDeck();
               cfg.clockSecs = 25; cfg.warnAt = 15; cfg.funNames = true; cfg.showClock = false;
               saveCfg();
@@ -113,6 +114,11 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
             Assert.Equal(25, root.GetProperty("settings").GetProperty("clockSecs").GetInt32());
             Assert.Equal("STAMPEDE",
                 root.GetProperty("names").GetProperty("p_01").GetProperty("kid").GetString());
+            // every week is spelled out, shipped or saved, so the file stands alone
+            var packs = root.GetProperty("packs");
+            Assert.Equal(PlayPacks.All.Count, packs.EnumerateObject().Count());
+            Assert.Equal(5, packs.GetProperty("week2").GetArrayLength());
+            Assert.Equal(4, packs.GetProperty("week1").GetArrayLength());
             // the file carries choices, never the recording
             Assert.False(root.TryGetProperty("events", out _), "the game log leaked into the setup file");
         }
@@ -123,6 +129,8 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         var (b, pageB, errorsB) = await OpenTabletAsync();
         var shipped = await pageB.EvaluateAsync<string>(StateProbe);
         Assert.NotEqual(wanted, shipped);
+        // a week this tablet saved on its own has to go: the file decides every slot
+        await pageB.EvaluateAsync("setPack('week5', DATA.plays.slice(0, 3).map(p => p.id));");
         await pageB.EvaluateAsync("logEvent('scratch'); flushLog();");
         var loggedBefore = await pageB.EvaluateAsync<int>("events.length");
         Assert.True(loggedBefore > 0, "nothing in the log to protect");
@@ -134,8 +142,10 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         var msg = await pageB.InnerTextAsync("#syncmsg");
         Assert.Contains("11-play deck", msg);
         Assert.Contains("2 renamed plays", msg);
+        Assert.Contains("1 saved week", msg);
         Assert.Contains("ORANGE", msg);
         Assert.DoesNotContain("not recognised", msg);
+        Assert.Equal("week2", await pageB.EvaluateAsync<string>("Object.keys(packSaves).join(',')"));
 
         // the log is this tablet's recording; a sync must not eat it
         Assert.True(await pageB.EvaluateAsync<int>("events.length") > loggedBefore,
@@ -180,6 +190,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
                       "p_02":"not an object"},
              "settings":{"clockSecs":99,"warnAt":15,"vibrate":"yes","showClock":false,
                          "funNames":true,"__proto__":{"polluted":true}},
+             "packs":{"week3":["p_02","p_99","p_02",5],"week9":["p_01"],"week4":"nope","week5":[]},
              "ourSide":"left"}
             """);
         var garbage = Path.Combine(dir, "garbage.json");
@@ -204,6 +215,9 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         Assert.True(await page.EvaluateAsync<bool>("cfg.polluted === undefined"));
         // a sideline that is not a colour is not a sideline
         Assert.Equal("orange", await page.EvaluateAsync<string>("ourSide"));
+        // saved weeks: a slot the build knows, holding plays the library has, once each
+        Assert.Equal("week3", await page.EvaluateAsync<string>("Object.keys(packSaves).join(',')"));
+        Assert.Equal("p_02", await page.EvaluateAsync<string>("packSaves.week3.join(',')"));
 
         var msg = await page.InnerTextAsync("#syncmsg");
         Assert.Contains("Imported", msg);

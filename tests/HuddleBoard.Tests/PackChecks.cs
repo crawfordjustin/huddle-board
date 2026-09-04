@@ -39,9 +39,9 @@ public sealed class PackChecks(AppFixture app)
         var (page, errors) = await app.OpenAppAsync(Desk);
         await OpenLibraryAsync(page);
 
-        Assert.Equal(PlayPacks.All.Count, await page.Locator("#packs .pack").CountAsync());
+        Assert.Equal(PlayPacks.All.Count, await page.Locator("#packs .pack[data-pack]").CountAsync());
         Assert.Equal(PlayPacks.All.Select(k => k.Name.ToUpperInvariant()).ToList(),
-            (await page.Locator("#packs .pack").AllInnerTextsAsync())
+            (await page.Locator("#packs .pack[data-pack]").AllInnerTextsAsync())
                 .Select(t => t.Split('\n')[0].Trim().ToUpperInvariant()).ToList());
 
         // the shipped deck IS the first pack, and the tablet says so
@@ -105,6 +105,80 @@ public sealed class PackChecks(AppFixture app)
         Assert.Empty(errors);
     }
 
+    /// <summary>
+    /// Save deck, then the week: the coach's deck goes into that slot, the chip
+    /// wears the pencil, taking the week back gives the saved deck, and Start
+    /// over puts the shipped week back.
+    /// </summary>
+    [Fact]
+    public async Task ADeckCanBeSavedIntoAWeekAndTakenBackOut()
+    {
+        var (page, errors) = await app.OpenAppAsync(Desk);
+        await page.EvaluateAsync("deck = DATA.plays.slice(5, 10).map(p => p.id); saveDeck();");
+        await OpenLibraryAsync(page);
+        var mine = await page.EvaluateAsync<string>(DeckProbe);
+        Assert.Equal(0, await page.Locator("#packs .pack.mine").CountAsync());
+
+        // Save deck asks which week, and says so
+        await page.ClickAsync("#psave");
+        await page.WaitForTimeoutAsync(150);
+        Assert.Equal("SAVE INTO", (await page.InnerTextAsync("#packs .plab")).Trim().ToUpperInvariant());
+        Assert.Equal(1, await page.Locator("#packs.saving").CountAsync());
+
+        // the week takes the deck; nothing about the deck itself changes
+        await page.ClickAsync("#pack-week4");
+        await page.WaitForTimeoutAsync(300);
+        Assert.Equal(mine, await page.EvaluateAsync<string>(DeckProbe));
+        Assert.Equal("START FROM", (await page.InnerTextAsync("#packs .plab")).Trim().ToUpperInvariant());
+        Assert.Equal(["pack-week4"], await page.Locator("#packs .pack.mine").EvaluateAllAsync<string[]>("e => e.map(b => b.id)"));
+        Assert.Equal(["pack-week4"], await page.Locator("#packs .pack.on").EvaluateAllAsync<string[]>("e => e.map(b => b.id)"));
+        Assert.Contains("Your own deck", await page.InnerTextAsync("#lnote"));
+        Assert.Equal(mine, await page.EvaluateAsync<string>(
+            "() => JSON.parse(localStorage.getItem('hb.packs')).byId.week4.slice().sort().join(',')"));
+
+        // take another week, then take the saved one back: two taps, the saved deck lands
+        await page.ClickAsync("#pack-week1");
+        await page.ClickAsync("#pack-week1");
+        await page.WaitForTimeoutAsync(300);
+        Assert.NotEqual(mine, await page.EvaluateAsync<string>(DeckProbe));
+        await page.ClickAsync("#pack-week4");
+        await page.ClickAsync("#pack-week4");
+        await page.WaitForTimeoutAsync(300);
+        Assert.Equal(mine, await page.EvaluateAsync<string>(DeckProbe));
+
+        // saving the shipped deck back into its own slot is not a save
+        await page.ClickAsync("#pack-week1");
+        await page.ClickAsync("#pack-week1");
+        await page.WaitForTimeoutAsync(300);
+        await page.ClickAsync("#psave");
+        await page.ClickAsync("#pack-week1");
+        await page.WaitForTimeoutAsync(300);
+        Assert.Equal(1, await page.EvaluateAsync<int>("savedPackCount()"));
+
+        // Start over puts the shipped week back
+        await page.EvaluateAsync("resetEverything(); renderLibrary();");
+        await page.WaitForTimeoutAsync(400);
+        Assert.Equal(0, await page.EvaluateAsync<int>("savedPackCount()"));
+        Assert.Equal(0, await page.Locator("#packs .pack.mine").CountAsync());
+        Assert.Equal(Ids(PlayPacks.All.Single(k => k.Id == "week4").Plays),
+            await page.EvaluateAsync<string>("() => packsNow().find(k => k.id === 'week4').plays.slice().sort().join(',')"));
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task SaveDeckLapsesOnItsOwn()
+    {
+        var (page, errors) = await app.OpenAppAsync(Desk);
+        await OpenLibraryAsync(page);
+
+        await page.ClickAsync("#psave");
+        await page.WaitForTimeoutAsync(6500);
+        Assert.Equal("START FROM", (await page.InnerTextAsync("#packs .plab")).Trim().ToUpperInvariant());
+        Assert.Equal(0, await page.Locator("#packs.saving").CountAsync());
+        Assert.Equal(0, await page.EvaluateAsync<int>("savedPackCount()"));
+        Assert.Empty(errors);
+    }
+
     [Fact]
     public async Task APackWhosePlaysAreMissingIsNotOffered()
     {
@@ -113,7 +187,7 @@ public sealed class PackChecks(AppFixture app)
         await page.EvaluateAsync("renderLibrary()");
         await page.WaitForTimeoutAsync(400);
 
-        Assert.Equal(0, await page.Locator("#packs .pack").CountAsync());
+        Assert.Equal(0, await page.Locator("#packs .pack[data-pack]").CountAsync());
         Assert.False(await page.Locator("#packs").IsVisibleAsync());
         Assert.Empty(errors);
     }
