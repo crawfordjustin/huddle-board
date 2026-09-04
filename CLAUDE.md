@@ -203,6 +203,30 @@ over the shipped defaults, never over what the tablet had before, so the result
 depends on the file alone. `SyncChecks` holds all of it across two browser
 contexts, which is what gives two tablets two separate stores.
 
+**11. A coach starts from a pack, not from an empty deck.** The playbook's own
+advice is "master four, then add a play a week", so the shipped play packs
+(`PlayPacks.cs`) are that advice as decks: Week 1 through Week 6, each the
+week before plus two plays, chosen by name from a strip on the Change plays
+screen. Packs are cumulative on purpose — a team does not forget 22 DIVE in
+week three. The first pack *is* the starting deck: `ProtoExporter` reads
+`defaultDeck` from it, so Start over and Week 1 cannot disagree.
+
+Taking a pack replaces the deck, the same way a sync import does and for the
+same reason — the point is a deck somebody chose, not a merge nobody did — so
+it arms on the first tap (`confirmTap`, the same two-tap rule as everything
+destructive in Setup) and lapses on its own. The strip is not a filter: it
+changes what is *in* the deck, not what is on screen, so it wears its own
+`.pack` chip with a dashed edge rather than `.fchip`, and lights solid when the
+deck is exactly that pack, with the pack's blurb in the note below the rows.
+A pack names plays by number and nothing else; the tablet resolves them
+against the library it has and offers no pack it cannot fill, because a deck
+with holes in it is worse than no pack. `PlayPacks.Check` runs inside `check`
+(not inside `PlayChecker.Check`, which is also run on the original fourteen
+alone) so a pack naming a play that does not exist fails the deploy gate.
+`PackChecks` holds the two taps, the exact replacement, the lapse, the hidden
+strip, and the strip's fit across the five sizes. The file import is untouched
+and still the way one coach's deck reaches another tablet.
+
 ## Source layout
 
 ```
@@ -219,6 +243,7 @@ src/HuddleBoard.Playbook/
   Plays.cs                      the first 14 plays: route geometry in yards
   PlaysMore.cs                  plays 15-26
   Spots.cs                      spot names, the 9 shapes, the default rule
+  PlayPacks.cs                  the saved decks a coach starts from, by week
   PlayTexts.cs                  what the tablet says, plays 1-14
   PlayTextsMore.cs              the same for 15-26
   Library.cs                    joins the two halves of each pair

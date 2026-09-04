@@ -40,9 +40,10 @@ public static class ProtoExporter
             [24] = ("pass", "Z"), [25] = ("carry", "H"), [26] = ("carry", "Z"),
         };
 
-    /// <summary>The four a new team starts with, straight from the playbook's
-    /// "start here" page.</summary>
-    private static readonly int[] DefaultDeck = [1, 5, 7, 13];
+    /// <summary>The deck a new team starts with: the first play pack, which is
+    /// the playbook's "start here" page. One definition, so Start over and
+    /// Week 1 cannot disagree.</summary>
+    private static IReadOnlyList<int> DefaultDeck => PlayPacks.Starting;
 
     /// <summary>Full spot name -> the marker tag, which side it is on, and what
     /// the coach says out loud.</summary>
@@ -186,6 +187,21 @@ public static class ProtoExporter
         j.StartObject();
         j.Pair("schemaVersion", 2);
         j.Pair("defaultDeck", DefaultDeck.Select(n => $"p_{n:00}"));
+
+        // the saved decks a coach can start from, by play id so the tablet can
+        // resolve them against the library it actually has
+        j.Key("packs").StartArray();
+        foreach (var pack in PlayPacks.All)
+        {
+            j.StartObject();
+            j.Pair("id", pack.Id);
+            j.Pair("name", pack.Name);
+            j.Pair("blurb", pack.Blurb);
+            j.Pair("plays", pack.Plays.Select(n => $"p_{n:00}"));
+            j.EndObject();
+        }
+
+        j.EndArray();
         j.Key("plays").StartArray();
 
         foreach (var p in plays)

@@ -575,7 +575,11 @@ public static class PlayChecker
     {
         var o = output ?? Console.Out;
         var plays = PlayLibrary.All;
-        var rows = Check(plays);
+
+        // the packs ride along here rather than in Check(): Check() is also run
+        // on the original fourteen alone, and every pack past week one reaches
+        // beyond them
+        var rows = Check(plays).Concat(PlayPacks.Check(plays)).ToList();
         var errors = rows.Count(r => r.Level == Severity.Error);
         var show = !quiet || errors > 0;
 

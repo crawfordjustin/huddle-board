@@ -157,6 +157,26 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   font-size:clamp(13px,1.9vh,18px)}
 .lsearch::placeholder{color:#6E7A72;text-transform:uppercase;letter-spacing:.08em}
 .lsearch:focus{outline:none;border-color:#5FBF8F}
+
+/* play packs: a saved deck a coach starts from. Not a filter — a pack changes
+   what is IN the deck, not what is on screen — so it does not wear .fchip; the
+   dashed edge says "this is a thing you take", not "a thing you look through". */
+.packs{flex:none;display:flex;flex-wrap:wrap;align-items:center;
+  gap:clamp(5px,.8vw,9px);padding:clamp(4px,.8vh,8px) 0 0}
+.packs[hidden]{display:none}
+.plab{font-family:var(--disp);text-transform:uppercase;letter-spacing:.08em;color:#6E7A72;
+  font-size:clamp(11px,1.6vh,14px);margin-right:clamp(2px,.4vw,6px)}
+.pack{font-family:var(--disp);font-size:clamp(12px,1.85vh,17px);text-transform:uppercase;
+  letter-spacing:.05em;min-height:clamp(36px,5vh,46px);padding:0 clamp(9px,1vw,15px);
+  border-radius:9px;background:#141A16;border:1.5px dashed #4A7A5E;color:#CBE8DA;
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap;cursor:pointer}
+.pack .n{font-size:.82em;color:#6E7A72;font-variant-numeric:tabular-nums}
+.pack.on{background:var(--green);border-style:solid;border-color:var(--green-2);color:#fff;cursor:default}
+.pack.on .n{color:#CBE8DA}
+/* armed: the same amber as the clock's warning — one colour for "about to" */
+.pack[data-armed]{background:#8A5A00;border-style:solid;border-color:#C58A16;color:#fff}
+.pack:active{transform:scale(.96)}
+.pack:focus-visible{outline:3px solid #5FBF8F;outline-offset:2px}
 .lempty{grid-column:1/-1;align-self:start;display:flex;align-items:center;gap:14px;
   color:#8A968C;font-size:clamp(13px,2vh,18px);padding:clamp(14px,2.5vh,28px) 4px}
 
@@ -1277,14 +1297,15 @@ async function exportLog(btn){
 /* Two taps, never one. These buttons throw away something a coach cannot get
    back, and Setup is exactly where a thumb lands on the way to somewhere else.
    The arming lapses on its own, so a stray first tap costs nothing. */
-function confirmTap(id, label, act){
+function confirmTap(id, act){
   const b = document.getElementById(id);
   if (!b) return;
+  const was = b.innerHTML;             // the button's own markup, put back on lapse
   b.onclick = () => {
     if (b.dataset.armed){ act(); return; }
     b.dataset.armed = "1"; b.textContent = "Sure?";
     setTimeout(() => {
-      if (b.isConnected){ delete b.dataset.armed; b.textContent = label; }
+      if (b.isConnected){ delete b.dataset.armed; b.innerHTML = was; }
     }, 2500);
   };
 }
@@ -1343,10 +1364,10 @@ function renderSettings(){
   const pick = document.getElementById("syncfile");
   document.getElementById("syncimp").onclick = () => pick.click();
   pick.onchange = () => { if (pick.files[0]) importSetup(pick.files[0]); };
-  confirmTap("logclr", "Clear", () => { events = []; flushLog(); renderSettings(); });
-  confirmTap("nmreset", "Reset all", () => {
+  confirmTap("logclr", () => { events = []; flushLog(); renderSettings(); });
+  confirmTap("nmreset", () => {
     resetNames(); logEvent("play_rename_reset", {play: "all"}); renderSettings(); });
-  confirmTap("allreset", "Reset tablet", () => { resetEverything(); renderSettings(); });
+  confirmTap("allreset", () => { resetEverything(); renderSettings(); });
   app.querySelectorAll(".seg").forEach(g => g.addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
     const key = g.dataset.key, raw = b.dataset.v;
@@ -1491,10 +1512,13 @@ function renderLibrary(){
            <button class="fchip" id="lclear">Clear filters</button></div>`;
     lib.scrollTop = 0;
     document.getElementById("lcount").textContent = deck.length + " in your deck";
-    document.getElementById("lnote").innerHTML = list.length === DATA.plays.length
-      ? `Tap to add or remove. Keep the deck small &mdash; four plays you can find
-         without looking beats ${DATA.plays.length} you have to hunt through.`
-      : `Showing ${list.length} of ${DATA.plays.length} plays.`;
+    const pack = packOf();
+    document.getElementById("lnote").innerHTML = list.length !== DATA.plays.length
+      ? `Showing ${list.length} of ${DATA.plays.length} plays.`
+      : pack
+      ? `<b>${esc(pack.name)}.</b> ${esc(pack.blurb)}`
+      : `Tap to add or remove. Keep the deck small &mdash; four plays you can find
+         without looking beats ${DATA.plays.length} you have to hunt through.`;
     // after layout settles — row width can still change as the list reflows
     fitNames();
     requestAnimationFrame(fitNames);
@@ -1539,6 +1563,36 @@ function renderLibrary(){
       b.classList.toggle("on", b.dataset.cat === libF.cat));
     const only = document.getElementById("lonly");
     if (only) only.classList.toggle("on", libF.deckOnly);
+    drawPacks();
+  };
+
+  /* Play packs: the saved decks a coach starts from — Week 1, Week 2 — each
+     one the week before plus a couple of plays. Taking a pack REPLACES the
+     deck, the same way a sync import does and for the same reason: the point
+     is a deck somebody chose, not a merge nobody did. So it arms on the first
+     tap like everything else that throws a choice away. A pack whose plays
+     this library does not have is not offered at all — a deck with holes in
+     it is worse than no pack. The strip is rebuilt only when the deck changes,
+     so an armed chip survives until it lapses or is taken. */
+  const packs = () => DATA.packs.filter(k => k.plays.every(id => DATA.plays.some(p => p.id === id)));
+  const packOf = () => packs().find(k => k.plays.length === deck.length &&
+                                          k.plays.every(id => deck.includes(id))) || null;
+  const drawPacks = () => {
+    const el = document.getElementById("packs");
+    if (!el) return;
+    const list = packs(), cur = packOf();
+    el.hidden = !list.length;
+    el.innerHTML = `<span class="plab">Start from</span>` + list.map(k =>
+      `<button class="pack ${cur === k ? "on" : ""}" id="pack-${k.id}" data-pack="${k.id}"
+         title="${esc(k.blurb)}">${esc(k.name)}<span class="n">${k.plays.length}</span></button>`).join("");
+    for (const k of list){
+      if (cur === k) continue;                  // already the deck: nothing to take
+      confirmTap("pack-" + k.id, () => {
+        deck = k.plays.slice(); saveDeck();
+        logEvent("deck_pack", {pack: k.id, deck: deck.slice()});
+        drawCounts(); drawRows();
+      });
+    }
   };
 
   const drawFilters = () => {
@@ -1565,12 +1619,13 @@ function renderLibrary(){
         </div>
       </div>
       <div class="lfilt" id="lfilt"></div>
+      <div class="packs" id="packs"></div>
       <div class="lib" id="lib"></div>
       <div class="decknote" id="lnote"></div>
     </div>`;
   document.getElementById("done").onclick = renderDeck;
   bindClock(); paintClock();
-  drawFilters(); drawRows();
+  drawFilters(); drawPacks(); drawRows();
 }
 
 /* ------------------------------------------------------------ play ui */

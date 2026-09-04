@@ -69,5 +69,26 @@ public sealed class PlayLibraryChecks
         var doc = System.Text.Json.JsonDocument.Parse(json);
         Assert.Equal(PlayLibrary.All.Count, doc.RootElement.GetProperty("plays").GetArrayLength());
         Assert.Equal(4, doc.RootElement.GetProperty("defaultDeck").GetArrayLength());
+        Assert.Equal(PlayPacks.All.Count, doc.RootElement.GetProperty("packs").GetArrayLength());
+    }
+
+    /// <summary>
+    /// Every pack is made of real plays, none twice, and the first one is the
+    /// deck a tablet arrives with — so Start over and Week 1 cannot drift apart.
+    /// </summary>
+    [Fact]
+    public void EveryPackNamesRealPlaysAndTheFirstIsTheStartingDeck()
+    {
+        var findings = PlayPacks.Check(PlayLibrary.All).Select(f => f.Message).ToList();
+        Assert.True(findings.Count == 0, string.Join("\n", findings));
+        Assert.Equal([1, 5, 7, 13], PlayPacks.Starting);
+
+        // a week is the week before plus something: nothing a team learned is taken away
+        for (var i = 1; i < PlayPacks.All.Count; i++)
+        {
+            var (prev, next) = (PlayPacks.All[i - 1], PlayPacks.All[i]);
+            Assert.True(prev.Plays.All(next.Plays.Contains) && next.Plays.Count > prev.Plays.Count,
+                $"{next.Name} is not {prev.Name} plus more");
+        }
     }
 }
