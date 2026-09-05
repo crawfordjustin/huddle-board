@@ -283,6 +283,29 @@ Start over does the same. The sync file carries `packNames` the way it carries
 one verb cancelling the other, and Start over; `SyncChecks` carries a name
 across two tablets and feeds it markup.
 
+**12. The first START goes through the tutorial, once.** The app grew past
+what one sentence on the intro could carry — chips, mirror, tap-a-kid, the
+menu — so a fresh tablet's first START lands on four slides (`renderTour`) on
+its way to the deck: the coach's own first tile, that play's picture, the
+marker shapes, and the menu, each beside a few sentences. Every picture is the
+real thing drawn by the real code (`tourTile`, `thumbSVG`, `tourMarkers`,
+`tourMenu`), so a slide cannot drift from the screen it describes. It is the
+coach's screen and never the one turned around at the kids, so text is fine
+there. The title row says TUTORIAL in the deck's own heading size, with "1 of
+4" and the way out — **Skip tutorial**, or **Close** from the menu — in the top
+right where Settings keeps its Done; a small "How it works" up there was not
+enough for a coach to tell he was in a walkthrough rather than the app, or
+that he was allowed to leave it. Skip and the last slide's Go to deck both mark it seen, under
+`localStorage` `hb.tour` — a coach who skipped has said he does not want it,
+and **Tutorial** in the hamburger brings it back whenever he does. The flag is
+per tablet and not in the sync file: the assistant's tablet is still his first
+time. Start over clears it, because that tablet is somebody's first time
+again. The suite's fixture writes the flag before the app boots, so every
+other check still lands on the deck; `TutorialChecks` opens the one tablet
+that has not seen it, and holds that NEXT is on screen on every slide at every
+size — the slides are the one screen with no other way off — and that once
+means once.
+
 ## Source layout
 
 ```

@@ -14,6 +14,7 @@ does. Works offline.
   <img src="docs/intro.png" width="49%" alt="The intro screen">
   <img src="docs/deck.png" width="49%" alt="The deck screen">
   <img src="docs/play.png" width="49%" alt="A play, lined up">
+  <img src="docs/tutorial.png" width="49%" alt="The tutorial, shown once on first use">
 </p>
 
 ## Run it

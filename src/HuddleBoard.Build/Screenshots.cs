@@ -28,7 +28,12 @@ internal static class Screenshots
         await page.WaitForTimeoutAsync(600);
         await Shoot("intro.png");
 
+        // a fresh tablet's first START is the tutorial, on its way to the deck
         await page.ClickAsync("#start");
+        await page.WaitForTimeoutAsync(600);
+        await Shoot("tutorial.png");
+
+        await page.ClickAsync("#tourskip");
         await page.WaitForTimeoutAsync(600);
         await Shoot("deck.png");
 

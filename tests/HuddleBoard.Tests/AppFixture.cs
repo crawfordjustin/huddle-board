@@ -75,6 +75,19 @@ public sealed class AppFixture : IAsyncLifetime
     }
 
     /// <summary>
+    /// The first START on a tablet goes through the tutorial, and every check
+    /// in the suite expects START to land on the deck. So a tablet is a tablet
+    /// that has been through the slides unless a check says otherwise — this
+    /// writes the same flag the slides write, before the app boots.
+    /// <see cref="TutorialChecks"/> is what opens a tablet without it.
+    /// </summary>
+    public const string SeenTour = """try { localStorage.setItem("hb.tour", "1"); } catch(e){}""";
+
+    public static Task MarkTourSeenAsync(IBrowserContext context) => context.AddInitScriptAsync(SeenTour);
+
+    public static Task MarkTourSeenAsync(IPage page) => page.AddInitScriptAsync(SeenTour);
+
+    /// <summary>
     /// A new page with the app loaded and the intro dismissed, sitting on the
     /// deck — which is where a coach is within one tap of launching, and where
     /// every check below this one expects to start.
@@ -83,13 +96,20 @@ public sealed class AppFixture : IAsyncLifetime
     /// Leave the intro screen up instead. Only the checks on the intro itself
     /// want this.
     /// </param>
+    /// <param name="fresh">
+    /// A tablet on its first open, which has not seen the tutorial. With
+    /// <paramref name="intro"/> left false, START then lands on the slides
+    /// rather than the deck, so this waits for the tour instead.
+    /// </param>
     public async Task<(IPage Page, List<string> Errors)> OpenAppAsync(
-        Viewport size, int settle = 400, bool intro = false)
+        Viewport size, int settle = 400, bool intro = false, bool fresh = false)
     {
         var page = await Browser.NewPageAsync(new BrowserNewPageOptions
         {
             ViewportSize = new ViewportSize { Width = size.Width, Height = size.Height },
         });
+        if (!fresh)
+            await MarkTourSeenAsync(page);
 
         var errors = new List<string>();
         page.PageError += (_, e) => errors.Add(e);
@@ -99,7 +119,7 @@ public sealed class AppFixture : IAsyncLifetime
         if (!intro)
         {
             await page.ClickAsync("#start");
-            await page.WaitForSelectorAsync(".deck");
+            await page.WaitForSelectorAsync(fresh ? ".tour" : ".deck");
             await page.WaitForTimeoutAsync(settle);
         }
 

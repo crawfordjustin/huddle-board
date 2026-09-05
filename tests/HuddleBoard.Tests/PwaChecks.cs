@@ -29,6 +29,7 @@ public sealed class PwaChecks(AppFixture app) : IDisposable
         {
             ViewportSize = new ViewportSize { Width = 1600, Height = 1000 },
         });
+        await AppFixture.MarkTourSeenAsync(context);
         var page = await context.NewPageAsync();
         var errors = new List<string>();
         page.PageError += (_, e) => errors.Add(e);
@@ -98,6 +99,7 @@ public sealed class FullScreenChecks(AppFixture app) : IDisposable
         {
             ViewportSize = new ViewportSize { Width = 1400, Height = 900 },
         });
+        await AppFixture.MarkTourSeenAsync(page);
         var errors = new List<string>();
         page.PageError += (_, e) => errors.Add(e);
 
@@ -123,6 +125,7 @@ public sealed class FullScreenChecks(AppFixture app) : IDisposable
         {
             ViewportSize = new ViewportSize { Width = 1400, Height = 900 },
         });
+        await AppFixture.MarkTourSeenAsync(page);
 
         // pretend the app was launched from the home screen
         await page.AddInitScriptAsync("""

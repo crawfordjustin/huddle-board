@@ -48,6 +48,7 @@ public sealed class RenameChecks(AppFixture app) : IDisposable
         {
             ViewportSize = new ViewportSize { Width = Desk.Width, Height = Desk.Height },
         });
+        await AppFixture.MarkTourSeenAsync(context);
         var page = await context.NewPageAsync();
         var errors = new List<string>();
         page.PageError += (_, e) => errors.Add(e);
