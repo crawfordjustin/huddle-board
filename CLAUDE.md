@@ -235,7 +235,11 @@ the far end of the strip; tapping it turns the strip into the question "save
 into which week?", the weeks go amber, and the next tap on a week puts the
 current deck in that slot. It is the same two-tap shape as taking a pack, and
 the strip says which question it is asking so the second tap cannot be
-mistaken for the other one; the mode lapses on its own. Saved weeks live in
+mistaken for the other one; the mode lapses on its own. At rest the strip has
+**no label**: it used to open with "Start from", and that was a heading over a
+row of chips that already read as weeks, costing width on the one row that has
+to fit six of them plus two verbs. A label appears only while a verb is armed,
+because then it is the question being asked, not a caption. Saved weeks live in
 `localStorage` under `hb.packs`, keyed by pack id, with the same discipline as
 names: only a slot that differs from the shipped pack is stored, so saving the
 shipped deck back into its own week is not a save, and the pencil on the chip
@@ -248,6 +252,23 @@ depends on the file alone. `readSetup` trusts none of it: a slot must be one
 the build knows, its plays must exist in the library, once each. `SyncChecks`
 carries a saved week across two tablets, and `PackChecks` holds the save, the
 take-back, the not-a-save, the lapse and the reset.
+
+A week's name is the coach's too. "Week 3" is the build's word for a deck the
+team calls PLAYOFFS or HAWKS, so **Rename** sits beside Save deck and works
+the same way: tap it, the strip asks "rename which?", tap the week, and a
+one-box sheet opens — the same sheet shape as a play's, and the second place
+in the app a coach types, so it goes through `tidyName` and `esc()` like the
+first. Names live under `hb.packnames`, keyed by pack id, with the same rule
+as play names: only a name that differs from the shipped one is stored, so
+retyping "Week 3" is not a rename and emptying the box is the reset. A name
+and a saved deck are independent — renaming does not touch the slot's plays
+and saving does not touch its name — but they are one thing to Setup, which
+counts both on the **Your own weeks** row and resets both with one button;
+Start over does the same. The sync file carries `packNames` the way it carries
+`names`, and `readSetup` accepts only a slot the build knows holding a string.
+`PackChecks` holds the rename, the not-a-rename, the sheet's Reset, the lapse,
+one verb cancelling the other, and Start over; `SyncChecks` carries a name
+across two tablets and feeds it markup.
 
 ## Source layout
 

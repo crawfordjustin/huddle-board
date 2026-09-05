@@ -129,7 +129,7 @@ public sealed class PackChecks(AppFixture app)
         await page.ClickAsync("#pack-week4");
         await page.WaitForTimeoutAsync(300);
         Assert.Equal(mine, await page.EvaluateAsync<string>(DeckProbe));
-        Assert.Equal("START FROM", (await page.InnerTextAsync("#packs .plab")).Trim().ToUpperInvariant());
+        Assert.Equal(0, await page.Locator("#packs .plab").CountAsync());    // at rest the strip has no label
         Assert.Equal(["pack-week4"], await page.Locator("#packs .pack.mine").EvaluateAllAsync<string[]>("e => e.map(b => b.id)"));
         Assert.Equal(["pack-week4"], await page.Locator("#packs .pack.on").EvaluateAllAsync<string[]>("e => e.map(b => b.id)"));
         Assert.Contains("Your own deck", await page.InnerTextAsync("#lnote"));
@@ -173,9 +173,126 @@ public sealed class PackChecks(AppFixture app)
 
         await page.ClickAsync("#psave");
         await page.WaitForTimeoutAsync(6500);
-        Assert.Equal("START FROM", (await page.InnerTextAsync("#packs .plab")).Trim().ToUpperInvariant());
+        Assert.Equal(0, await page.Locator("#packs .plab").CountAsync());
         Assert.Equal(0, await page.Locator("#packs.saving").CountAsync());
         Assert.Equal(0, await page.EvaluateAsync<int>("savedPackCount()"));
+        Assert.Empty(errors);
+    }
+
+    /// <summary>
+    /// Rename, then the week: the coach's name goes on the chip and in the note,
+    /// reaches storage, retyping the shipped name is not a rename, Reset in the
+    /// sheet puts the shipped name back, and Start over does too. The deck in
+    /// the slot is untouched throughout.
+    /// </summary>
+    [Fact]
+    public async Task AWeekCanBeRenamedAndTheNameOutlivesTheDeck()
+    {
+        var (page, errors) = await app.OpenAppAsync(Desk);
+        await OpenLibraryAsync(page);
+        var before = await page.EvaluateAsync<string>(DeckProbe);
+        Assert.Equal(0, await page.Locator("#packs .plab").CountAsync());
+
+        // Rename asks which week, and says so
+        await page.ClickAsync("#prename");
+        await page.WaitForTimeoutAsync(150);
+        Assert.Equal("RENAME", (await page.InnerTextAsync("#packs .plab")).Trim().ToUpperInvariant());
+        Assert.Equal(1, await page.Locator("#packs.renaming").CountAsync());
+        Assert.Equal("CANCEL", (await page.InnerTextAsync("#prename")).Trim().ToUpperInvariant());
+
+        // the week opens the sheet, and the mode is over
+        await page.ClickAsync("#pack-week3");
+        await page.WaitForSelectorAsync("#pnsheet");
+        Assert.Equal(0, await page.Locator("#packs.renaming").CountAsync());
+        Assert.Equal(Week3.Name, await page.InputValueAsync("#pn-name"));
+        Assert.True(await page.Locator("#pn-reset").IsDisabledAsync(), "Reset is live on a week that is not renamed");
+        await page.FillAsync("#pn-name", "  playoffs   vs  hawks ");
+        await page.ClickAsync("#pn-save");
+        await page.WaitForTimeoutAsync(300);
+
+        // the chip, the storage, the count; the deck and the slot's plays are untouched
+        Assert.Equal(0, await page.Locator("#pnsheet").CountAsync());
+        Assert.StartsWith("PLAYOFFS VS HAWKS", (await page.InnerTextAsync("#pack-week3")).Trim().ToUpperInvariant());
+        Assert.Equal("playoffs vs hawks", await page.EvaluateAsync<string>(
+            "() => JSON.parse(localStorage.getItem('hb.packnames')).byId.week3"));
+        Assert.Equal(1, await page.EvaluateAsync<int>("renamedPackCount()"));
+        Assert.Equal(0, await page.EvaluateAsync<int>("savedPackCount()"));
+        Assert.Equal(0, await page.Locator("#packs .pack.mine").CountAsync());
+        Assert.Equal(before, await page.EvaluateAsync<string>(DeckProbe));
+
+        // taking the week still takes the shipped plays, and the note wears the coach's name
+        await page.ClickAsync("#pack-week3");
+        await page.ClickAsync("#pack-week3");
+        await page.WaitForTimeoutAsync(400);
+        Assert.Equal(Ids(Week3.Plays), await page.EvaluateAsync<string>(DeckProbe));
+        Assert.Contains("playoffs vs hawks", await page.InnerTextAsync("#lnote"));
+        Assert.Contains(Week3.Blurb, await page.InnerTextAsync("#lnote"));
+
+        // Setup counts it, and its Reset all is live
+        await page.ClickAsync("#done");
+        await page.ClickAsync("#ham");
+        await page.ClickAsync("#setup");
+        await page.WaitForSelectorAsync("#pkreset");
+        Assert.Contains("1 is renamed", await page.InnerTextAsync(".setrows"));
+        Assert.False(await page.Locator("#pkreset").IsDisabledAsync(), "Reset all is dead while a week is renamed");
+        await page.ClickAsync("#sdone");
+        await page.WaitForSelectorAsync(".tile");
+        await OpenLibraryAsync(page);
+
+        // retyping the shipped name is not a rename
+        await page.ClickAsync("#prename");
+        await page.ClickAsync("#pack-week3");
+        await page.WaitForSelectorAsync("#pnsheet");
+        Assert.False(await page.Locator("#pn-reset").IsDisabledAsync());
+        await page.FillAsync("#pn-name", Week3.Name.ToLowerInvariant());
+        await page.PressAsync("#pn-name", "Enter");
+        await page.WaitForTimeoutAsync(300);
+        Assert.Equal(0, await page.EvaluateAsync<int>("renamedPackCount()"));
+        Assert.StartsWith(Week3.Name, (await page.InnerTextAsync("#pack-week3")).Trim(), StringComparison.OrdinalIgnoreCase);
+
+        // Reset in the sheet puts the shipped name back
+        await page.EvaluateAsync("setPackName('week3', 'SEAHAWKS'); renderLibrary();");
+        await page.WaitForTimeoutAsync(400);
+        Assert.StartsWith("SEAHAWKS", (await page.InnerTextAsync("#pack-week3")).Trim().ToUpperInvariant());
+        await page.ClickAsync("#prename");
+        await page.ClickAsync("#pack-week3");
+        await page.WaitForSelectorAsync("#pnsheet");
+        await page.ClickAsync("#pn-reset");
+        await page.WaitForTimeoutAsync(300);
+        Assert.Equal(0, await page.EvaluateAsync<int>("renamedPackCount()"));
+        Assert.StartsWith(Week3.Name, (await page.InnerTextAsync("#pack-week3")).Trim(), StringComparison.OrdinalIgnoreCase);
+
+        // Start over puts every name back, alongside every saved deck
+        await page.EvaluateAsync("setPackName('week2', 'TIGERS'); setPackName('week5', 'BYE'); resetEverything(); renderLibrary();");
+        await page.WaitForTimeoutAsync(400);
+        Assert.Equal(0, await page.EvaluateAsync<int>("renamedPackCount()"));
+        Assert.Equal(0, await page.EvaluateAsync<int>(
+            "Object.keys(JSON.parse(localStorage.getItem('hb.packnames')).byId).length"));
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task RenameLapsesOnItsOwn()
+    {
+        var (page, errors) = await app.OpenAppAsync(Desk);
+        await OpenLibraryAsync(page);
+
+        await page.ClickAsync("#prename");
+        await page.WaitForTimeoutAsync(6500);
+        Assert.Equal(0, await page.Locator("#packs .plab").CountAsync());
+        Assert.Equal(0, await page.Locator("#packs.renaming").CountAsync());
+        Assert.Equal(0, await page.Locator("#pnsheet").CountAsync());
+        Assert.Equal(0, await page.EvaluateAsync<int>("renamedPackCount()"));
+
+        // and one verb cancels the other: Save deck while renaming asks the save question instead
+        await page.ClickAsync("#prename");
+        await page.ClickAsync("#psave");
+        await page.WaitForTimeoutAsync(150);
+        Assert.Equal("SAVE INTO", (await page.InnerTextAsync("#packs .plab")).Trim().ToUpperInvariant());
+        Assert.Equal(0, await page.Locator("#packs.renaming").CountAsync());
+        await page.ClickAsync("#psave");
+        await page.WaitForTimeoutAsync(150);
+        Assert.Equal(0, await page.Locator("#packs .plab").CountAsync());
         Assert.Empty(errors);
     }
 

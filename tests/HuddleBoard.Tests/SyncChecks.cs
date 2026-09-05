@@ -27,8 +27,8 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
 
     /// <summary>Everything the file carries, in one comparable line.</summary>
     private const string StateProbe = """
-        () => [deck.join(','), JSON.stringify(names), JSON.stringify(packSaves), cfg.clockSecs,
-               cfg.warnAt, cfg.vibrate, cfg.funNames, cfg.showClock, ourSide].join('|')
+        () => [deck.join(','), JSON.stringify(names), JSON.stringify(packSaves), JSON.stringify(packNames),
+               cfg.clockSecs, cfg.warnAt, cfg.vibrate, cfg.funNames, cfg.showClock, ourSide].join('|')
         """;
 
     /// <summary>A fresh tablet: its own context, its own storage, past the intro.</summary>
@@ -81,6 +81,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
               setNames('p_01', 'POWER O', 'STAMPEDE');
               setNames('p_05', '', 'TANGLE');
               setPack('week2', DATA.plays.slice(4, 9).map(p => p.id));
+              setPackName('week2', 'PLAYOFFS');
               deck = DATA.plays.slice(2, 13).map(p => p.id); saveDeck();
               cfg.clockSecs = 25; cfg.warnAt = 15; cfg.funNames = true; cfg.showClock = false;
               saveCfg();
@@ -119,6 +120,10 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
             Assert.Equal(PlayPacks.All.Count, packs.EnumerateObject().Count());
             Assert.Equal(5, packs.GetProperty("week2").GetArrayLength());
             Assert.Equal(4, packs.GetProperty("week1").GetArrayLength());
+            // a week's name travels like a play's: only the one that differs
+            var packNames = root.GetProperty("packNames");
+            Assert.Single(packNames.EnumerateObject());
+            Assert.Equal("PLAYOFFS", packNames.GetProperty("week2").GetString());
             // the file carries choices, never the recording
             Assert.False(root.TryGetProperty("events", out _), "the game log leaked into the setup file");
         }
@@ -131,6 +136,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         Assert.NotEqual(wanted, shipped);
         // a week this tablet saved on its own has to go: the file decides every slot
         await pageB.EvaluateAsync("setPack('week5', DATA.plays.slice(0, 3).map(p => p.id));");
+        await pageB.EvaluateAsync("setPackName('week5', 'BYE WEEK');");
         await pageB.EvaluateAsync("logEvent('scratch'); flushLog();");
         var loggedBefore = await pageB.EvaluateAsync<int>("events.length");
         Assert.True(loggedBefore > 0, "nothing in the log to protect");
@@ -143,9 +149,11 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         Assert.Contains("11-play deck", msg);
         Assert.Contains("2 renamed plays", msg);
         Assert.Contains("1 saved week", msg);
+        Assert.Contains("1 renamed week", msg);
         Assert.Contains("ORANGE", msg);
         Assert.DoesNotContain("not recognised", msg);
         Assert.Equal("week2", await pageB.EvaluateAsync<string>("Object.keys(packSaves).join(',')"));
+        Assert.Equal("week2", await pageB.EvaluateAsync<string>("Object.keys(packNames).join(',')"));
 
         // the log is this tablet's recording; a sync must not eat it
         Assert.True(await pageB.EvaluateAsync<int>("events.length") > loggedBefore,
@@ -191,6 +199,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
              "settings":{"clockSecs":99,"warnAt":15,"vibrate":"yes","showClock":false,
                          "funNames":true,"__proto__":{"polluted":true}},
              "packs":{"week3":["p_02","p_99","p_02",5],"week9":["p_01"],"week4":"nope","week5":[]},
+             "packNames":{"week2":"<b>X</b> & CO","week9":"GHOST","week3":5,"week1":" week 1 "},
              "ourSide":"left"}
             """);
         var garbage = Path.Combine(dir, "garbage.json");
@@ -218,6 +227,9 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         // saved weeks: a slot the build knows, holding plays the library has, once each
         Assert.Equal("week3", await page.EvaluateAsync<string>("Object.keys(packSaves).join(',')"));
         Assert.Equal("p_02", await page.EvaluateAsync<string>("packSaves.week3.join(',')"));
+        // week names: a slot the build knows, text only, and the shipped name retyped is not a rename
+        Assert.Equal("week2", await page.EvaluateAsync<string>("Object.keys(packNames).join(',')"));
+        Assert.Equal("<b>X</b> & CO", await page.EvaluateAsync<string>("packNames.week2"));
 
         var msg = await page.InnerTextAsync("#syncmsg");
         Assert.Contains("Imported", msg);
@@ -235,6 +247,15 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         await page.WaitForTimeoutAsync(400);
         Assert.Equal("<B>X</B> & CO", (await page.InnerTextAsync(tile + " .kid")).Trim());
         Assert.Equal(0, await page.Locator(tile + " .kid b").CountAsync());
+
+        // and the markup in the week's name is text on its chip, not a tag in it
+        await page.ClickAsync("#ham");
+        await page.ClickAsync("#edit");
+        await page.WaitForSelectorAsync("#pack-week2");
+        Assert.StartsWith("<B>X</B> & CO", (await page.InnerTextAsync("#pack-week2")).Trim().ToUpperInvariant());
+        Assert.Equal(0, await page.Locator("#pack-week2 b").CountAsync());
+        await page.ClickAsync("#done");
+        await page.WaitForSelectorAsync(".tile");
 
         // a file that is not a setup file changes nothing at all, and says so
         var before = await page.EvaluateAsync<string>(StateProbe);

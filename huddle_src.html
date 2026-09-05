@@ -180,11 +180,13 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 /* a week the coach saved his own deck into wears the same pencil as a renamed row */
 .pack .pmark{font-size:.85em;color:#8FC9A8;margin-right:-2px}
 .pack.on .pmark{color:#CBE8DA}
-/* Save deck sits at the far end, plain: it is a verb, not a week */
-.psave{margin-left:auto;border-style:solid;border-color:#39433C;color:#A3AFA6;background:#1A211D}
-/* saving: every week is a target, in the same amber as an armed button */
-.packs.saving .pack:not(.psave){border-style:solid;border-color:#C58A16;color:#F2D9A6;background:#3A2A08}
-.psave.on{background:#8A5A00;border-color:#C58A16;color:#fff}
+/* Save deck and Rename sit at the far end, plain: they are verbs, not weeks */
+.pverb{border-style:solid;border-color:#39433C;color:#A3AFA6;background:#1A211D}
+.psave{margin-left:auto}
+/* saving or renaming: every week is a target, in the same amber as an armed button */
+.packs.saving .pack:not(.pverb),.packs.renaming .pack:not(.pverb){
+  border-style:solid;border-color:#C58A16;color:#F2D9A6;background:#3A2A08}
+.pverb.on{background:#8A5A00;border-color:#C58A16;color:#fff}
 .lempty{grid-column:1/-1;align-self:start;display:flex;align-items:center;gap:14px;
   color:#8A968C;font-size:clamp(13px,2vh,18px);padding:clamp(14px,2.5vh,28px) 4px}
 
@@ -735,9 +737,39 @@ function savePackSaves(){
 }
 const sameDeck = (a, b) => a.length === b.length && a.every(id => b.includes(id));
 const knownPlay = id => typeof id === "string" && DATA.plays.some(p => p.id === id);
-// the weeks as this tablet has them: shipped, with a coach's deck in any slot he filled
-const packsNow = () => DATA.packs.map(k => packSaves[k.id]
-  ? Object.assign({}, k, {plays: packSaves[k.id].slice(), mine: true}) : k);
+/* A week's name is the coach's too — "Week 3" is the build's word for it, and
+   by week three it is PLAYOFFS or SEAHAWKS or whatever the team calls that
+   deck. Same discipline as play names: only a name that differs from the
+   shipped one is stored, under hb.packnames, keyed by pack id. */
+let packNames = {};
+try {
+  const saved = JSON.parse(localStorage.getItem("hb.packnames") || "null");
+  if (saved && saved.v === 1 && saved.byId) packNames = saved.byId;
+} catch(e){}
+function savePackNames(){
+  try { localStorage.setItem("hb.packnames", JSON.stringify({v:1, byId:packNames})); } catch(e){}
+}
+const packNameOf = k => packNames[k.id] || k.name;
+const isPackRenamed = k => !!packNames[k.id];
+const renamedPackCount = () => Object.keys(packNames).length;
+function setPackName(id, name){
+  const k = DATA.packs.find(x => x.id === id);
+  if (!k) return false;
+  const n = tidyName(name);
+  // the chip is set in capitals, so "week 3" typed back is the shipped name, not a new one
+  if (n && n.toUpperCase() !== k.name.toUpperCase()) packNames[id] = n; else delete packNames[id];
+  savePackNames();
+  return true;
+}
+function resetPackNames(id){
+  if (id) delete packNames[id]; else packNames = {};
+  savePackNames();
+}
+// the weeks as this tablet has them: shipped, with a coach's deck in any slot
+// he filled and his name on any week he renamed
+const packsNow = () => DATA.packs.map(k => Object.assign({}, k, {
+  name: packNameOf(k), named: isPackRenamed(k),
+  plays: packSaves[k.id] ? packSaves[k.id].slice() : k.plays, mine: !!packSaves[k.id]}));
 const savedPackCount = () => Object.keys(packSaves).length;
 // Only what differs is stored: saving the shipped deck back into its own slot
 // is not a change, and the mark on the chip should not claim otherwise.
@@ -751,7 +783,8 @@ function setPack(id, plays){
   savePackSaves();
   return true;
 }
-function resetPacks(){ packSaves = {}; savePackSaves(); }
+// a week back to shipped is its deck AND its name
+function resetPacks(){ packSaves = {}; savePackSaves(); resetPackNames(); }
 
 /* ----------------------------------------------------------- start over
    Everything a coach can change, back to the way the tablet arrived: the
@@ -760,7 +793,8 @@ function resetPacks(){ packSaves = {}; savePackSaves(); }
    recording, not a preference — it is the one thing here that cannot be
    derived again — and it has its own Clear one row up. */
 function resetEverything(){
-  logEvent("reset_all", {deck: deck.slice(), renamed: renamedCount(), savedWeeks: savedPackCount()});
+  logEvent("reset_all", {deck: deck.slice(), renamed: renamedCount(), savedWeeks: savedPackCount(),
+                         renamedWeeks: renamedPackCount()});
   resetNames();
   resetPacks();
   deck = DATA.defaultDeck.slice(); saveDeck();
@@ -793,6 +827,8 @@ function setupBlob(){
     deck: deck.slice(), names, settings, ourSide,
     // every week as this tablet has it, shipped or saved, so the file stands alone
     packs: Object.fromEntries(packsNow().map(k => [k.id, k.plays.slice()])),
+    // and the coach's own names for them, like play names: only what differs
+    packNames,
   });
 }
 // The file, read with suspicion. Returns what will be applied plus a count of
@@ -826,6 +862,13 @@ function readSetup(text){
     for (const p of list){ if (knownPlay(p) && !ok.includes(p)) ok.push(p); else s.dropped++; }
     if (ok.length) s.packs[id] = ok; else s.dropped++;
   }
+  // week names: a slot the build knows, and text — tidied and compared on the way in
+  s.packNames = {};
+  if (o.packNames && typeof o.packNames === "object") for (const id of Object.keys(o.packNames)){
+    const n = o.packNames[id];
+    if (!DATA.packs.some(k => k.id === id) || typeof n !== "string"){ s.dropped++; continue; }
+    s.packNames[id] = n;
+  }
   return s;
 }
 function applySetup(s){
@@ -833,9 +876,10 @@ function applySetup(s){
   names = {};
   for (const id of Object.keys(s.names)) setNames(id, s.names[id].coach, s.names[id].kid);
   saveNames();
-  // every week comes from the file: a slot it does not fill goes back to shipped
+  // every week comes from the file: a slot it does not fill, or name, goes back to shipped
   resetPacks();
   for (const id of Object.keys(s.packs)) setPack(id, s.packs[id]);
+  for (const id of Object.keys(s.packNames)) setPackName(id, s.packNames[id]);
   cfg = Object.assign({}, CFG_DEFAULTS, s.settings); saveCfg();
   if (s.ourSide) setOurSide(s.ourSide);
   S.hintSeen = false;
@@ -883,6 +927,7 @@ async function importSetup(file){
     const parts = [`${deck.length}-play deck`,
                    `${renamedCount()} renamed play${renamedCount() === 1 ? "" : "s"}`,
                    `${savedPackCount()} saved week${savedPackCount() === 1 ? "" : "s"}`,
+                   `${renamedPackCount()} renamed week${renamedPackCount() === 1 ? "" : "s"}`,
                    "settings", `${ourSide.toUpperCase()} sideline`];
     const d = s.dropped;
     syncMsg = "Imported: " + parts.join(", ") + "." +
@@ -1385,10 +1430,11 @@ function renderSettings(){
       tablet. Rename any play from Change plays in the menu &mdash; tap the pencil on its row. Your names
       are kept through an update; Reset all puts every shipped name back.`,
      `<div class="seg"><button id="nmreset" ${renamedCount() ? "" : "disabled"}>Reset all</button></div>`],
-    ["Your own decks", `${savedPackCount()} of ${DATA.packs.length} weeks hold a deck saved on this
-      tablet. From Change plays, tap Save deck and then the week to keep it in. Your decks are kept
-      through an update; Reset all puts every shipped week back.`,
-     `<div class="seg"><button id="pkreset" ${savedPackCount() ? "" : "disabled"}>Reset all</button></div>`],
+    ["Your own weeks", `${savedPackCount()} of ${DATA.packs.length} weeks hold a deck saved on this
+      tablet and ${renamedPackCount()} ${renamedPackCount() === 1 ? "is" : "are"} renamed. From Change plays,
+      tap Save deck and then the week to keep it in, or Rename and then the week to call it something else.
+      Both are kept through an update; Reset all puts every shipped week back, deck and name.`,
+     `<div class="seg"><button id="pkreset" ${savedPackCount() || renamedPackCount() ? "" : "disabled"}>Reset all</button></div>`],
     ["Show the clock", "Turn it off entirely if your league does not run one.",
      seg("showClock", [[true,"On"],[false,"Off"]])],
     ["Sync tablets", `${msg ? `<em class="setmsg" id="syncmsg">${esc(msg)}</em>` : ""}Assistant
@@ -1404,7 +1450,7 @@ function renderSettings(){
      `<div class="seg"><button id="logexp">Export</button>
       <button id="logclr">Clear</button></div>`],
     ["Start over", `Puts this tablet back the way it came &mdash; the ${DATA.defaultDeck.length}-play
-      starting deck, every play's shipped name, every week's shipped deck, and every setting above. The game log is left
+      starting deck, every play's shipped name, every week's shipped deck and name, and every setting above. The game log is left
       alone; clear that with the row above.`,
      `<div class="seg"><button id="allreset">Reset tablet</button></div>`],
   ];
@@ -1494,8 +1540,55 @@ function libFilterHTML(){
    coach's, never turned around at the kids, so a stray tap here cannot rewrite
    a play name in the middle of a huddle. */
 function closeRename(){
-  const w = document.getElementById("rensheet");
-  if (w) w.remove();
+  for (const id of ["rensheet", "pnsheet"]){
+    const w = document.getElementById(id);
+    if (w) w.remove();
+  }
+}
+/* The week's name — one box, the same sheet shape as a play's. Empty it to go
+   back to the shipped name; Reset does the same in one tap. */
+function openPackRename(id, after){
+  closeRename();
+  const k = DATA.packs.find(x => x.id === id);
+  if (!k) return;
+  const w = document.createElement("div");
+  w.className = "sheetwrap";
+  w.id = "pnsheet";
+  w.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pntitle">
+      <h2 id="pntitle">${esc(k.name)} &middot; ${(packSaves[id] || k.plays).length} plays</h2>
+      <label class="nfield"><span>Week name</span>
+        <input id="pn-name" type="text" maxlength="${NAME_CAP}"
+          value="${esc(packNameOf(k))}" autocomplete="off" autocorrect="off"
+          autocapitalize="characters" spellcheck="false"></label>
+      <p class="sheetnote">What this deck is called on this tablet &mdash; the opponent, the
+        week, whatever the team says. Empty the box to go back to <b>${esc(k.name)}</b>.</p>
+      <div class="sheetbtns">
+        <button class="sbtn" id="pn-cancel">Cancel</button>
+        <button class="sbtn" id="pn-reset" ${isPackRenamed(k) ? "" : "disabled"}>Reset</button>
+        <button class="sbtn go" id="pn-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(w);
+
+  const done = () => { closeRename(); if (after) after(); };
+  w.addEventListener("click", e => { if (e.target === w) closeRename(); });
+  w.addEventListener("keydown", e => {
+    if (e.key === "Escape"){ e.stopPropagation(); closeRename(); }
+    if (e.key === "Enter" && e.target.tagName === "INPUT") save();
+  });
+  const save = () => {
+    setPackName(id, document.getElementById("pn-name").value);
+    logEvent("pack_renamed", {pack: id, name: packNameOf(k), custom: isPackRenamed(k)});
+    done();
+  };
+  document.getElementById("pn-save").onclick = save;
+  document.getElementById("pn-cancel").onclick = () => closeRename();
+  document.getElementById("pn-reset").onclick = () => {
+    resetPackNames(id); logEvent("pack_rename_reset", {pack: id}); done();
+  };
+  const first = document.getElementById("pn-name");
+  first.focus(); first.select();
 }
 function openRename(id, after){
   closeRename();
@@ -1639,11 +1732,14 @@ function renderLibrary(){
      it is worse than no pack. The strip is rebuilt only when the deck changes,
      so an armed chip survives until it lapses or is taken.
 
-     Save deck runs the other way: the coach's deck goes INTO a week. It is
-     the same two taps — Save deck, then the week — and the strip says which
-     question it is asking, so the second tap cannot be mistaken for taking a
-     pack. The mode lapses on its own like an armed button does. */
-  let saving = false, saveTimer = 0;
+     Save deck and Rename run the other way: the coach's deck, or his name,
+     goes INTO a week. Each is the same two taps — the verb, then the week —
+     and while a verb is armed the strip wears a label saying which question it
+     is asking, so the second tap cannot be mistaken for taking a pack. At rest
+     the strip has no label: the chips are the weeks, and a coach who has seen
+     "Week 1" once does not need a heading over it again. A mode lapses on its
+     own like an armed button does. */
+  let mode = "", modeTimer = 0;                 // "" | "save" | "rename"
   const packs = () => packsNow().filter(k => k.plays.every(knownPlay));
   const packOf = () => packs().find(k => sameDeck(k.plays, deck)) || null;
   const blurbOf = k => k.mine ? "Your own deck, saved on this tablet." : k.blurb;
@@ -1651,19 +1747,28 @@ function renderLibrary(){
     const el = document.getElementById("packs");
     if (!el) return;
     const list = packs(), cur = packOf(), isCur = k => !!cur && cur.id === k.id;
+    const saving = mode === "save", renaming = mode === "rename";
     el.hidden = !list.length;
     el.classList.toggle("saving", saving);
-    el.innerHTML = `<span class="plab">${saving ? "Save into" : "Start from"}</span>` + list.map(k =>
+    el.classList.toggle("renaming", renaming);
+    el.innerHTML = (mode ? `<span class="plab">${saving ? "Save into" : "Rename"}</span>` : "") + list.map(k =>
       `<button class="pack ${isCur(k) ? "on" : ""} ${k.mine ? "mine" : ""}" id="pack-${k.id}"
          data-pack="${k.id}" title="${esc(blurbOf(k))}">${k.mine ? `<span class="pmark">&#9998;</span>` : ""}${esc(k.name)}<span class="n">${k.plays.length}</span></button>`).join("") +
-      `<button class="pack psave ${saving ? "on" : ""}" id="psave">${saving ? "Cancel" : "Save deck"}</button>`;
-    document.getElementById("psave").onclick = () => setSaving(!saving);
+      `<button class="pack pverb psave ${saving ? "on" : ""}" id="psave">${saving ? "Cancel" : "Save deck"}</button>` +
+      `<button class="pack pverb ${renaming ? "on" : ""}" id="prename">${renaming ? "Cancel" : "Rename"}</button>`;
+    document.getElementById("psave").onclick = () => setMode(saving ? "" : "save");
+    document.getElementById("prename").onclick = () => setMode(renaming ? "" : "rename");
     for (const k of list){
       if (saving){
         document.getElementById("pack-" + k.id).onclick = () => {
           setPack(k.id, deck);
           logEvent("deck_pack_saved", {pack: k.id, deck: deck.slice()});
-          setSaving(false); drawRows();
+          setMode(""); drawRows();
+        };
+      } else if (renaming){
+        document.getElementById("pack-" + k.id).onclick = () => {
+          setMode("");
+          openPackRename(k.id, () => { drawPacks(); drawRows(); });
         };
       } else if (!isCur(k)){                    // already the deck: nothing to take
         confirmTap("pack-" + k.id, () => {
@@ -1674,9 +1779,9 @@ function renderLibrary(){
       }
     }
   };
-  const setSaving = on => {
-    clearTimeout(saveTimer); saving = on;
-    if (on) saveTimer = setTimeout(() => { saving = false; drawPacks(); }, 6000);
+  const setMode = m => {
+    clearTimeout(modeTimer); mode = m;
+    if (m) modeTimer = setTimeout(() => { mode = ""; drawPacks(); }, 6000);
     drawPacks();
   };
 
