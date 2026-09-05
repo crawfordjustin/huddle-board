@@ -451,6 +451,47 @@ public static partial class PlayLibrary
                 "A pitch is already a live ball, and the reverse adds a second exchange. Walk it at practice before you call it in a game.",
                 "This is Reverse (22) out of the backfield. One concept, three formations — that is how the library grows.",
             ]),
+        new(
+            Num: 27,
+            Name: "JET PASS",
+            Formation: "TRIPS LEFT",
+            Category: "SHOT PLAY",
+            Tagline: "Jet Sweep for two steps, then the sweep man stops and throws it deep. Punishes a defense that chases.",
+            Mistake: "The runner throwing on the move, or from past the line. Stop, set your feet behind the line, then throw.",
+            Paths:
+            [
+                // the same motion and the same handoff as Jet Sweep, so for the
+                // first second this is the play the defense has been chasing
+                new("Y", Motion, [new(-7.5, 0), new(-4.5, -1.6), new(-1.5, -1.6)]),
+                new("QB", Handoff, [new(0, -3), new(-1, -1.8)], To: "Y"),
+                // two steps of sweep, then he pulls up short of the line. The bar
+                // is where he stops, and the throw leaves from there.
+                new("Y", Run, [new(-1.5, -1.6), new(3, -1.4), new(5.5, -1.7)], Bar),
+                // H runs off the corner who has come up to chase the sweep
+                new("H", Route, [new(7, 0), new(8, 12)]),
+                new("X", Route, [new(-11, 0), new(-11, 8)]),
+                new("Z", Route, [new(-4, 0), new(-5.5, 9)]),
+                new("C", Route, [new(0, 0), new(0, 5)]),
+            ],
+            Assign:
+            [
+                new("Y",
+                    "Same start as Jet Sweep: full speed past the QB, take the ball going right. Two more steps, then stop behind the line, set your feet, and throw it deep to H up the right sideline. If H is covered, tuck it and run — it is Jet Sweep again."),
+                new("H",
+                    "Sprint straight up the right sideline and look back over your inside shoulder. The corner will come up for the sweep — run past him."),
+                new("QB",
+                    "Hand it to Y on the move, exactly like Jet Sweep. Then get out of the way."),
+                new("X / Z",
+                    "Sprint downfield and take your defender with you."),
+                new("C",
+                    "Snap and release straight up the middle."),
+            ],
+            Notes:
+            [
+                "Jet Sweep first, at least twice. This is the punishment for a corner who comes up to chase the motion: the moment he does, H is behind him.",
+                "Legal check: the throw has to leave from behind the line of scrimmage, and there is one forward pass per play. A few leagues let only the QB pass — check yours before you install it.",
+                "Pick a Y who can throw. It is a shorter throw than it looks: he is already past the snapper, and H is straight up his sideline.",
+            ]),
 
     ];
 }

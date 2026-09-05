@@ -176,7 +176,20 @@ catch, so there is one picture for "where the ball goes" whether it is handed
 or thrown. The deck and library thumbnails draw the same arc from the same
 three points (`throwArc`), so a tile is a small picture of what the big screen
 will show. `BallChecks` holds that a pass has the line ending at the catch and
-a run has none. The reverse family is one concept
+a run has none.
+
+A pass does not have to leave the THROWER's hands. JET PASS is Jet Sweep for
+two steps, then the sweep man stops short of the line and throws it deep —
+the halfback pass, the one piece of misdirection the library had no picture
+for, because a play's only thrower was the kid under centre and on a pass
+every handoff was a fake. Now `ProtoExporter.Throwers` names the kid who
+throws it when it is not the THROWER, the exporter follows the handoff chain
+to him exactly as it does to a carrier, and refuses the play if his run ends
+past the line, because a forward pass from there is a flag. The ball rides
+his legs until his run ends, then flies; `throwArc` starts the arc from the
+end of his run, so the tiles show the same thing. Play 11's handoff is still
+a fake — nothing changes for a pass that names no thrower. `BallChecks` reads
+a frame mid-sweep and one after the catch on JET PASS. The reverse family is one concept
 run from three formations — REVERSE (SPREAD), JET REVERSE (TRIPS LEFT) and
 PITCH REVERSE (ACE) — and each starts as the exact sweep, jet or pitch the
 defense has already chased, because a reverse is the punishment for chasing.
@@ -284,11 +297,11 @@ src/HuddleBoard.Playbook/
   Model.cs, Geometry.cs         the record types; Pt and Num
   Formations.cs                 where everybody lines up
   Plays.cs                      the first 14 plays: route geometry in yards
-  PlaysMore.cs                  plays 15-26
+  PlaysMore.cs                  plays 15-27
   Spots.cs                      spot names, the 9 shapes, the default rule
   PlayPacks.cs                  the saved decks a coach starts from, by week
   PlayTexts.cs                  what the tablet says, plays 1-14
-  PlayTextsMore.cs              the same for 15-26
+  PlayTextsMore.cs              the same for 15-27
   Library.cs                    joins the two halves of each pair
   PlayChecker.cs                the legality/safety/vocabulary checker
   ProtoExporter.cs              plays + spots -> dist/proto_data.json
@@ -327,8 +340,13 @@ is at `|x| = 15.7`, the goal line at `y = 15`.
    exporter follows that chain from the thrower and refuses a play where it does
    not end at `Ball`. A reverse is two handoffs in a row, the second drawn from
    the first runner's line to the second runner's. On a pass play a handoff is a
-   fake and the ball stays with the thrower.
-4. `check` until clean, then `dotnet test`.
+   fake and the ball stays with the thrower — unless the play is in
+   `Throwers`, which names the kid who throws it instead (JET PASS: the sweep
+   man). Then the chain has to reach him, his run has to end behind the line,
+   and `Ball` is *his* first read.
+4. Put it in a week in `PlayPacks.cs` — every play is in exactly one shipped
+   week, and `PlayLibraryChecks` holds that.
+5. `check` until clean, then `dotnet test`.
 
 Prefer **concept × formation** over inventing concepts. Most concepts port to
 two or three of the four formations, so the honest way to grow the library is
@@ -396,7 +414,7 @@ them are about storage and service workers and a `file://` origin has neither.
 no share sheet, so Export falls through to a download that the check captures
 and feeds to the other tablet's hidden file input.
 
-`LabelChecks` sweeps 26 plays × 2 mirror states × 2 stages × 5 viewports = 520
+`LabelChecks` sweeps 27 plays × 2 mirror states × 2 stages × 5 viewports = 540
 states. Several checks pad the library out to 100 plays
 (`AppFixture.InjectPlaysAsync`) to judge the UI at a size it has not reached yet.
 

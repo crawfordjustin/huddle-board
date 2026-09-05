@@ -28,7 +28,9 @@ public enum EndStyle
 /// It starts in the giver's hands and ends in the receiver's, so a play can hand
 /// the ball on more than once — a reverse is two of these in a row — and the
 /// checker can hold that the two kids are actually in the same place at the same
-/// moment. On a pass play a handoff is a fake and the ball stays with the thrower.
+/// moment. On a pass play a handoff is a fake and the ball stays with the thrower —
+/// unless the play names somebody else as its thrower, in which case the handoffs
+/// are how the ball reaches him before he throws it.
 /// </remarks>
 public sealed record PathSeg(
     string Who,

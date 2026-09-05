@@ -526,15 +526,19 @@ function qbez(a, b, c, t){
   const u = 1 - t;
   return [u*u*a[0] + 2*u*t*b[0] + t*t*c[0], u*u*a[1] + 2*u*t*b[1] + t*t*c[1]];
 }
-/* The throw: one arc from the thrower's spot to the end of the target's route,
-   bowed a little so it reads as a flight and not a fourth route. The play
-   screen and the thumbnail both draw it from these three points, so a tile is
-   a small picture of exactly what the big screen will show. Null on a run. */
+/* The throw: one arc from where the thrower lets it go to the end of the
+   target's route, bowed a little so it reads as a flight and not a fourth
+   route. It leaves the THROWER's spot — or, when the ball was handed to
+   somebody first, the end of that kid's run. The play screen and the
+   thumbnail both draw it from these three points, so a tile is a small
+   picture of exactly what the big screen will show. Null on a run. */
 function throwArc(play){
   if (play.ball.mode === "carry") return null;
   const idx = play.paths.findIndex(p => p.who === play.ball.who);
   if (idx < 0) return null;
-  const src = [play.spots.QB.x, play.spots.QB.y];
+  const legs = play.ball.legs;
+  const src = legs ? play.paths[legs[legs.length - 1].path].pts.slice(-1)[0]
+                   : [play.spots.QB.x, play.spots.QB.y];
   const dst = play.paths[idx].pts[play.paths[idx].pts.length - 1];
   const mid = [(src[0]+dst[0])/2, (src[1]+dst[1])/2];
   const dx = dst[0]-src[0], dy = dst[1]-src[1];
@@ -575,11 +579,12 @@ function buildTimeline(play){
   });
   // ball
   const b = play.ball;
-  if (b.mode === "carry"){
-    // The ball is wherever the kid holding it is. It changes hands where a
-    // handoff arrow ends, at the moment the giver gets there — so a reverse
-    // shows the first runner carrying it and then the second, instead of the
-    // second runner holding it from the snap.
+  // The ball is wherever the kid holding it is. It changes hands where a
+  // handoff arrow ends, at the moment the giver gets there — so a reverse
+  // shows the first runner carrying it and then the second, instead of the
+  // second runner holding it from the snap. A pass thrown by somebody other
+  // than the THROWER has legs too: the sweep he takes before he throws.
+  const legTimes = () => {
     const legs = (b.legs || [{who:b.who, path:runPathOf(play, b.who)}])
       .map(l => ({who:l.who, pathIdx:l.path, handoff:l.handoff}));
     legs.forEach((l, k) => {
@@ -588,9 +593,13 @@ function buildTimeline(play){
       const h = play.paths[l.handoff], to = h.pts[h.pts.length-1];
       l.start = seg.start + seg.dur * fracNear(play.paths[giver.pathIdx].pts, to);
     });
-    const last = legs[legs.length-1], ls = tl.paths[last.pathIdx];
-    tl.ball = {mode:"carry", pathIdx:last.pathIdx, legs,
-               start:legs[0].start, dur:ls.start + ls.dur - legs[0].start};
+    return legs;
+  };
+  const legEnd = legs => { const ls = tl.paths[legs[legs.length-1].pathIdx]; return ls.start + ls.dur; };
+  if (b.mode === "carry"){
+    const legs = legTimes();
+    tl.ball = {mode:"carry", pathIdx:legs[legs.length-1].pathIdx, legs,
+               start:legs[0].start, dur:legEnd(legs) - legs[0].start};
   } else {
     const idx = play.paths.findIndex(p => p.who === b.who);
     const tp = tl.paths[idx] || {start:tl.tSnap, dur:1200};
@@ -598,8 +607,13 @@ function buildTimeline(play){
     // the frame draws the ball along the arc and the dashed throw line behind
     // it, so both come from the same three points
     const {src, ctrl, dst} = throwArc(play);
-    tl.ball = {mode:"pass", pathIdx:idx, start:Math.max(tl.tSnap + 120, arrive - 620),
-               dur:Math.min(620, arrive - tl.tSnap - 100), arrive, src, ctrl, dst};
+    // it leaves the THROWER's hands just after the snap — or the runner's
+    // when his run ends — and lands as the receiver gets there
+    const legs = b.legs ? legTimes() : null;
+    const ready = legs ? legEnd(legs) : tl.tSnap + 120;
+    const start = Math.max(ready, arrive - 620);
+    tl.ball = {mode:"pass", pathIdx:idx, legs, thrower:b.thrower || "QB",
+               start, dur:Math.max(300, arrive - start), arrive, src, ctrl, dst};
   }
   tl.tEnd = Math.max(...tl.paths.map(p => p.start + p.dur),
                      tl.ball.start + tl.ball.dur) + TAIL;
@@ -2224,8 +2238,14 @@ function frame(now){
   const STEP = 0.02;
   let show = false, bp = null, ahead = null;
   if (running && !S.solo){
-    if (b.mode === "carry"){
-      // whoever is holding it: the last leg that has started
+    if (b.mode === "pass" && t >= b.start){
+      const f = Math.max(0, Math.min(1, (t - b.start) / b.dur));
+      bp = qbez(b.src, b.ctrl, b.dst, f);
+      ahead = qbez(b.src, b.ctrl, b.dst, Math.min(1, f + STEP));
+      show = true;
+    } else if (b.legs){
+      // whoever is holding it: the last leg that has started. On a pass this
+      // is the runner carrying it up to the moment he throws.
       let leg = null;
       for (const l of b.legs) if (t >= l.start) leg = l;
       if (leg){
@@ -2235,11 +2255,6 @@ function frame(now){
         ahead = walk(pts, Math.min(1, prog + STEP)).end;
         show = true;
       }
-    } else if (t >= b.start){
-      const f = Math.max(0, Math.min(1, (t - b.start) / b.dur));
-      bp = qbez(b.src, b.ctrl, b.dst, f);
-      ahead = qbez(b.src, b.ctrl, b.dst, Math.min(1, f + STEP));
-      show = true;
     }
   }
   // the throw line grows under the ball and stays after the catch. It keeps
@@ -2250,7 +2265,7 @@ function frame(now){
     let op = 0;
     if (f > 0){
       const who = p.paths[b.pathIdx].who;
-      op = S.solo ? ((S.solo === who || S.solo === "QB") ? 1 : 0.07) : 1;
+      op = S.solo ? ((S.solo === who || S.solo === b.thrower) ? 1 : 0.07) : 1;
       const n = Math.max(2, Math.ceil(f * 24));
       const arc = [];
       for (let i = 0; i <= n; i++){

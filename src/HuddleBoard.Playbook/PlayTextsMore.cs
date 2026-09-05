@@ -337,6 +337,34 @@ public static partial class PlayTexts
                 "A pitch is already a live ball, and this adds a second handoff. Walk it at practice before you call it in a game.",
                 "It is Pinwheel out of the backfield. One idea, three pictures.",
             ]),
+        [27] = new(
+            Calls:
+            [
+                new("SLOT LEFT", "MOTION → CARRY to orange, stop, throw it deep"),
+                new("WIDE RIGHT", "GO up the sideline — look back"),
+                new("THROWER", "hold it out at belly height"),
+                new("EVERYONE ELSE", "GO"),
+            ],
+            Assign:
+            [
+                new("SLOT LEFT",
+                    "MOTION, then CARRY, then THROW. Same start as Rocket: be at FULL SPEED when you pass the thrower and take the ball going toward orange. Two more steps, then STOP before the line, set your feet, and throw it deep to the Wide Orange. If he is covered, tuck it and run — it is Rocket again."),
+                new("WIDE RIGHT",
+                    "GO. Sprint straight up the orange sideline and look back over your inside shoulder. The defender will come up to chase the sweep — run right past him."),
+                new("THROWER",
+                    "Same as Rocket: hold it out at belly height and let him take it. Then get out of the way — do not chase the play."),
+                new("WIDE LEFT / TIGHT LEFT",
+                    "GO. Sprint downfield and take your defender with you."),
+                new("SNAPPER",
+                    "Snap and GO straight up the middle."),
+            ],
+            Mistake: "The Slot Blue throwing on the move, or from past the line. Stop, feet set, behind the line — then throw.",
+            Notes:
+            [
+                "Rocket first, at least twice. This is the punishment for a defender who comes up to chase the motion: the moment he does, the Wide Orange is behind him.",
+                "Legal check: the throw has to leave from behind the line, and there is one forward pass per play. A few leagues let only the thrower pass — check yours before you install it.",
+                "Pick a Slot Blue who can throw. It is a shorter throw than it looks — he is already past the snapper, and the Wide Orange is straight up his sideline.",
+            ]),
 
     };
 }

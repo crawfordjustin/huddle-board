@@ -17,7 +17,7 @@ public static class ProtoExporter
         [11] = "MAGIC TRICK", [12] = "SPIDERWEB", [13] = "RAINBOW", [14] = "STAIRCASE",
         [15] = "STOP SIGN", [16] = "SLINGSHOT", [17] = "PINBALL", [18] = "ELEVATOR", [19] = "SEESAW",
         [20] = "FIREWORKS", [21] = "MOUSETRAP", [22] = "PINWHEEL", [23] = "DRAWBRIDGE",
-        [24] = "FISHHOOK", [25] = "YO-YO", [26] = "U-TURN",
+        [24] = "FISHHOOK", [25] = "YO-YO", [26] = "U-TURN", [27] = "CATAPULT",
     };
 
     /// <summary>
@@ -38,7 +38,21 @@ public static class ProtoExporter
             [18] = ("pass", "Z"), [19] = ("pass", "Z"), [20] = ("pass", "Y"),
             [21] = ("carry", "H"), [22] = ("carry", "Y"), [23] = ("pass", "H"),
             [24] = ("pass", "Z"), [25] = ("carry", "H"), [26] = ("carry", "Z"),
+            [27] = ("pass", "H"),
         };
+
+    /// <summary>
+    /// Who throws it, when it is not the THROWER. On an ordinary pass a handoff
+    /// is a fake and the ball never leaves the thrower's hands; on a play that
+    /// names somebody else here, the handoffs are how the ball reaches him, and
+    /// the exporter follows that chain from the snap exactly as it does for a
+    /// carry. He then throws from wherever his run ends, which has to be behind
+    /// the line — a forward pass from past it is a flag.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<int, string> Throwers = new Dictionary<int, string>
+    {
+        [27] = "Y",
+    };
 
     /// <summary>The deck a new team starts with: the first play pack, which is
     /// the playbook's "start here" page. One definition, so Start over and
@@ -126,10 +140,14 @@ public static class ProtoExporter
     /// <summary>
     /// The order the ball changes hands: from the thrower, along each handoff's
     /// <see cref="PathSeg.To"/>, until somebody keeps it. That somebody has to
-    /// be the play's ball target, which is what makes a reverse honest — the
-    /// second exchange is data the tablet animates, not a note in the margin.
+    /// be the play's ball target — or, on a pass thrown by somebody other than
+    /// the THROWER, the kid who throws it — which is what makes a reverse
+    /// honest: the second exchange is data the tablet animates, not a note in
+    /// the margin.
     /// </summary>
-    private static List<(string Who, int Path, int Handoff)> Exchanges(Play p, string carrier)
+    /// <param name="carrier">Who must be holding it when the handoffs run out.</param>
+    /// <param name="role">What <paramref name="carrier"/> is, for the error.</param>
+    private static List<(string Who, int Path, int Handoff)> Exchanges(Play p, string carrier, string role)
     {
         var legs = new List<(string, int, int)>();
         var holder = "QB";
@@ -154,7 +172,7 @@ public static class ProtoExporter
         if (holder != carrier)
         {
             throw new InvalidOperationException(
-                $"play {p.Num}: the handoffs end with {holder} but the ball target is {carrier}");
+                $"play {p.Num}: the handoffs end with {holder} but the {role} is {carrier}");
         }
 
         if (legs.Count == 0)
@@ -211,15 +229,37 @@ public static class ProtoExporter
             var formation = Formations.All[fm];
             var txt = PlayTexts.All[num];
             var (mode, who) = Ball[num];
+            var thrower = Throwers.GetValueOrDefault(num, "QB");
 
             if (!formation.ContainsKey(who))
                 throw new InvalidOperationException($"play {num}: ball target {who} not in {fm}");
+            if (!formation.ContainsKey(thrower))
+                throw new InvalidOperationException($"play {num}: thrower {thrower} not in {fm}");
 
-            // a carry is a chain of exchanges ending with the carrier; a pass just
-            // needs its first read to be running something
-            var legs = mode == "carry" ? Exchanges(p, who) : [];
-            if (mode != "carry" && !p.Paths.Any(pa => pa.Who == who))
-                throw new InvalidOperationException($"play {num}: no path for ball target {who}");
+            // a carry is a chain of exchanges ending with the carrier. A pass just
+            // needs its first read to be running something — unless somebody other
+            // than the THROWER throws it, in which case the chain has to reach him
+            // first, and he has to throw from behind the line
+            var legs = mode == "carry" ? Exchanges(p, who, "ball target")
+                : thrower != "QB" ? Exchanges(p, thrower, "thrower")
+                : [];
+            if (mode != "carry")
+            {
+                if (!p.Paths.Any(pa => pa.Who == who))
+                    throw new InvalidOperationException($"play {num}: no path for ball target {who}");
+                if (legs.Any(l => l.Who == who))
+                    throw new InvalidOperationException($"play {num}: {who} cannot both carry the ball and catch it");
+                if (legs.Count > 0)
+                {
+                    var from = p.Paths[legs[^1].Path].Pts[^1];
+                    if (from.Y > 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"play {num}: {thrower} throws from {from.Y} yd past the line — " +
+                            "a forward pass has to leave from behind it");
+                    }
+                }
+            }
 
             var jobs = txt.Calls
                 .SelectMany(c => KeysForLabel(c.Label, fm))
@@ -307,6 +347,8 @@ public static class ProtoExporter
             j.Key("ball").StartObject();
             j.Pair("mode", mode);
             j.Pair("who", who);
+            if (thrower != "QB")
+                j.Pair("thrower", thrower);
             if (legs.Count > 0)
             {
                 j.Key("legs").StartArray();

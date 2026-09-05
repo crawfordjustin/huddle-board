@@ -61,6 +61,7 @@ public sealed class BallChecks(AppFixture app)
 
     [Theory]
     [InlineData("p_18", "a pass")]
+    [InlineData("p_27", "a pass off a sweep")]
     [InlineData("p_01", "a handoff")]
     [InlineData("p_22", "a reverse")]
     public async Task TheBallIsAFootballAndItLandsWhereThePlaySaysEvenMirrored(
@@ -101,7 +102,7 @@ public sealed class BallChecks(AppFixture app)
             // A pass leaves a dashed throw line behind the ball, the way a handoff
             // leaves its dashed arrow, and it ends where the ball does. A run has
             // no such line — its ball rides the run and the handoff arrows.
-            if (kind == "a pass")
+            if (kind.StartsWith("a pass", StringComparison.Ordinal))
             {
                 Assert.True(g.ThrowOpacity == 1, $"{at}: the throw line is not showing");
                 Assert.True(Math.Abs(g.ThrowDx) < 1.5 && Math.Abs(g.ThrowDy) < 1.5,
@@ -193,4 +194,90 @@ public sealed class BallChecks(AppFixture app)
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
 
+    private sealed record Sweep(
+        [property: JsonPropertyName("legs")] int Legs,
+        [property: JsonPropertyName("runner")] string Runner,
+        [property: JsonPropertyName("thrower")] string Thrower,
+        [property: JsonPropertyName("midOnRunner")] double MidOnRunner,
+        [property: JsonPropertyName("midOffQb")] double MidOffQb,
+        [property: JsonPropertyName("midOffTarget")] double MidOffTarget,
+        [property: JsonPropertyName("endOnTarget")] double EndOnTarget,
+        [property: JsonPropertyName("lineFromSet")] double LineFromSet,
+        [property: JsonPropertyName("lineFromQb")] double LineFromQb);
+
+    /// <summary>
+    /// Draw a frame halfway through the runner's sweep and one after the
+    /// catch, and read where the ball is against the runner, the THROWER's
+    /// spot, the receiver, and where the throw line starts. Distances are in
+    /// viewBox units; a yard is 31.25 of them.
+    /// </summary>
+    private const string SweepThenThrow = """
+        () => {
+          const tl = S.tl, b = tl.ball, p = S.play;
+          const legs = b.legs || [];
+          if (b.mode !== 'pass' || legs.length === 0)
+            return JSON.stringify({legs: legs.length, runner: '', thrower: b.thrower || ''});
+          const ball = (t) => {
+            S.stage = 'run'; S.t0 = 0; frame(t);
+            const m = /translate\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/.exec(SC.ball.getAttribute('transform') || '');
+            return m ? [+m[1], +m[2]] : [9999, 9999];
+          };
+          const kid = (leg, t) => {
+            const seg = tl.paths[leg.pathIdx];
+            const prog = Math.max(0, Math.min(1, (t - seg.start) / seg.dur));
+            const e = walk(p.paths[leg.pathIdx].pts, prog).end;
+            return W2S(e[0], e[1]);
+          };
+          const gap = (a, c) => +Math.hypot(a[0]-c[0], a[1]-c[1]).toFixed(1);
+          const at = pts => { const e = pts[pts.length - 1]; return W2S(e[0], e[1]); };
+          const runner = legs[legs.length - 1];
+          const qb = W2S(p.spots.QB.x, p.spots.QB.y);
+          const set = at(p.paths[runner.pathIdx].pts);
+          const target = at(p.paths[b.pathIdx].pts);
+          const seg = tl.paths[runner.pathIdx];
+          const t1 = seg.start + seg.dur * 0.5, t2 = b.start + b.dur + 50;
+          const b1 = ball(t1), b2 = ball(t2);
+          const first = (SC.throw.getAttribute('points') || '').trim().split(' ')[0].split(',').map(Number);
+          return JSON.stringify({legs: legs.length, runner: runner.who, thrower: b.thrower,
+            midOnRunner: gap(b1, kid(runner, t1)), midOffQb: gap(b1, qb), midOffTarget: gap(b1, target),
+            endOnTarget: gap(b2, target), lineFromSet: gap(first, set), lineFromQb: gap(first, qb)});
+        }
+        """;
+
+    /// <summary>
+    /// A pass thrown by somebody other than the THROWER: the ball rides the
+    /// sweep in the runner's hands, and the throw leaves from where his run
+    /// ends, not from the THROWER's spot. Before this the only thrower a play
+    /// could have was the kid under centre, so a handoff that turned into a
+    /// pass had no honest picture.
+    /// </summary>
+    [Fact]
+    public async Task OnAJetPassTheBallRidesTheSweepAndLeavesFromWhereTheRunnerStops()
+    {
+        var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], settle: 350);
+        await page.EvaluateAsync("openPlay('p_27')");
+        await page.WaitForTimeoutAsync(400);
+
+        var g = JsonSerializer.Deserialize<Sweep>(
+            await page.EvaluateAsync<string>(SweepThenThrow))!;
+
+        Assert.Equal(1, g.Legs);
+        Assert.Equal("Y", g.Runner);
+        Assert.Equal("Y", g.Thrower);
+
+        // halfway through the sweep the ball is in the runner's hands, and
+        // nowhere near the THROWER or the receiver
+        Assert.True(g.MidOnRunner < 3, $"mid-sweep the ball is {g.MidOnRunner} off the runner");
+        Assert.True(g.MidOffQb > 25, $"mid-sweep the ball is still on the THROWER ({g.MidOffQb} away)");
+        Assert.True(g.MidOffTarget > 25, $"mid-sweep the ball is already on the receiver ({g.MidOffTarget} away)");
+
+        // after the throw it is on the receiver, and the throw line starts
+        // where the runner stopped, not where the THROWER stood
+        Assert.True(g.EndOnTarget < 3, $"after the throw the ball is {g.EndOnTarget} off the receiver");
+        Assert.True(g.LineFromSet < 3, $"the throw line starts {g.LineFromSet} from where the runner stopped");
+        Assert.True(g.LineFromQb > 25, $"the throw line starts at the THROWER's spot ({g.LineFromQb} away)");
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
 }
