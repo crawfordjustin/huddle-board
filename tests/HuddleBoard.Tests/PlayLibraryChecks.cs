@@ -67,9 +67,17 @@ public sealed class PlayLibraryChecks
     {
         var json = ProtoExporter.Serialise(PlayLibrary.All);
         var doc = System.Text.Json.JsonDocument.Parse(json);
-        Assert.Equal(PlayLibrary.All.Count, doc.RootElement.GetProperty("plays").GetArrayLength());
+        var plays = doc.RootElement.GetProperty("plays").EnumerateArray().ToList();
+        Assert.Equal(PlayLibrary.All.Count, plays.Count);
         Assert.Equal(4, doc.RootElement.GetProperty("defaultDeck").GetArrayLength());
         Assert.Equal(PlayPacks.All.Count, doc.RootElement.GetProperty("packs").GetArrayLength());
+        Assert.All(plays, p => Assert.True(
+            new[] { "simple", "moderate", "advanced" }.Contains(p.GetProperty("complexity").GetString()),
+            "play exported an unknown complexity"));
+        Assert.Equal("simple", plays.Single(p => p.GetProperty("num").GetInt32() == 1)
+            .GetProperty("complexity").GetString());
+        Assert.Equal("advanced", plays.Single(p => p.GetProperty("num").GetInt32() == 27)
+            .GetProperty("complexity").GetString());
     }
 
     /// <summary>

@@ -21,6 +21,14 @@ public enum EndStyle
     Bar,
 }
 
+/// <summary>How much teaching and timing a play asks of an 8U offense.</summary>
+public enum PlayComplexity
+{
+    Simple,
+    Moderate,
+    Advanced,
+}
+
 /// <summary>One drawn segment: who runs it, what kind of segment it is, and the
 /// points it passes through in yards.</summary>
 /// <remarks>
@@ -54,7 +62,8 @@ public sealed record Play(
     string Mistake,
     IReadOnlyList<PathSeg> Paths,
     IReadOnlyList<Assignment> Assign,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    PlayComplexity Complexity = PlayComplexity.Moderate);
 
 /// <summary>One row of the call strip: the spot, and the job in shape language.</summary>
 public sealed record Call(string Label, string Job);

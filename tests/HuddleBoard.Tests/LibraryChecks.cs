@@ -23,6 +23,9 @@ public sealed class LibraryChecks(AppFixture app)
 
         var all = await Rows();
         Assert.Equal(HuddleBoard.Playbook.PlayLibrary.All.Count, all);
+        Assert.Equal(all, await page.Locator(".lcomplexity").CountAsync());
+        Assert.Equal("SIMPLE", await page.InnerTextAsync(".lrow[data-id='p_01'] .lcomplexity"));
+        Assert.Equal("ADVANCED", await page.InnerTextAsync(".lrow[data-id='p_27'] .lcomplexity"));
 
         await page.ClickAsync("[data-kind=\"run\"]");
         await page.WaitForTimeoutAsync(300);

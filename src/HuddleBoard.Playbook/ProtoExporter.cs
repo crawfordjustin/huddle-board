@@ -203,7 +203,7 @@ public static class ProtoExporter
     {
         var j = new JsonWriter();
         j.StartObject();
-        j.Pair("schemaVersion", 2);
+        j.Pair("schemaVersion", 3);
         j.Pair("defaultDeck", DefaultDeck.Select(n => $"p_{n:00}"));
 
         // the saved decks a coach can start from, by play id so the tablet can
@@ -273,6 +273,7 @@ public static class ProtoExporter
             j.Pair("coachName", p.Name);
             j.Pair("kidName", KidNames[num]);
             j.Pair("category", p.Category);
+            j.Pair("complexity", p.Complexity.ToString().ToLowerInvariant());
             j.Pair("formation", fm);
             j.Pair("tagline", Recolor(p.Tagline));
 

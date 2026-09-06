@@ -42,7 +42,7 @@ public sealed class DeckFilterChecks(AppFixture app)
         Assert.Equal($"{shown} OF 14", (await Count()).ToUpperInvariant());
         Assert.True(
             await page.EvalOnSelectorAllAsync<bool>(
-                ".tile .catchip", "e => e.length > 0 && e.every(c => c.textContent.trim() === 'GOAL LINE')"),
+                ".tile .catchip.situation", "e => e.length > 0 && e.every(c => c.textContent.trim() === 'GOAL LINE')"),
             "a play from another situation survived the filter");
 
         // run/pass is the other facet, and the two combine
@@ -156,15 +156,20 @@ public sealed class DeckFilterChecks(AppFixture app)
     public async Task EveryTileShowsItsSituationAndNothingIsClipped(string label, int width, int height)
     {
         var (page, errors) = await app.OpenAppAsync(new Viewport(label, width, height));
-        await page.EvaluateAsync(DeckOf(14));
+        await page.EvaluateAsync(DeckOf(27));
         await page.WaitForTimeoutAsync(500);
 
         var tiles = await page.Locator(".tile").CountAsync();
-        Assert.Equal(14, tiles);
+        Assert.Equal(27, tiles);
 
-        var chips = await page.EvalOnSelectorAllAsync<int>(
-            ".tile .catchip", "e => e.filter(c => c.getBoundingClientRect().width > 0).length");
-        Assert.Equal(tiles, chips);
+        var situations = await page.EvalOnSelectorAllAsync<int>(
+            ".tile .catchip.situation", "e => e.filter(c => c.getBoundingClientRect().width > 0).length");
+        Assert.Equal(tiles, situations);
+        var complexities = await page.EvalOnSelectorAllAsync<int>(
+            ".tile .catchip.complexity", "e => e.filter(c => c.getBoundingClientRect().width > 0).length");
+        Assert.Equal(tiles, complexities);
+        Assert.Equal("SIMPLE", await page.InnerTextAsync(".tile[data-id='p_01'] .complexity"));
+        Assert.Equal("ADVANCED", await page.InnerTextAsync(".tile[data-id='p_27'] .complexity"));
 
         // nothing on a tile may fall outside the card. The tagline is the one
         // line allowed to disappear to keep that true; the rest may not be cut.

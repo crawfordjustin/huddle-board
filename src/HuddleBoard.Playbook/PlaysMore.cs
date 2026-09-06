@@ -21,6 +21,7 @@ public static partial class PlayLibrary
             Name: "ALL SIT",
             Formation: "SPREAD",
             Category: "NO-RUN ZONE",
+            Complexity: PlayComplexity.Simple,
             Tagline: "Everybody runs five and turns around. The simplest play in the book.",
             Mistake: "Drifting upfield after the turn. Stop means stop — if he keeps drifting, the throw goes behind him.",
             Paths:
@@ -86,6 +87,7 @@ public static partial class PlayLibrary
             Name: "HIGH LOW",
             Formation: "TRIPS LEFT",
             Category: "NO-RUN ZONE",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Two outs to the same sideline, one deep and one shallow. Pick a level.",
             Mistake: "Both receivers breaking at the same depth. If they stack up, the play is dead and it looks like a screen.",
             Paths:
@@ -121,6 +123,7 @@ public static partial class PlayLibrary
             Name: "REVERSE",
             Formation: "SPREAD",
             Category: "RUN ZONE",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Hand it one way, hand it back the other. Beats a defense that chases.",
             Mistake: "The second runner taking off before he has the ball. Take it first, then go.",
             Paths:
@@ -199,6 +202,7 @@ public static partial class PlayLibrary
             Name: "SNAG",
             Formation: "TRIPS LEFT",
             Category: "QUICK GAME",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Three receivers, three different depths, one side of the field.",
             Mistake: "The sit drifting toward the sideline. He should settle in the window and stay there.",
             Paths:
@@ -234,6 +238,7 @@ public static partial class PlayLibrary
             Name: "FOUR VERTS",
             Formation: "SPREAD",
             Category: "SHOT PLAY",
+            Complexity: PlayComplexity.Simple,
             Tagline: "Everybody goes. The default rule, called on purpose.",
             Mistake: "Drifting together downfield. They start 5 yards apart and they must finish 5 yards apart.",
             Paths:
@@ -266,6 +271,7 @@ public static partial class PlayLibrary
             Name: "DOUBLE POST",
             Formation: "TWINS RIGHT",
             Category: "SHOT PLAY",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Two receivers attack the deep middle at different depths. Somebody is open.",
             Mistake: "Both breaking at the same yard line. The staggered depth is the whole play.",
             Paths:
@@ -371,6 +377,7 @@ public static partial class PlayLibrary
             Name: "JET REVERSE",
             Formation: "TRIPS LEFT",
             Category: "RUN ZONE",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Jet Sweep one way, hand it back the other. The reverse out of your trips look.",
             Mistake: "The second runner leaving before he has the ball. Let the sweep man get past you, take it, then go.",
             Paths:
@@ -414,6 +421,7 @@ public static partial class PlayLibrary
             Name: "PITCH REVERSE",
             Formation: "ACE",
             Category: "RUN ZONE",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Pitch it to the edge, then hand it back against the grain. The reverse out of the backfield.",
             Mistake: "The second runner taking it standing still. Be moving toward the far sideline when the ball arrives.",
             Paths:
@@ -456,6 +464,7 @@ public static partial class PlayLibrary
             Name: "JET PASS",
             Formation: "TRIPS LEFT",
             Category: "SHOT PLAY",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Jet Sweep for two steps, then the sweep man stops and throws it deep. Punishes a defense that chases.",
             Mistake: "The runner throwing on the move, or from past the line. Stop, set your feet behind the line, then throw.",
             Paths:

@@ -223,10 +223,14 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   color:#fff;background:var(--cat);padding:4px 8px;border-radius:4px;white-space:nowrap;flex:none}
 .lthumb{flex:none;width:clamp(78px,8.6vw,126px);display:flex;align-items:center}
 .lthumb .thumbsvg{width:100%}
+.lmeta{width:clamp(54px,6.2vw,78px);display:flex;flex-direction:column;align-items:center;
+  gap:4px;flex:none}
 .lkind{font-family:var(--disp);font-size:clamp(11px,1.8vh,16px);font-weight:700;
-  letter-spacing:.1em;text-transform:uppercase;width:clamp(38px,4vw,54px);text-align:center;
-  flex:none}
+  letter-spacing:.1em;text-transform:uppercase;text-align:center}
 .lkind.run{color:#5FBF8F} .lkind.pass{color:var(--pass-lt)}
+.lcomplexity{font-size:clamp(6.5px,1vh,9px);font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:#fff;background:var(--complex);padding:2px 5px;border-radius:4px;
+  white-space:nowrap}
 .lrow.on .lnum{color:var(--ink-2)}
 .lrow.on .lname b{color:var(--ink)}
 .lrow.on .lname i{color:var(--ink-2)}
@@ -301,6 +305,7 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .catchip{font-size:clamp(7px,1.05vh,9.5px);font-weight:700;letter-spacing:.1em;
   text-transform:uppercase;color:#fff;background:var(--cat);padding:3px 7px;border-radius:4px;
   white-space:nowrap}
+.catchip.complexity{background:var(--complex)}
 /* the situation is the thing a coach is actually looking for under pressure
    ("I need a goal line play"), so it stays on the tile at every column count.
    It used to be hidden here — on the only deck sizes big enough to need it. */
@@ -1090,6 +1095,9 @@ function paintClock(){
 }
 const CAT = {"RUN ZONE":"#127A4D","QUICK GAME":"#1B6BA8","SHOT PLAY":"#8A3AB0",
              "NO-RUN ZONE":"#C9700D","GOAL LINE":"#C0392B"};
+const COMPLEXITY = {simple:"#2A7B50",moderate:"#826C32",advanced:"#7045A0"};
+const complexityHTML = p =>
+  `<span class="catchip complexity" style="--complex:${COMPLEXITY[p.complexity]}">${p.complexity}</span>`;
 const SIDE = {blue:"#1D6FD0", orange:"#E4610F", none:"#141A16"};
 const app = document.getElementById("app");
 
@@ -1336,7 +1344,8 @@ function tourTile(p){
     <span class="tilemain">
       <span class="kindrow">
         <span class="kind">${isRun(p) ? "Run" : "Pass"}</span>
-        <span class="catchip">${p.category}</span>
+        <span class="catchip situation">${p.category}</span>
+        ${complexityHTML(p)}
       </span>
       <span class="kid">${esc(nameOf(p).big)}</span>
       <span class="coach">${[esc(nameOf(p).small), p.formation].filter(Boolean).join(" &middot; ")}</span>
@@ -1361,8 +1370,8 @@ function tourSlides(){
   const p = inDeck()[0] || DATA.plays[0];
   return [
     {title: "Your deck", sub: "The plays you carry into this game", art: tourTile(p),
-     text: `<p>Every tile is one play. The bar says <b>run</b> or <b>pass</b>, the chip says
-       the situation it is for, and the little field is the play itself.</p>
+     text: `<p>Every tile is one play. The bar says <b>run</b> or <b>pass</b>; the chips say
+       the situation and how much it asks of the team; and the little field is the play itself.</p>
        <p>The chips along the top narrow the deck the same way &mdash; tap <b>PASS</b> and
        <b>GOAL LINE</b> when you need one fast. Tap a tile to open it.</p>`},
     {title: "Turn it around", sub: "Line them up, then run it", art: thumbSVG(p),
@@ -1545,9 +1554,10 @@ function renderDeck(){
         <button class="tile ${isRun(p) ? "run" : "pass"}" data-id="${p.id}"
           style="--cat:${CAT[p.category]}">
           <span class="tilemain">
-            <span class="kindrow">
-              <span class="kind">${isRun(p) ? "Run" : "Pass"}</span>
-              <span class="catchip">${p.category}</span>
+              <span class="kindrow">
+                <span class="kind">${isRun(p) ? "Run" : "Pass"}</span>
+              <span class="catchip situation">${p.category}</span>
+              ${complexityHTML(p)}
             </span>
             <span class="kid">${esc(nameOf(p).big)}</span>
             <span class="coach">${[esc(nameOf(p).small), p.formation].filter(Boolean).join(" &middot; ")}</span>
@@ -1881,7 +1891,10 @@ function renderLibrary(){
       <span class="lnum">${p.num}</span>
       <span class="lname"><b>${esc(nm.big)}</b><i>${nm.small ? esc(nm.small) + " &middot; " : ""}${p.formation}</i></span>
       <span class="lthumb">${thumbSVG(p)}</span>
-      <span class="lkind ${isRun(p) ? "run" : "pass"}">${isRun(p) ? "Run" : "Pass"}</span>
+      <span class="lmeta">
+        <span class="lkind ${isRun(p) ? "run" : "pass"}">${isRun(p) ? "Run" : "Pass"}</span>
+        <span class="lcomplexity" style="--complex:${COMPLEXITY[p.complexity]}">${p.complexity}</span>
+      </span>
       <span class="lren ${isRenamed(p) ? "on" : ""}" data-ren="${p.id}" role="button"
         tabindex="0" aria-label="Rename ${esc(nameOf(p).big)}" title="Rename">&#9998;</span>
       <span class="lmark">${on ? "&#10003;" : "&#43;"}</span>

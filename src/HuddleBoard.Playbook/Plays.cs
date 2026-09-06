@@ -17,6 +17,7 @@ public static partial class PlayLibrary
             Name: "22 DIVE",
             Formation: "TWINS RIGHT",
             Category: "RUN ZONE",
+            Complexity: PlayComplexity.Simple,
             Tagline: "Simple downhill handoff. Your first-down play.",
             Mistake: "H bouncing outside instead of hitting the hole. Straight ahead beats pretty, every single time.",
             Paths:
@@ -86,6 +87,7 @@ public static partial class PlayLibrary
             Name: "COUNTER KEEP",
             Formation: "SPREAD",
             Category: "RUN ZONE",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Fake the sweep one way, keep it the other. The counter-punch to Jet Sweep.",
             Mistake: "The QB pulling it out too early. Let H clear the fake, count two, then go.",
             Paths:
@@ -191,6 +193,7 @@ public static partial class PlayLibrary
             Name: "SMASH",
             Formation: "TWINS RIGHT",
             Category: "QUICK GAME",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "High-low the corner. One defender, two receivers, he cannot be right.",
             Mistake: "Z drifting past 5 yards. His whole job is to stop short and be the easy completion.",
             Paths:
@@ -225,6 +228,7 @@ public static partial class PlayLibrary
             Name: "STICK",
             Formation: "TRIPS LEFT",
             Category: "QUICK GAME",
+            Complexity: PlayComplexity.Simple,
             Tagline: "Two easy answers on the same side. Almost impossible to cover.",
             Mistake: "Y rounding off his break. Plant hard and run flat to the sideline.",
             Paths:
@@ -293,6 +297,7 @@ public static partial class PlayLibrary
             Name: "FLOOD",
             Formation: "TRIPS LEFT",
             Category: "SHOT PLAY",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Three receivers, three different depths, one side of the field.",
             Mistake: "The QB locking onto the flat route. Eyes go deep first, then work down the ladder.",
             Paths:
@@ -327,6 +332,7 @@ public static partial class PlayLibrary
             Name: "POST / WHEEL",
             Formation: "TWINS RIGHT",
             Category: "SHOT PLAY",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "The back sneaks up the sideline while everyone watches the deep routes.",
             Mistake: "H turning up the sideline too early. Get all the way to the numbers first, then turn straight up.",
             Paths:
@@ -361,6 +367,7 @@ public static partial class PlayLibrary
             Name: "PLAY-ACTION CROSS",
             Formation: "TWINS RIGHT",
             Category: "SHOT PLAY",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Fake the dive, throw it deep across the middle.",
             Mistake: "A lazy run fake. If H does not sell it with his arms, no defender bites and the cross is covered.",
             Paths:
@@ -396,6 +403,7 @@ public static partial class PlayLibrary
             Name: "SPACING",
             Formation: "SPREAD",
             Category: "NO-RUN ZONE",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Five receivers, five depths. Somebody is always open.",
             Mistake: "Receivers sitting down with their backs to the QB. Stop, turn, hands up — every time.",
             Paths:
@@ -464,6 +472,7 @@ public static partial class PlayLibrary
             Name: "TRIPLE OUT",
             Formation: "TRIPS LEFT",
             Category: "GOAL LINE",
+            Complexity: PlayComplexity.Advanced,
             Tagline: "Three staircase outs plus a shot. Your extra-point and short-yardage call.",
             Mistake: "Two receivers ending up at the same depth. 1, 3, 5 — drill it with cones until it is automatic.",
             Paths:
