@@ -5,6 +5,11 @@ uses it on an 11-inch rugged Android tablet, turns it around, and shows six
 seven-year-olds what to do. The coach knows football; the product simplifies
 the explaining, not the football.
 
+`CLAUDE.md` is the long form of this file and carries the reasoning behind
+every rule below. When a rule here seems to be in the way, read the reason
+there before working around it; each one exists because breaking it made the
+tool worse for actual eight-year-olds.
+
 ## Project shape
 
 - `HuddleBoard.slnx` is the Visual Studio solution.
@@ -34,7 +39,9 @@ dotnet run --project src/HuddleBoard.Build -- shots   # README screenshots
 dotnet test                                           # build, then full suite
 ```
 
-- Always run `check` after a code change. It is the deploy gate.
+- Always run `check` after a code change. It is the deploy gate: CI runs
+  `check`, not `dotnet test`, so the browser suite has to be run by hand before
+  anything that touches layout, storage or the service worker.
 - Prefer the smallest relevant test class for a focused behavioral or layout
   change, for example: `dotnet test --filter "FullyQualifiedName~BallChecks"`.
   Run the full suite for broad, layout, storage, sync, service-worker, or
@@ -51,55 +58,87 @@ dotnet test                                           # build, then full suite
 ## Product invariants (non-negotiable)
 
 1. **Nine route shapes only.** A route is GO, OUT, IN, SIT, CORNER, POST,
-   WHEEL, SWING, or CARRY (`Spots.Shapes`); no unassigned job means GO. Adding
-   another shape is a product decision, not a convenience. Play 11's `CROSS
-   deep` is the one deliberate, pinned exception.
+   WHEEL, SWING, or CARRY (`Spots.Shapes`); no unassigned job means GO. A tenth
+   shape costs every kid on the team a new word, so adding one is a product
+   decision, not a convenience. Play 11's `CROSS deep` is the one deliberate
+   exception, pinned by `PlayLibraryChecks.TheVocabularyHasNotGrown`.
 2. **Use colors, never left/right, for player sides.** Player sides are BLUE
-   and ORANGE. The field's sidelines are OUR SIDE and THEIR SIDE. Formation
-   source names may use LEFT/RIGHT where explicitly required; the exporter
-   recolors display labels.
+   and ORANGE, because 8U players confuse left and right and because left and
+   right invert depending on which side of them the coach stands. The field's
+   sidelines are OUR SIDE and THEIR SIDE. Call-strip labels in the `PlayTexts`
+   files are written with LEFT/RIGHT spot names (`SLOT LEFT`) and
+   `ProtoExporter.Recolor` turns them into BLUE/ORANGE for display; see
+   "Adding a play" below.
 3. **No letters on the field.** Markers use shape, color, and spoken name--not
-   football position abbreviations. Preserve `LabelChecks`.
+   football position abbreviations. This was tested at a practice and the
+   letters did not land. Preserve `LabelChecks`.
 4. **The field does not mirror.** `W2S()` mirrors players, routes, and ball;
    `F2S()` draws field paint and must not mirror it. On mirror, rewrite the
    call strip BLUE <-> ORANGE.
 5. **The intro illustration is inlined.** Author it at `art/intro-art.png`.
    The build converts it into a data URI for the one-file app; do not add a
-   runtime image request. Keep `IntroChecks` passing when changing it.
+   runtime image request. Keep `IntroChecks` passing when changing it. Known
+   design debt, not a decision: the raster cannot be swept for letters, so rule
+   3 does not reach it, and the current art is blue against red rather than
+   ORANGE. Do not try to make `LabelChecks` cover the art, and do not assume
+   the intro teaches the same color pair as the field.
 6. **Coach customization stays on the tablet.** Play-name overrides live in
-   `localStorage` under `hb.names`, are keyed by play id, and are escaped with
-   `esc()` before markup. Search must match both custom and shipped names.
-   Do not put overrides into the build or printed playbook.
-7. **Destructive setup actions require two taps.** Use `confirmTap`; its armed
-   state must lapse. `Start over` resets the deck, shipped-name overrides,
-   settings, sideline, saved packs and pack names, but deliberately keeps the
-   game log. The log has its own Clear action.
+   `localStorage` under `hb.names`, keyed by play id, and are escaped with
+   `esc()` before markup. Only a name that differs from the shipped one is
+   stored, so retyping the shipped name is not a rename; `RenameChecks` holds
+   that. Search must match both custom and shipped names, so renaming can
+   never hide a play. Do not put overrides into the build or printed playbook.
+   **Destructive setup actions require two taps.** Use `confirmTap`; its
+   armed state must lapse on its own. `Start over` resets the deck, name
+   overrides, settings, sideline, saved packs, pack names, and the tutorial
+   flag (`hb.tour`), but deliberately keeps the game log. The log is a
+   recording rather than a preference, and has its own Clear action.
+7. **The deck filter is in memory only, never saved.** The deck carries the
+   same run/pass and situation chips as the library, in the same `.fchip`
+   styling, because two screens should not teach two controls for one idea. A
+   filtered deck persisted across sessions would have a coach see two plays
+   next week and think his deck had been eaten, so the header count reads
+   "2 of 14" whenever a filter is on and going back through the intro clears
+   it. The deck has no title row: every line of chrome above the tiles is a
+   row of plays the coach cannot see. **Change plays** lives in the hamburger
+   with Setup and Exit. `DeckFilterChecks` and `MenuChecks` hold all of this.
 8. **A pending update never interrupts a play.** The service worker waits and
-   offers an update only on the deck and intro. It activates only after the
-   coach taps the offer.
+   offers an update only on the deck and intro, the two screens never turned
+   around at the kids. It activates only after the coach taps the offer.
 9. **The ball follows the actual possession chain.** Every handoff names its
-   receiver; reverses animate each leg. A pass shows a dashed gray flight arc.
-   A non-thrower pass must name the thrower in `ProtoExporter.Throwers`, have a
-   reachable handoff chain, and finish behind the line of scrimmage.
+   receiver; reverses animate each leg. A pass shows a dashed gray flight arc,
+   the same line a handoff rides, so there is one picture for where the ball
+   goes. A non-thrower pass must name the thrower in `ProtoExporter.Throwers`,
+   have a reachable handoff chain, and finish behind the line of scrimmage.
 10. **Tablet sync is an untrusted, replace-not-merge JSON file.** Validate all
     imported ids, settings, sides, packs, and strings in `readSetup`; escape
-    names on output. Sync never carries the game log.
+    names on output. Settings from the file are applied over the shipped
+    defaults, never over what the tablet had, so the result depends on the
+    file alone. Sync never carries the game log.
 11. **The shipped packs are complete, replaceable decks.** Each play appears
-    in exactly one shipped week. Week 1 is the default deck. Saved packs and
-    their names are independent local overrides; importing replaces them.
+    in exactly one shipped week. Week 1 is the default deck. Saved packs
+    (`hb.packs`) and pack names (`hb.packnames`) are independent local
+    overrides with the same rule as play names: only a slot that differs from
+    the shipped one is stored, so saving the shipped deck into its own week is
+    not a save. Importing replaces them. The pack strip is not a filter: it
+    changes what is in the deck, wears its own `.pack` chip, and has no label
+    at rest.
 12. **The tutorial is first-start only.** It is per tablet, not synced, and
-    can be reopened from the menu. Its visuals must be drawn by the actual app
-    code so they cannot drift from the product.
+    can be reopened from the menu. Skip marks it seen; Start over clears it.
+    Its visuals must be drawn by the actual app code so they cannot drift from
+    the product.
 
 ## Source and data rules
 
 - The source substitutions in `huddle_src.html` are `__DATA__`,
   `__INTRO_ART__`, and `__VERSION__`.
 - Coordinates are yards: `x` is horizontal from the snapper (negative is
-  offense's BLUE side); `y` is downfield (negative is backfield).
-- Add plays as a matched set: geometry in `PlaysMore.cs`, copy in
-  `PlayTextsMore.cs`, `KidNames` and `Ball` in `ProtoExporter.cs`, then one
-  shipped week in `PlayPacks.cs`. Run `check` until clean, then test.
+  offense's BLUE side); `y` is downfield (negative is backfield). The sideline
+  is at `|x| = 15.7` and the goal line at `y = 15` (`PlayChecker.Edge` and
+  `PlayChecker.Goal`).
+- `Num` remembers how a coordinate was written: `new Pt(0, 0)` exports as
+  `[0,0]` and `new Pt(0.0, -2.0)` as `[0.0,-2.0]`. Both parse identically, so
+  do not normalize one to the other; it only churns the JSON diff.
 - Prefer **concept x formation** to inventing near-duplicate concepts.
 - `PlayChecker` is a hard build gate. It models time-aware route collisions and
   handoffs. The original fourteen plays must continue to have zero errors;
@@ -107,20 +146,43 @@ dotnet test                                           # build, then full suite
 - Warnings are drawing-legibility notes, not automatically defects. Confirm
   whether a warning is an intentional arrangement before changing a play.
 
+### Adding a play
+
+1. Append to `Recent` in `PlaysMore.cs`: geometry, tagline, notes, mistake.
+2. Add matching text in `PlayTextsMore.cs`: the call strip and per-spot
+   instructions. Call-strip labels use LEFT/RIGHT spot names (`SLOT LEFT`),
+   which the exporter recolors. Written as BLUE/ORANGE they do not resolve and
+   the export throws.
+3. Add `KidNames[num]` and `Ball[num]` in `ProtoExporter.cs`. `Ball` is the
+   thrower's first read, or the kid who ends up with the ball; one rule, no
+   judgement calls. Every `Handoff` segment names who takes it (`To:`) and the
+   exporter follows that chain from the thrower and refuses a play where it
+   does not end at `Ball`. A play in `Throwers` names the kid who throws it
+   instead; then the chain has to reach him, his run has to end behind the
+   line, and `Ball` is his first read.
+4. Put it in exactly one week in `PlayPacks.cs`; `PlayLibraryChecks` holds
+   that.
+5. Run `check` until clean, then test.
+
 ## UI and browser gotchas
 
-- Use `min-height: 0` on flex children that must scroll.
+- A flex item defaults to `min-height: auto`, so a scroll container inside it
+  grows instead of scrolling. Put `min-height: 0` on the flex item that
+  contains the scroller.
 - Do not infer text overflow from `scrollHeight` versus `clientHeight`;
   `fitText()` counts rendered lines using a `Range`.
 - The offline fallback font is wider. Preserve the fit routines and test across
-  the five tablet sizes when changing layout or text fitting.
+  the five tablet sizes when changing layout or text fitting. `fitText()` asks
+  the horizontal question; `fitDeck()` asks whether the block fits the card's
+  height, dropping the tagline first and then the name size for the whole grid
+  at once.
 - Measure tile clipping against the card, not `.tilemain`; the latter can be
   taller than its clipped parent.
 - Reserve scrollbar gutter where its appearance can change fitted widths.
 - Do not use `justify-content: center` on a vertical scroller; center with
   margins that collapse once content overflows.
 - Keep CSS class names distinct in the single-file UI (`.chip` is already used;
-  library filter chips are `.fchip`).
+  library filter chips are `.fchip`, pack chips are `.pack`).
 
 ## Testing guidance
 
@@ -130,9 +192,14 @@ one build and cover five tablet shapes. Do not parallelize them against the
 shared `dist/` output.
 
 - `AppFixture.OpenAppAsync` normally taps through the intro; only intro tests
-  should pass `intro: true`.
-- Storage, sync, name, reset and PWA checks must use the hosted build. Sync
-  uses separate browser contexts to represent separate tablets.
+  should pass `intro: true`. The fixture writes the tutorial flag before the
+  app boots so every other check lands on the deck; `TutorialChecks` opens the
+  one tablet that has not seen it.
+- `RenameChecks`, `ResetChecks`, `SyncChecks` and `PwaChecks` run against the
+  hosted build over `StaticSite`, because they are about storage and service
+  workers and a `file://` origin has neither. Everything else, including
+  `NameChecks` (tile-name fitting) and `PackChecks`, runs on the standalone
+  file. Sync uses separate browser contexts to represent separate tablets.
 - Sweep tests must assert that they observed real elements or states; never
   accept a vacuous pass.
 
@@ -143,6 +210,12 @@ shared `dist/` output.
 `Cache-Control: no-cache`. CI builds from source, runs `check`, and stamps a
 new `HB_VERSION` for each deployment; do not reuse a version because it is the
 service-worker cache key.
+
+`.github/workflows/deploy.yml` logs in to Azure with OIDC, and the federated
+credential is bound to `environment: production`, not to the branch. Removing
+that `environment:` line from the job breaks the login outright; the branch
+restriction lives in the GitHub environment's deployment policy. There are no
+Azure secrets in the repository and publish profiles do not work here.
 
 Do not change the MIT license text or add extra restrictions. The license must
 remain in both shipping forms and as `dist/deploy/LICENSE.txt`.
