@@ -1,5 +1,5 @@
 <Solution>
-  <Folder Name="/Project Guidance/">
+  <Folder Name="/project-guidance/">
     <File Path="AGENTS.md" />
     <File Path="CLAUDE.md" />
   </Folder>
