@@ -16,6 +16,7 @@ public sealed class LibraryChecks(AppFixture app)
         await page.ClickAsync("#ham");
         await page.ClickAsync("#edit");
         await page.WaitForTimeoutAsync(500);
+        Assert.Equal(0, await page.Locator("#clock").CountAsync());
 
         async Task<int> Rows() =>
             await page.EvaluateAsync<int>("() => document.querySelectorAll('.lrow').length");

@@ -2031,7 +2031,6 @@ function renderLibrary(){
       <div class="deckhead">
         <h1>Play Library</h1>
         <div class="dh-right">
-          ${clockHTML()}
           <p id="lcount"></p>
           <button class="edit done" id="done">Done</button>
         </div>
@@ -2042,7 +2041,6 @@ function renderLibrary(){
       <div class="decknote" id="lnote"></div>
     </div>`;
   document.getElementById("done").onclick = renderDeck;
-  bindClock(); paintClock();
   drawFilters(); drawPacks(); drawRows();
 }
 
