@@ -1286,8 +1286,9 @@ function renderIntro(){
       </div>
       <div class="introsay">
         <h1>Huddle&nbsp;Board</h1>
-        <p>Pick a play, turn the tablet around, and show them what to do.</p>
-        <button class="start" id="start">Start<small>go to your deck</small></button>
+        <p class="sub" id="intro-audience">6U–8U flag football</p>
+        <p id="intro-message">Six kids. One clear job each.</p>
+        <button class="start" id="start">Start<small>browse plays</small></button>
         <p class="sub">${deck.length} play${deck.length === 1 ? "" : "s"} in your deck</p>
         ${updateReady ? `<button class="edit upd" id="upd">Update ready</button>` : ""}
       </div>

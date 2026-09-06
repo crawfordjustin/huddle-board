@@ -72,6 +72,9 @@ public sealed class IntroChecks(AppFixture app)
         Assert.True(g.Loaded, "the intro illustration did not decode; the data URI is wrong");
         Assert.True(g.NaturalWidth > 400 && g.NaturalHeight > 200,
             $"the illustration decoded at {g.NaturalWidth}x{g.NaturalHeight}, too small to be it");
+        Assert.Equal("6U–8U FLAG FOOTBALL", await page.InnerTextAsync("#intro-audience"));
+        Assert.Equal("Six kids. One clear job each.", await page.InnerTextAsync("#intro-message"));
+        Assert.Contains("BROWSE PLAYS", await page.InnerTextAsync("#start"));
 
         // the button is wholly on screen, and big enough to hit with gloves on
         Assert.True(g.ButtonTop >= 0 && g.ButtonBottom <= height,
