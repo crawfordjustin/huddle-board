@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/Project Guidance/">
+    <File Path="AGENTS.md" />
+    <File Path="CLAUDE.md" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/HuddleBoard.Build/HuddleBoard.Build.csproj" />
     <Project Path="src/HuddleBoard.Playbook/HuddleBoard.Playbook.csproj" />
