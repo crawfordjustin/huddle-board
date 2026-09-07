@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace HuddleBoard.Tests;
 
 /// <summary>
-/// The tutorial: four slides between the first START and the deck, once, and
+/// The tutorial: six slides between the first START and the deck, once, and
 /// in the menu after that.
 /// </summary>
 /// <remarks>
@@ -88,7 +88,7 @@ public sealed class TutorialChecks(AppFixture app)
             await page.ClickAsync("#tournext");
             await page.WaitForTimeoutAsync(150);
         }
-        Assert.InRange(slides, 3, 4);
+        Assert.Equal(6, slides);
 
         await page.ClickAsync("#tournext");
         await page.WaitForSelectorAsync(".deck");

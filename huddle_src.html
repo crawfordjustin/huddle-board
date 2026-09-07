@@ -476,14 +476,24 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   justify-content:center;pointer-events:none}
 .tourart>*{max-width:100%;max-height:100%}
 /* a real tile, sized to its box like one on the deck — the container query on
-   .tile does the work, so the name scales with the card */
-.tourart .tile{width:min(100%,720px);cursor:default}
+   .tile does the work, so the name scales with the card. Bigger than the
+   grid ever shows one, because this is the one screen where a single play
+   gets the whole box to itself. */
+.tourart .tile{width:min(100%,860px);cursor:default}
 .tourart .tile:active{transform:none;box-shadow:none}
 .tourart>.thumbsvg{width:min(100%,720px);border-radius:12px;border:1.5px solid #39433C}
 /* the marker legend, in the play screen's own colours */
 .tourmark{width:min(100%,720px);display:block}
 .tourmark text{font-family:var(--disp);font-weight:700;font-size:17px;letter-spacing:.06em;
   text-anchor:middle}
+/* the real field, at the real play screen's own aspect ratio (1140:672, the
+   same ratio thumbSVG's viewBox already used, on purpose) so it drops into
+   the same box the static thumbnail used to fill. It runs the real
+   buildScene()/frame() loop — see startTourField() — so this is not a
+   recording of the animation, it is the animation. */
+.tourfield{width:min(100%,720px);aspect-ratio:1140/672;position:relative;
+  border-radius:12px;border:1.5px solid #39433C;overflow:hidden;background:var(--oob)}
+.tourfield #field{width:100%;height:100%;display:block;overflow:visible}
 /* the menu, drawn open and in place instead of over the tiles, with a clock
    beside it — the two things in the top bar a coach reaches for between plays */
 .tourmenu{display:flex;align-items:flex-start;gap:clamp(14px,2vw,28px);
@@ -492,6 +502,14 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .tourmenu .menu{position:static;box-shadow:none;min-width:210px}
 .tourmenu .menu button.on{background:#2F3833;color:#fff}
 .tourmenu .clock{pointer-events:none}
+/* the pack strip and a slice of Setup, both the real classes — .pack, .seg,
+   .setrow — boxed the same way the menu preview is, since none of these
+   screens has a natural "card" edge of its own to borrow. */
+.tourpacks,.toursettings{width:min(100%,640px);display:flex;flex-direction:column;
+  gap:clamp(8px,1.4vh,14px);padding:clamp(14px,2.4vh,22px);border:1.5px solid #39433C;
+  border-radius:16px;background:#1A211D}
+.tourpacks .packs{padding-top:0}
+.toursettings .setrow{gap:clamp(10px,1.6vw,20px)}
 .toursay{flex:0 1 clamp(230px,36%,440px);min-width:0;min-height:0;overflow-y:auto;
   display:flex;flex-direction:column;justify-content:center;gap:clamp(8px,1.4vh,16px)}
 .toursay h1{font-family:var(--disp);margin:0;line-height:1;letter-spacing:.01em;
@@ -1367,6 +1385,36 @@ function tourMenu(){
     </div>
   </div>`;
 }
+/* An empty svg#field the real buildScene()/frame() loop draws into and
+   animates — see startTourField(). Same viewBox ratio as thumbSVG's, on
+   purpose, so it fills exactly the box the old static picture used to. */
+function tourField(){
+  return `<div class="tourfield"><svg id="field" viewBox="0 0 ${VB_W} ${VB_H}"
+    preserveAspectRatio="xMidYMid meet"></svg></div>`;
+}
+/* A slice of the real pack strip from Change plays — the actual .pack
+   buttons, the actual weeks, actual play counts. Inert: .tourart already
+   turns off pointer-events for the whole slide. */
+function tourPacks(){
+  const list = packsNow().filter(k => k.plays.every(knownPlay));
+  const cur = list.find(k => sameDeck(k.plays, deck));
+  return `<div class="tourpacks"><div class="packs">
+    ${list.map(k => `<button class="pack ${cur && cur.id === k.id ? "on" : ""}" tabindex="-1">
+      ${k.mine ? `<span class="pmark">&#9998;</span>` : ""}${esc(k.name)}<span class="n">${k.plays.length}</span></button>`).join("")}
+    <button class="pack pverb" tabindex="-1">Save deck</button>
+  </div></div>`;
+}
+/* A slice of the real Setup screen — the actual .setrow/.seg markup and the
+   tablet's actual settings, not a mockup of them. */
+function tourSettings(){
+  const rows = [
+    ["Clock length", seg("clockSecs", CFG_CHOICES.clockSecs.map(s => [s, s + "s"]))],
+    ["Play names", seg("funNames", [[true,"Fun"],[false,"Real"]])],
+    ["Buzz the tablet", seg("vibrate", [[true,"On"],[false,"Off"]])],
+  ];
+  return `<div class="toursettings">${rows.map(([t, c]) =>
+    `<div class="setrow"><div class="setlab"><b>${t}</b></div>${c}</div>`).join("")}</div>`;
+}
 function tourSlides(){
   const p = inDeck()[0] || DATA.plays[0];
   return [
@@ -1375,27 +1423,55 @@ function tourSlides(){
        the situation and how much it asks of the team; and the little field is the play itself.</p>
        <p>The chips along the top narrow the deck the same way &mdash; tap <b>PASS</b> and
        <b>GOAL LINE</b> when you need one fast. Tap a tile to open it.</p>`},
-    {title: "Turn it around", sub: "Line them up, then run it", art: thumbSVG(p),
+    {title: "Turn it around", sub: "Line them up, then run it", art: tourField(), field: p,
      text: `<p>A play opens on <b>LINE UP</b>: where each kid stands, with every job on the
        strip underneath. Turn the tablet around and show them.</p>
-       <p><b>RUN IT</b> draws the routes and the ball. <b>MIRROR</b> swaps the players to the
-       other side &mdash; the field stays put &mdash; so every play is two looks.</p>`},
+       <p>This is <b>RUN IT</b>, looping on its own so you can see it before you ever open a
+       play. <b>MIRROR</b> swaps the players to the other side &mdash; the field stays put
+       &mdash; so every play is two looks.</p>`},
     {title: "One kid at a time", sub: "Blue and orange, never left and right", art: tourMarkers(),
      text: `<p>Tap any player on the field and the screen shows only his job. Nobody out
        there is a letter: a circle is a receiver, a diamond a back, the hexagon throws
        and the square snaps, each in his colour.</p>
        <p>Every route is one of nine shapes &mdash; GO, OUT, IN, SIT, CORNER, POST, WHEEL,
        SWING, CARRY &mdash; and a kid with no job runs GO.</p>`},
+    {title: "Start from a plan", sub: "Six weeks of plays, ready to go", art: tourPacks(),
+     text: `<p><b>Change plays</b> in the menu opens the library. Tap any play to add or
+       drop it from your deck, or the pencil on its row to give it your own name.</p>
+       <p>The strip along the bottom is a week at a time. Tap one and it <b>replaces</b>
+       your whole deck &mdash; two taps, so a stray thumb costs nothing &mdash; or tap
+       <b>Save deck</b> to keep the one you built in a week of your own.</p>`},
+    {title: "Make it yours", sub: "The clock, the names, and syncing tablets", art: tourSettings(),
+     text: `<p><b>Setup</b> in the menu holds the clock length and its warning, whether the
+       tablet buzzes, and whether a play shows its real name or the one the kids shout.</p>
+       <p><b>Sync tablets</b>, lower down, sends all of it &mdash; your deck, your names,
+       your weeks &mdash; to an assistant coach's tablet with the radio off.</p>`},
     {title: "Between series", sub: "The clock and the menu", art: tourMenu(),
      text: `<p>The clock counts down from the whistle and buzzes at the warning. Tap it to
        start it; the &times; beside it stops it.</p>
-       <p>The menu holds what you do with nobody waiting. <b>Change plays</b> swaps the
-       deck or starts from a week. <b>Setup</b> is the clock, the names, and syncing
-       another tablet. <b>Tutorial</b> brings this back.</p>`},
+       <p>The menu is where all of that lives &mdash; <b>Change plays</b>, <b>Setup</b>, and
+       <b>Tutorial</b> to bring this back &mdash; because none of it is something you do
+       with six kids waiting.</p>`},
   ];
+}
+/* Puts the real play-screen field into the tour and starts the real
+   animation loop over it — frame() keeps running it as long as
+   tourFieldOn stays true. Nulled out whenever the slide changes, in
+   renderTour(), so the loop stops the moment the field leaves the screen. */
+let tourFieldOn = false;
+function startTourField(play){
+  S.play = play;
+  S.tl = buildTimeline(play);
+  S.stage = "run";
+  S.solo = null;
+  mTarget = mAnim = 0;
+  S.t0 = performance.now();
+  buildScene();
+  tourFieldOn = true;
 }
 function renderTour(first, at = 0){
   S.screen = "tour";
+  tourFieldOn = false;
   const slides = tourSlides(), n = slides.length;
   const i = Math.max(0, Math.min(n - 1, at)), s = slides[i], last = i === n - 1;
   app.innerHTML = `
@@ -1425,6 +1501,7 @@ function renderTour(first, at = 0){
         </div>
       </div>
     </div>`;
+  if (s.field) startTourField(s.field);
   const leave = how => {
     markTourSeen();
     logEvent("tour_done", {how, slide: i + 1, first});
@@ -2315,7 +2392,8 @@ function buildScene(){
 function frame(now){
   requestAnimationFrame(frame);
   paintClock();
-  if (S.screen !== "play" || !SC) return;
+  const onField = S.screen === "play" || (S.screen === "tour" && tourFieldOn);
+  if (!onField || !SC) return;
 
   const k = REDUCED ? 1 : 0.085;
   const wasMirrored = mAnim > 0.5;

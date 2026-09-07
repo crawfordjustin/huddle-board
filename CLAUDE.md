@@ -284,18 +284,26 @@ one verb cancelling the other, and Start over; `SyncChecks` carries a name
 across two tablets and feeds it markup.
 
 **12. The first START goes through the tutorial, once.** The app grew past
-what one sentence on the intro could carry — chips, mirror, tap-a-kid, the
-menu — so a fresh tablet's first START lands on four slides (`renderTour`) on
-its way to the deck: the coach's own first tile, that play's picture, the
-marker shapes, and the menu, each beside a few sentences. Every picture is the
-real thing drawn by the real code (`tourTile`, `thumbSVG`, `tourMarkers`,
-`tourMenu`), so a slide cannot drift from the screen it describes. It is the
-coach's screen and never the one turned around at the kids, so text is fine
-there. The title row says TUTORIAL in the deck's own heading size, with "1 of
-4" and the way out — **Skip tutorial**, or **Close** from the menu — in the top
-right where Settings keeps its Done; a small "How it works" up there was not
-enough for a coach to tell he was in a walkthrough rather than the app, or
-that he was allowed to leave it. Skip and the last slide's Go to deck both mark it seen, under
+what one sentence on the intro could carry — chips, mirror, tap-a-kid, packs,
+Setup, the menu — so a fresh tablet's first START lands on six slides
+(`renderTour`) on its way to the deck: the coach's own first tile, that play
+running, the marker shapes, a week of the pack strip, a slice of Setup, and
+the menu, each beside a few sentences. Every picture is the real thing drawn
+by the real code (`tourTile`, `tourField`, `tourMarkers`, `tourPacks`,
+`tourSettings`, `tourMenu`), so a slide cannot drift from the screen it
+describes — down to the second slide, which does not draw a picture of the
+play running so much as run it: `startTourField` hands a real play to the
+same `buildTimeline`/`buildScene` the play screen uses and lets the same
+`frame()` loop animate it, gated on a `tourFieldOn` flag so the loop knows to
+stop the moment the slide changes. The tile on the first slide is also
+larger than the deck grid ever shows one, because this is the one screen
+where a single play gets the whole box to itself. It is the coach's screen
+and never the one turned around at the kids, so text is fine there. The title
+row says TUTORIAL in the deck's own heading size, with "1 of 6" and the way
+out — **Skip tutorial**, or **Close** from the menu — in the top right where
+Settings keeps its Done; a small "How it works" up there was not enough for a
+coach to tell he was in a walkthrough rather than the app, or that he was
+allowed to leave it. Skip and the last slide's Go to deck both mark it seen, under
 `localStorage` `hb.tour` — a coach who skipped has said he does not want it,
 and **Tutorial** in the hamburger brings it back whenever he does. The flag is
 per tablet and not in the sync file: the assistant's tablet is still his first
