@@ -511,16 +511,68 @@ whole sweep cannot pass vacuously.
 
 ## Deploy
 
-`dist/deploy/` is a static site — no server code, no build step. Deploy it to
-any static host; the config file for each is included. Only two things actually
-matter: serve `.webmanifest` as
+`dist/deploy/` is a static site — no server code, no build step. Drop it at the
+site root of an Azure App Service (or any static host; the config file for each
+is included). Only two things actually matter: serve `.webmanifest` as
 `application/manifest+json`, and send `Cache-Control: no-cache` for
 `index.html` and `sw.js`. Miss the second and tablets never see a new build.
 
-Run `check` before deploying. The browser suite is still required for changes
-to layout, storage, or the service worker. Build manually with a fresh
-`HB_VERSION`; it is the service worker's cache name and the version shown on
-the deck note, so a repeated version can leave tablets on the old build.
+From Visual Studio, right-click **HuddleBoard.Web** → **Publish** → Azure App
+Service. Publishing runs the build first and stages `dist/deploy/` into
+`wwwroot`, and the host applies the same two rules the generated `web.config`
+applies. Either route works; the static one has fewer moving parts.
+
+### The pipeline
+
+`.github/workflows/deploy.yml` deploys every push to `master` to the
+`huddleboard` App Service (`rg-default`, westus2, Windows). It runs `check`,
+runs `build`, and zip-deploys `dist/HuddleBoard-deploy.zip` — the artifact the
+build already produces, which is exactly `dist/deploy/` flattened, `web.config`
+included. Nothing in `dist/` is committed, so CI builds it from source.
+
+The deploy is gated on `check`, not on `dotnet test`. That is a deliberate
+trade for a fast sideline fix; the browser suite still has to be run by hand
+before anything that touches layout, storage or the service worker.
+
+CI stamps `HB_VERSION` as `yyyy.MM.dd-HHmm+<short sha>`. That string is the
+service worker's cache name and the version on the deck note, so it has to
+change on every deploy — a repeated version means tablets keep the old build.
+
+Auth is OIDC, so there is no Azure credential in this repository. The Entra app
+registration `huddle-board-github-deploy` holds a federated credential and holds
+Website Contributor scoped to the `huddleboard` site alone — not the resource
+group, not the subscription. GitHub stores only three identifiers, as repository
+*variables* — `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` —
+because they are not secrets and a failed login is easier to read unmasked.
+
+**The trust is bound to the environment, not the branch**, and the subject is
+spelled in numbers:
+
+```
+repo:crawfordjustin@66266306/huddle-board@1353173891:environment:production
+```
+
+Two things in there are easy to get wrong, and both cost a failed run:
+
+*The environment, not the ref.* Because the job declares
+`environment: production`, GitHub sends an `:environment:` subject and never the
+`ref:refs/heads/master` form a branch-scoped credential would match. Removing
+`environment:` from the workflow breaks the login outright. The branch
+restriction is real, but it lives on the GitHub side — the `production`
+environment has a deployment branch policy allowing only `master` — so that
+policy and this credential have to stay in step.
+
+*The IDs, not the names.* GitHub presents immutable owner and repo IDs
+(`crawfordjustin@66266306`, `huddle-board@1353173891`), not the plain path. This
+is the better form: it survives a rename, and nobody who later claims a freed-up
+`crawfordjustin/huddle-board` inherits the trust. But it means the credential
+cannot be written from the repo name alone — read the IDs from
+`gh api repos/crawfordjustin/huddle-board -q '.id, .owner.id'`, or just read the
+subject back out of the `AADSTS700213` error, which prints exactly what was
+presented.
+
+Publish profiles do not work here at all — SCM basic publishing credentials are
+disabled on the app, which is the Azure default and worth leaving alone.
 
 `dist/HuddleBoard.html` is the whole app in one file for a tablet with no
 network at all.

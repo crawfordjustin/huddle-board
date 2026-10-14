@@ -1,0 +1,83 @@
+# Every push to master rebuilds the site and ships it to the Azure App Service.
+#
+# What gets deployed is dist/HuddleBoard-deploy.zip — the artifact the build
+# already produces, containing exactly the flat contents of dist/deploy/. That
+# zip carries web.config, which is what applies the only two response rules
+# that matter: .webmanifest as application/manifest+json, and no-cache on
+# index.html and sw.js. Miss the second and tablets never see a new build.
+#
+# Nothing in dist/ is committed, so CI builds it from source on every run.
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# A push while a deploy is running should win, but never overlap with it — two
+# zip deploys landing in the same wwwroot is not a state worth reasoning about.
+concurrency:
+  group: deploy-huddleboard
+  cancel-in-progress: false
+
+# id-token lets the runner mint the short-lived OIDC token that Entra trades for
+# an Azure access token. There is no Azure credential stored in this repository;
+# the trust runs the other way, and it is scoped to this repo on this branch.
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AZURE_WEBAPP_NAME: huddleboard
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://huddleboard-hacueydwe7aubxg8.westus2-01.azurewebsites.net
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # The icon renderer draws through SkiaSharp, whose Linux native binary
+      # links against fontconfig. The runner image ships it today; installing it
+      # explicitly means a slimmer image later does not break the build.
+      - name: Install SkiaSharp's native dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfontconfig1
+
+      # The hard gate. Bad geometry cannot reach a tablet.
+      - name: Check the play library
+        run: dotnet run --project src/HuddleBoard.Build -- check
+
+      # HB_VERSION is what the app shows on the deck note and what the service
+      # worker names its cache, so it has to change on every deploy and has to
+      # be traceable back to a commit. Same shape the local build stamps, plus
+      # the short SHA.
+      - name: Build the site
+        run: |
+          export HB_VERSION="$(date -u +%Y.%m.%d-%H%M)+${GITHUB_SHA::7}"
+          echo "building $HB_VERSION"
+          dotnet run --project src/HuddleBoard.Build -- build
+
+      # These three are identifiers, not credentials, so they are repository
+      # variables rather than secrets — a failed login is far easier to read
+      # when the IDs are not masked out of the log.
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: dist/HuddleBoard-deploy.zip
