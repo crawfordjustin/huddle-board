@@ -8,7 +8,7 @@ using Microsoft.Extensions.FileProviders;
 // file:// copy cannot do any of it.
 //
 // Two response rules are load-bearing, and they are the same two the generated
-// web.config applies on Azure App Service:
+// web.config applies on IIS:
 //   1. .webmanifest must be served as application/manifest+json, or Chrome will
 //      not offer to install the app.
 //   2. index.html and sw.js must not be cached, or tablets never see a new

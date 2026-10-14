@@ -22,13 +22,10 @@ does. Works offline.
 Nothing to install for the coaches — `dist/HuddleBoard.html` is the entire app
 in one file. Copy it to a tablet and open it.
 
-For a team, host `dist/deploy/` (free Azure App Service works) so tablets get
-updates and can install to the home screen. `dist/deploy/README.md` has the
-per-host setup; the short version is serve `.webmanifest` with the right MIME
-type and don't cache `index.html` or `sw.js`.
-
-Pushes to `master` build and deploy themselves — see
-`.github/workflows/deploy.yml`.
+For a team, host `dist/deploy/` on a static host so tablets get updates and can
+install to the home screen. `dist/deploy/README.md` has the per-host setup; the
+short version is serve `.webmanifest` with the right MIME type and don't cache
+`index.html` or `sw.js`.
 
 ## Work on it
 

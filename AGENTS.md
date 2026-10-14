@@ -39,9 +39,9 @@ dotnet run --project src/HuddleBoard.Build -- shots   # README screenshots
 dotnet test                                           # build, then full suite
 ```
 
-- Always run `check` after a code change. It is the deploy gate: CI runs
-  `check`, not `dotnet test`, so the browser suite has to be run by hand before
-  anything that touches layout, storage or the service worker.
+- Always run `check` after a code change. It is the release gate; run the
+  browser suite by hand before deploying anything that touches layout, storage,
+  or the service worker.
 - Prefer the smallest relevant test class for a focused behavioral or layout
   change, for example: `dotnet test --filter "FullyQualifiedName~BallChecks"`.
   Run the full suite for broad, layout, storage, sync, service-worker, or
@@ -207,15 +207,9 @@ shared `dist/` output.
 
 `dist/deploy/` is a static site. It requires `.webmanifest` to be served as
 `application/manifest+json`, and `index.html` plus `sw.js` to be sent with
-`Cache-Control: no-cache`. CI builds from source, runs `check`, and stamps a
-new `HB_VERSION` for each deployment; do not reuse a version because it is the
-service-worker cache key.
-
-`.github/workflows/deploy.yml` logs in to Azure with OIDC, and the federated
-credential is bound to `environment: production`, not to the branch. Removing
-that `environment:` line from the job breaks the login outright; the branch
-restriction lives in the GitHub environment's deployment policy. There are no
-Azure secrets in the repository and publish profiles do not work here.
+`Cache-Control: no-cache`. Build from source and stamp a new `HB_VERSION` for
+each deployment; do not reuse a version because it is the service-worker cache
+key.
 
 Do not change the MIT license text or add extra restrictions. The license must
 remain in both shipping forms and as `dist/deploy/LICENSE.txt`.

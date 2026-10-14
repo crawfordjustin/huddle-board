@@ -15,15 +15,6 @@ internal static class DeployReadme
 
         Version **__VERSION__**. Static files only: no server code, no build step, no dependencies.
 
-        ## Azure App Service
-
-        Drop the contents of this folder at the site root (`/site/wwwroot` on Windows,
-        `/home/site/wwwroot` on Linux). Any of these work:
-
-        * **Zip deploy** — `az webapp deploy --resource-group <rg> --name <app> --src-path deploy.zip --type zip`
-        * **FTPS** — upload the whole folder
-        * **GitHub Actions** — point `azure/webapps-deploy` at this folder
-
         ## Any static host works — the config for each is included
 
         Whatever you use, only two things actually matter: serve `.webmanifest` as
@@ -33,11 +24,10 @@ internal static class DeployReadme
 
         | host | file it reads | notes |
         |---|---|---|
-        | Azure App Service (Windows) | `web.config` | drop-in |
         | Azure Static Web Apps | `staticwebapp.config.json` | free tier, good fit |
         | Netlify / Cloudflare Pages | `_headers` | drag and drop this folder |
         | GitHub Pages | none needed | headers are fine by default |
-        | Azure App Service (Linux) | neither | set the two headers in your container |
+        | IIS | `web.config` | drop-in |
 
         The extra config files are inert on hosts that do not read them.
 
@@ -49,11 +39,8 @@ internal static class DeployReadme
         register. Sharing `HuddleBoard.html` through them is fine — that is file
         distribution, not hosting.
 
-        HTTPS is required for the service worker. App Service and every host above
-        give you that for free on their default hostname.
-
-        HTTPS is required for the service worker. App Service gives you that on the
-        default `*.azurewebsites.net` hostname.
+        HTTPS is required for the service worker. Every host above provides it on
+        its default hostname.
 
         ## Getting it onto a coach's tablet — and losing the address bar
 
