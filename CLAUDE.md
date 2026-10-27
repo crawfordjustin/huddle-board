@@ -189,7 +189,16 @@ past the line, because a forward pass from there is a flag. The ball rides
 his legs until his run ends, then flies; `throwArc` starts the arc from the
 end of his run, so the tiles show the same thing. Play 11's handoff is still
 a fake — nothing changes for a pass that names no thrower. `BallChecks` reads
-a frame mid-sweep and one after the catch on JET PASS. The reverse family is one concept
+a frame mid-sweep and one after the catch on JET PASS.
+
+A rollout is the same picture with no handoff: a pass where the THROWER has
+a `run` of his own exports one leg on him (`ProtoExporter.Rollout`), so the
+ball rides his roll and is thrown from where it ends, under the same
+behind-the-line rule. TRIPLE OUT used to throw from the spot he had already
+left, his roll line drawing out empty-handed beside the ball. For the same
+reason NO-RUN ZONE forbids a handoff or a `run` that crosses the line, not
+any `run` at all: a thrower rolling out behind it is passing, which is
+exactly what the zone is for. `BallChecks` reads TRIPLE OUT mid-roll. The reverse family is one concept
 run from three formations — REVERSE (SPREAD), JET REVERSE (TRIPS LEFT) and
 PITCH REVERSE (ACE) — and each starts as the exact sweep, jet or pitch the
 defense has already chased, because a reverse is the punishment for chasing.
@@ -343,7 +352,12 @@ make the same change in `checkPlay`**, or that check fails. Save stays shut
 while there is an error; warnings are shown and allowed. A coach never draws
 a handoff: `meetPoint` puts the exchange where the thrower and the carrier
 actually meet at 6 yd/s, so it passes the timing rule by construction. On a
-pass the thrower stays put; he gets a route only as the carrier of a keeper.
+pass the thrower can be drawn a **rollout**: a `run` line, the same picture
+TRIPLE OUT uses, which the ball rides as one leg before it flies from the
+line's end. While the play is a pass, his points are held behind the line
+(`clampFor`), because a forward pass from past it is a flag. On a keeper he
+is a carrier like anyone else; on a handoff to somebody else his line is the
+exchange and is not his to draw.
 
 What is stored is the **drawing**, not the play — spots, route points, who
 gets the ball, names — under `localStorage` `hb.plays`, keyed by `u_` ids that
@@ -660,7 +674,8 @@ classic route into quirks mode) and writes `LICENSE.txt` into `dist/deploy/`.
   draws plays that live on one tablet and its sync partners; the library
   itself still grows by editing `PlaysMore.cs`. Not yet in the designer, and
   the obvious next steps: copy-and-edit of a shipped play, pre-snap motion,
-  reverses and a non-THROWER passer, editable per-kid instructions, and
+  reverses and a non-THROWER passer, a rollout that throws on the run
+  (partway along, rather than from the end), editable per-kid instructions, and
   printing or graduating a drawn play into the library.
 - **Rewriting the app in Blazor.** The single HTML file is the product: it opens
   from a file, on a tablet, with no network and no runtime. A WASM runtime works

@@ -89,6 +89,7 @@ public static class ProtoExporter
         ("right flat", "orange flat"), ("left flat", "blue flat"),
         ("MOTION left", "MOTION to blue"), ("SWING left", "SWING to blue"),
         ("CARRY right", "CARRY to orange"), ("Roll to the left", "Roll to the blue side"),
+        ("roll left", "roll to blue"), ("roll right", "roll to orange"),
         ("to the right sideline", "to the orange sideline"),
         ("to the left flat", "to the blue flat"),
     ];
@@ -187,6 +188,19 @@ public static class ProtoExporter
         return legs;
     }
 
+    /// <summary>
+    /// A pass where the THROWER has a run of his own is a rollout: he carries
+    /// it along that run and throws from where it ends. One leg, no handoff —
+    /// the same shape as a pass thrown off a sweep, so the tablet rides the
+    /// ball in his hands instead of throwing it from the spot he left, and the
+    /// behind-the-line rule below applies to it unchanged.
+    /// </summary>
+    private static List<(string Who, int Path, int Handoff)> Rollout(Play p)
+    {
+        var run = IndexOf(p.Paths, q => q.Who == "QB" && q.Type == PathType.Run);
+        return run < 0 ? [] : [("QB", run, -1)];
+    }
+
     private static int IndexOf(IReadOnlyList<PathSeg> paths, Func<PathSeg, bool> test)
     {
         for (var i = 0; i < paths.Count; i++)
@@ -242,7 +256,7 @@ public static class ProtoExporter
             // first, and he has to throw from behind the line
             var legs = mode == "carry" ? Exchanges(p, who, "ball target")
                 : thrower != "QB" ? Exchanges(p, thrower, "thrower")
-                : [];
+                : Rollout(p);
             if (mode != "carry")
             {
                 if (!p.Paths.Any(pa => pa.Who == who))

@@ -371,6 +371,76 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
 
+    /// <summary>
+    /// A rollout: on a pass the thrower can be given a line, the ball rides
+    /// it, and the throw leaves from where it ends. That end cannot be drawn
+    /// past the line, and a rollout is a pass, so it can be filed under
+    /// NO-RUN ZONE. On a handoff his line is the exchange and is not his to draw.
+    /// </summary>
+    [Fact]
+    public async Task TheThrowerCanRollOutOnAPass()
+    {
+        var (page, errors) = await OpenDesignerAsync(Desk, "SPREAD");
+
+        await ToolAsync(page, "ball");
+        await TapAsync(page, -10, 0);                              // WIDE BLUE, deep
+        await ToolAsync(page, "route");
+        await RouteAsync(page, (0, -3), (-4, -4), (-7, -3));       // THROWER rolls to blue
+
+        Assert.Equal(0, await ErrorCountAsync(page));
+        Assert.Equal("run", await page.EvaluateAsync<string>("S.play.paths.find(p => p.who === 'QB').type"));
+        Assert.Equal("QB", await page.EvaluateAsync<string>("S.play.ball.legs[0].who"));
+        Assert.Equal(new[] { -7.0, -3 }, await page.EvaluateAsync<double[]>("throwArc(S.play).src"));
+        var calls = await CallsAsync(page);
+        Assert.Contains("THROWER", calls);
+        Assert.Contains("roll to blue", calls);
+
+        // past the line is a run, so a rollout's end stops at it
+        await TapAsync(page, -7, -3);
+        await TapAsync(page, -9, 3);
+        Assert.Equal(new[] { -9.0, 0 }, await page.EvaluateAsync<double[]>("DZ.d.routes.QB.pts[2]"));
+        Assert.Equal(0, await ErrorCountAsync(page));
+
+        // the preview carries it in his hands before it flies
+        await page.ClickAsync("#dz-prev");
+        await page.WaitForTimeoutAsync(400);
+        Assert.True(await page.EvaluateAsync<bool>("""
+            (() => {
+              const b = S.tl.ball, leg = b.legs[0], seg = S.tl.paths[leg.pathIdx];
+              S.t0 = 0; frame(seg.start + seg.dur * 0.5);
+              const m = /translate\(\s*(-?[\d.]+)\s+(-?[\d.]+)/.exec(SC.ball.getAttribute('transform'));
+              const e = walk(S.play.paths[leg.pathIdx].pts, 0.5).end, s = F2S(e[0], e[1]);
+              return +SC.ball.getAttribute('opacity') === 1 && Math.hypot(+m[1] - s[0], +m[2] - s[1]) < 3;
+            })()
+            """), "mid-roll the ball is not in the thrower's hands");
+        await page.ClickAsync("#dz-prev");
+
+        // a rollout is a pass: it can go in the no-run zone
+        await page.ClickAsync("#dz-save");
+        await page.WaitForSelectorAsync("#dzsheet");
+        Assert.False(await page.Locator("#dz-cat [data-cat=\"NO-RUN ZONE\"]").IsDisabledAsync());
+        await page.ClickAsync("#dz-cat [data-cat=\"NO-RUN ZONE\"]");
+        await page.FillAsync("#dz-real", "Boot Blue");
+        await page.ClickAsync("#dz-ok");
+        await page.WaitForSelectorAsync(".lib");
+        Assert.Equal(1, await page.EvaluateAsync<int>(
+            "DATA.plays.filter(p => p.custom && p.category === 'NO-RUN ZONE' && !p.problems).length"));
+
+        // on a handoff the thrower's line is the exchange, not his to draw
+        await page.ClickAsync(".lrow[data-id^=\"u_\"] [data-ren]");
+        await page.WaitForSelectorAsync(".designer #field");
+        await ToolAsync(page, "ball");
+        await page.ClickAsync("[data-mode=\"carry\"]");
+        await TapAsync(page, 5, 0);                                // SLOT ORANGE carries
+        await ToolAsync(page, "route");
+        await TapAsync(page, 0, -3);
+        Assert.NotEqual("QB", await page.EvaluateAsync<string>("DZ.sel || ''"));
+        Assert.Contains("handoff", await page.InnerTextAsync("#dz-line"));
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
     [Fact]
     public async Task SaveStaysShutUntilTheCheckerIsHappy()
     {

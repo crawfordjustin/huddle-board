@@ -280,4 +280,33 @@ public sealed class BallChecks(AppFixture app)
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
+
+    /// <summary>
+    /// A rollout: the THROWER carries it along his roll and throws from where
+    /// it ends. TRIPLE OUT used to throw from the spot he had already left,
+    /// with his roll line drawing out empty-handed beside the ball.
+    /// </summary>
+    [Fact]
+    public async Task OnARolloutTheBallRidesTheThrowerAndLeavesFromWhereHeStops()
+    {
+        var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], settle: 350);
+        await page.EvaluateAsync("openPlay('p_14')");
+        await page.WaitForTimeoutAsync(400);
+
+        var g = JsonSerializer.Deserialize<Sweep>(
+            await page.EvaluateAsync<string>(SweepThenThrow))!;
+
+        Assert.Equal(1, g.Legs);
+        Assert.Equal("QB", g.Runner);
+        Assert.Equal("QB", g.Thrower);
+        Assert.True(g.MidOnRunner < 3, $"mid-roll the ball is {g.MidOnRunner} off the thrower");
+        Assert.True(g.MidOffQb > 25, $"mid-roll the ball is still on the spot he left ({g.MidOffQb} away)");
+        Assert.True(g.MidOffTarget > 25, $"mid-roll the ball is already on the receiver ({g.MidOffTarget} away)");
+        Assert.True(g.EndOnTarget < 3, $"after the throw the ball is {g.EndOnTarget} off the receiver");
+        Assert.True(g.LineFromSet < 3, $"the throw line starts {g.LineFromSet} from where the roll ended");
+        Assert.True(g.LineFromQb > 25, $"the throw line starts at the spot he left ({g.LineFromQb} away)");
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
 }
