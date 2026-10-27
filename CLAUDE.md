@@ -330,7 +330,11 @@ formations), draw each kid's ROUTE by tapping points, and give someone the
 BALL as a pass or a run. It is a coach's screen at a table before practice,
 never the sideline, so it can ask for precision the deck never could. The
 field is the play screen's own `buildScene()`/`frame()` with the drawing laid
-over it, and **Preview** runs the real animation. A route is drawn one leg
+over it, and **Preview** runs the real animation. **Start over**, beside Save,
+puts the drawing back on the formation it began from: every kid on his spot,
+no routes, no ball. It keeps the names and, on a saved play, the id, so Save
+still overwrites that play. It takes two taps and is disabled while there is
+nothing to undo. A route is drawn one leg
 at a time, on purpose: tapping a kid only picks him. Tapping inside the
 dotted ring (round the kid, then on the end of his route) starts a leg, the
 next tap is where it ends, and he is back to just picked with the ring on the
@@ -358,6 +362,18 @@ line's end. While the play is a pass, his points are held behind the line
 (`clampFor`), because a forward pass from past it is a flag. On a keeper he
 is a carrier like anyone else; on a handoff to somebody else his line is the
 exchange and is not his to draw.
+
+A **reverse** is a chain of carriers: Ball, Run, the first carrier, then
+**Hand off** and the next one, up to three (`VIA_CAP`). The design stores them
+as `ball.via` (everyone before the last) plus `ball.who`, and `saneDesign`
+holds that nobody appears twice and that the THROWER can only start a chain,
+as a keeper that pitches it. He can never take it back. The second exchange is
+placed by `meetRunning`. It picks the first moment after the previous exchange
+when the two runners are within a yard of each other at 6 yd/s, or failing that
+the closest they come. Runners drawn so they never meet get an honest checker
+error saying how far apart they are. The call strip names the carriers in the
+order they have the ball, as play 26's does. `DesignerChecks` rebuilds PITCH
+REVERSE from scratch and reads the ball either side of the exchange.
 
 What is stored is the **drawing**, not the play — spots, route points, who
 gets the ball, names — under `localStorage` `hb.plays`, keyed by `u_` ids that
@@ -673,8 +689,9 @@ classic route into quirks mode) and writes `LICENSE.txt` into `dist/deploy/`.
 - **Coach-authored plays in the shipped library.** The designer (rule 13)
   draws plays that live on one tablet and its sync partners; the library
   itself still grows by editing `PlaysMore.cs`. Not yet in the designer, and
-  the obvious next steps: copy-and-edit of a shipped play, pre-snap motion,
-  reverses and a non-THROWER passer, a rollout that throws on the run
+  the obvious next steps: copy-and-edit of a shipped play, pre-snap motion
+  (REVERSE and JET REVERSE start with it), a non-THROWER passer (JET PASS:
+  the chain is there, the throw at the end of it is not), a rollout that throws on the run
   (partway along, rather than from the end), editable per-kid instructions, and
   printing or graduating a drawn play into the library.
 - **Rewriting the app in Blazor.** The single HTML file is the product: it opens
