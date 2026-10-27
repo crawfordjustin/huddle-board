@@ -536,12 +536,15 @@ public static class PlayChecker
             }
         }
 
-        // ---- category promises
-        var ballIsRun = p.Paths.Any(q => q.Type is PathType.Run or PathType.Handoff);
+        // ---- category promises. A run that stays behind the line is the
+        // thrower rolling out, which is a pass and exactly what the no-run zone
+        // is for; one that crosses it is running the ball.
+        var ballIsRun = p.Paths.Any(q => q.Type == PathType.Handoff
+            || (q.Type == PathType.Run && q.Pts.Any(pt => pt.Y > 0)));
         if (p.Category == "NO-RUN ZONE" && ballIsRun)
         {
             rep.Err(num, "LEGAL/zone",
-                "categorised NO-RUN ZONE but the ball is handed off — that is a dead ball");
+                "categorised NO-RUN ZONE but the ball is run — that is a dead ball");
         }
     }
 
