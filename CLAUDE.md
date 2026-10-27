@@ -614,9 +614,13 @@ whole sweep cannot pass vacuously.
   taller than the tile; and because the tile centres its children, the clipping
   landed evenly on the top and bottom — on the RUN/PASS row and the formation,
   the two things a coach reads first, while the tagline sat there in full.
-  `fitDeck()` adds the vertical pass: the tagline goes first because it is the
-  only optional line, then the name shrinks for the whole deck at once, because
-  one size across the grid is what makes it scannable.
+  `fitDeck()` adds the vertical pass: first the rows around the name drop to
+  their smaller sizes (`.tight`, the same sizes a 3- or 4-column grid always
+  uses), then the tagline goes because it is the only optional line, then the
+  name shrinks for the whole deck at once, because one size across the grid is
+  what makes it scannable. `fitNames()` tries one line before two: a name that
+  fits on one line at `ONE_LINE` (72%) of its full size shrinks to do so, and
+  only a name that cannot wraps.
 - **Reserve the scrollbar gutter.** A scrollbar appearing after render narrows
   rows and ellipsises names that had already been fitted.
 - **`.chip` was taken.** The play screen's formation badge already used it; the
