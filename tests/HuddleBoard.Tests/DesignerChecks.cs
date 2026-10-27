@@ -865,7 +865,8 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         Assert.Equal(0, await page.EvaluateAsync<int>("customCount()"));
         Assert.True(await page.Locator("#dzclear").IsDisabledAsync());
         Assert.True(await page.EvaluateAsync<bool>(
-            "deck.length > 0 && !deck.includes('u_slotin01') && " +
+            // the deck was only that play, so it is empty now — not refilled with Week 1
+            "deck.length === 0 && " +
             "!(packSaves.week2 || []).includes('u_slotin01')"));
 
         await page.CloseAsync();

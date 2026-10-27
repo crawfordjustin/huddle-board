@@ -8,20 +8,19 @@ namespace HuddleBoard.Playbook;
 public sealed record PlayPack(string Id, string Name, string Blurb, IReadOnlyList<int> Plays);
 
 /// <summary>
-/// The shipped play packs: one complete game deck per week of a season. Every
-/// week stands on its own — a run, a quick pass, something downfield or for the
-/// no-run zone, and a goal line call — and the weeks together cover the whole
-/// library, so a team that plays the season has seen every play once.
+/// The shipped play packs: six week slots. Week 1 is a complete game deck — a
+/// run, a quick pass, a third down and a goal line call — and is the deck a new
+/// tablet arrives with. Weeks 2 to 6 ship empty, as slots for the decks a coach
+/// builds himself, because a season's worth of somebody else's game plans was
+/// more than a coach wanted to start from.
 /// </summary>
 /// <remarks>
 /// The first pack is the deck a new tablet arrives with, so Start over and
-/// Week 1 agree by construction. Weeks are standalone rather than cumulative on
-/// purpose: a deck is what a coach carries into one game, and six plays he can
-/// find without looking beats fourteen he has to hunt through. Where a week
-/// brings a reverse, the sweep or pitch it punishes was a week or two before.
+/// Week 1 agree by construction, and it is the one pack that must hold plays.
 /// A pack names plays by number and nothing else — the tablet resolves them
 /// against whatever library it has, and drops any pack whose plays it cannot
-/// find rather than offering a deck with holes in it.
+/// find rather than offering a deck with holes in it. An empty week is not a
+/// deck to take; the tablet offers it only as somewhere to save one.
 /// </remarks>
 public static class PlayPacks
 {
@@ -31,20 +30,20 @@ public static class PlayPacks
             "Game one. One run, one quick pass, one third down, one goal line. Master these four first.",
             [1, 5, 7, 13]),
         new("week2", "Week 2",
-            "Get to the edge. JET SWEEP and SMASH, ALL SIT for the no-run zone, TRIPLE OUT at the goal line, FLOOD for a shot.",
-            [2, 6, 15, 14, 9]),
+            "Empty until you save a deck into it.",
+            []),
         new("week3", "Week 3",
-            "Same looks, new answers. COUNTER KEEP off the dive, JET PASS off the sweep, BUBBLE, SPACING, FLAT DUMP at the goal line, POST / WHEEL deep.",
-            [3, 27, 17, 12, 23, 10]),
+            "Empty until you save a deck into it.",
+            []),
         new("week4", "Week 4",
-            "The pitch and the punishment. PITCH RIGHT, then JET REVERSE now that they chase the sweep. SNAG, SLANT FLAT, FOUR VERTS.",
-            [4, 25, 24, 16, 13, 18]),
+            "Empty until you save a deck into it.",
+            []),
         new("week5", "Week 5",
-            "Make them hesitate. REVERSE and DRAW off plays they have seen, SNAPPER DELAY for a rusher who is winning, HIGH LOW, DOUBLE POST.",
-            [22, 21, 8, 19, 14, 20]),
+            "Empty until you save a deck into it.",
+            []),
         new("week6", "Week 6",
-            "Playoff week. The best of everything: 22 DIVE, PITCH REVERSE, STICK, PLAY-ACTION CROSS, SPACING, PYLON FADE.",
-            [1, 26, 7, 11, 12, 13]),
+            "Empty until you save a deck into it.",
+            []),
     ];
 
     /// <summary>The deck a new tablet arrives with: the first pack.</summary>
@@ -53,8 +52,9 @@ public static class PlayPacks
     /// <summary>
     /// What is wrong with the packs, as checker findings so <c>check</c> reports
     /// them next to the play findings. A pack that names a play the library does
-    /// not have, names one twice, or names none at all is an error; so is a
-    /// second pack with the same id or name.
+    /// not have, or names one twice, is an error; so is a second pack with the
+    /// same id or name, and so is an empty first pack, because that is the deck
+    /// a new tablet arrives with.
     /// </summary>
     public static IReadOnlyList<Finding> Check(IReadOnlyList<Play> plays)
     {
@@ -66,10 +66,11 @@ public static class PlayPacks
         if (All.Select(k => k.Name).Distinct().Count() != All.Count)
             rows.Add(new(Severity.Error, 0, "PACK", "two packs share a name"));
 
+        if (All.Count == 0 || All[0].Plays.Count == 0)
+            rows.Add(new(Severity.Error, 0, "PACK", "the first pack is the starting deck and has no plays"));
+
         foreach (var pack in All)
         {
-            if (pack.Plays.Count == 0)
-                rows.Add(new(Severity.Error, 0, "PACK", $"{pack.Name} has no plays"));
 
             foreach (var dup in pack.Plays.GroupBy(n => n).Where(g => g.Count() > 1))
                 rows.Add(new(Severity.Error, dup.Key, "PACK", $"{pack.Name} names play {dup.Key} twice"));

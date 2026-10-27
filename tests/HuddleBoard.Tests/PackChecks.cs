@@ -18,7 +18,7 @@ public sealed class PackChecks(AppFixture app)
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);
 
-    private static readonly PlayPack Week3 = PlayPacks.All.Single(k => k.Id == "week3");
+    private static readonly PlayPack Week1 = PlayPacks.All.Single(k => k.Id == "week1");
 
     private static string Ids(IEnumerable<int> nums) =>
         string.Join(",", nums.Select(n => $"p_{n:00}").Order(StringComparer.Ordinal));
@@ -61,31 +61,67 @@ public sealed class PackChecks(AppFixture app)
         Assert.Equal(0, await page.Locator("#packs .pack.on").CountAsync());
 
         // first tap arms and changes nothing
-        await page.ClickAsync("#pack-week3");
+        await page.ClickAsync("#pack-week1");
         await page.WaitForTimeoutAsync(150);
-        Assert.Equal("SURE?", (await page.InnerTextAsync("#pack-week3")).Trim().ToUpperInvariant());
+        Assert.Equal("SURE?", (await page.InnerTextAsync("#pack-week1")).Trim().ToUpperInvariant());
         Assert.Equal(before, await page.EvaluateAsync<string>(DeckProbe));
 
         // second tap takes the pack: the deck, the rows, the count, the note, storage
-        await page.ClickAsync("#pack-week3");
+        await page.ClickAsync("#pack-week1");
         await page.WaitForTimeoutAsync(400);
-        var want = Ids(Week3.Plays);
+        var want = Ids(Week1.Plays);
         Assert.Equal(want, await page.EvaluateAsync<string>(DeckProbe));
         Assert.Equal(want, await page.EvaluateAsync<string>(
             "() => JSON.parse(localStorage.getItem('hb.deck')).sort().join(',')"));
         Assert.Equal(want, string.Join(",",
             (await page.Locator(".lrow.on").EvaluateAllAsync<string[]>("e => e.map(b => b.dataset.id)"))
                 .Order(StringComparer.Ordinal)));
-        Assert.Equal($"{Week3.Plays.Count} IN YOUR DECK", (await page.InnerTextAsync("#lcount")).Trim().ToUpperInvariant());
-        Assert.Equal(["pack-week3"], await page.Locator("#packs .pack.on").EvaluateAllAsync<string[]>("e => e.map(b => b.id)"));
-        Assert.Contains(Week3.Blurb, await page.InnerTextAsync("#lnote"));
+        Assert.Equal($"{Week1.Plays.Count} IN YOUR DECK", (await page.InnerTextAsync("#lcount")).Trim().ToUpperInvariant());
+        Assert.Equal(["pack-week1"], await page.Locator("#packs .pack.on").EvaluateAllAsync<string[]>("e => e.map(b => b.id)"));
+        Assert.Contains(Week1.Blurb, await page.InnerTextAsync("#lnote"));
 
         // one play off the pack and it is no longer that pack
-        var stray = PlayLibrary.All.First(p => !Week3.Plays.Contains(p.Num));
+        var stray = PlayLibrary.All.First(p => !Week1.Plays.Contains(p.Num));
         await page.ClickAsync($".lrow[data-id=\"p_{stray.Num:00}\"]");
         await page.WaitForTimeoutAsync(300);
         Assert.Equal(0, await page.Locator("#packs .pack.on").CountAsync());
-        Assert.DoesNotContain(Week3.Blurb, await page.InnerTextAsync("#lnote"));
+        Assert.DoesNotContain(Week1.Blurb, await page.InnerTextAsync("#lnote"));
+        Assert.Empty(errors);
+    }
+
+    /// <summary>
+    /// Weeks 2 to 6 ship empty. An empty week is a slot, not a deck: it is not
+    /// lit when the deck is empty too, tapping it explains it instead of
+    /// emptying the deck, and saving into it makes it a deck.
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyWeekIsASlotNotADeck()
+    {
+        var (page, errors) = await app.OpenAppAsync(Desk);
+        await OpenLibraryAsync(page);
+        Assert.Equal(PlayPacks.All.Count - 1, await page.Locator("#packs .pack.empty").CountAsync());
+        Assert.Equal("0", (await page.InnerTextAsync("#pack-week2 .n")).Trim());
+
+        await page.ClickAsync("#pack-week2");
+        await page.ClickAsync("#pack-week2");
+        await page.WaitForTimeoutAsync(200);
+        Assert.Equal(Ids(PlayPacks.Starting), await page.EvaluateAsync<string>(DeckProbe));
+        Assert.Contains("WEEK 2 IS EMPTY", (await page.InnerTextAsync("#lnote")).ToUpperInvariant());
+
+        // an empty deck is not an empty week, and there is nothing to save
+        await page.EvaluateAsync("deck = []; saveDeck(); renderLibrary();");
+        await page.WaitForTimeoutAsync(300);
+        Assert.Equal(0, await page.Locator("#packs .pack.on").CountAsync());
+        Assert.True(await page.Locator("#psave").IsDisabledAsync(), "Save deck is live with nothing to save");
+
+        // a deck saved into it makes it a deck like any other
+        await page.EvaluateAsync("deck = ['p_02', 'p_03']; saveDeck(); renderLibrary();");
+        await page.WaitForTimeoutAsync(300);
+        await page.ClickAsync("#psave");
+        await page.ClickAsync("#pack-week2");
+        await page.WaitForTimeoutAsync(300);
+        Assert.Equal(0, await page.Locator("#pack-week2.empty").CountAsync());
+        Assert.Equal(["pack-week2"], await page.Locator("#packs .pack.on").EvaluateAllAsync<string[]>("e => e.map(b => b.id)"));
         Assert.Empty(errors);
     }
 
@@ -93,13 +129,17 @@ public sealed class PackChecks(AppFixture app)
     public async Task AnArmedPackLapsesOnItsOwn()
     {
         var (page, errors) = await app.OpenAppAsync(Desk);
+        // a deck that is not Week 1, or there is nothing for the chip to arm
+        await page.EvaluateAsync("deck = ['p_02', 'p_03']; saveDeck();");
         await OpenLibraryAsync(page);
+        await page.ClickAsync("#pack-week1");
+        await page.WaitForTimeoutAsync(150);
+        Assert.Equal(1, await page.Locator("#packs .pack[data-armed]").CountAsync());
         var before = await page.EvaluateAsync<string>(DeckProbe);
 
-        await page.ClickAsync("#pack-week3");
         await page.WaitForTimeoutAsync(2800);
-        var label = (await page.InnerTextAsync("#pack-week3")).Trim();
-        Assert.StartsWith(Week3.Name, label, StringComparison.OrdinalIgnoreCase);
+        var label = (await page.InnerTextAsync("#pack-week1")).Trim();
+        Assert.StartsWith(Week1.Name, label, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, await page.Locator("#packs .pack[data-armed]").CountAsync());
         Assert.Equal(before, await page.EvaluateAsync<string>(DeckProbe));
         Assert.Empty(errors);
@@ -201,10 +241,10 @@ public sealed class PackChecks(AppFixture app)
         Assert.Equal("CANCEL", (await page.InnerTextAsync("#prename")).Trim().ToUpperInvariant());
 
         // the week opens the sheet, and the mode is over
-        await page.ClickAsync("#pack-week3");
+        await page.ClickAsync("#pack-week1");
         await page.WaitForSelectorAsync("#pnsheet");
         Assert.Equal(0, await page.Locator("#packs.renaming").CountAsync());
-        Assert.Equal(Week3.Name, await page.InputValueAsync("#pn-name"));
+        Assert.Equal(Week1.Name, await page.InputValueAsync("#pn-name"));
         Assert.True(await page.Locator("#pn-reset").IsDisabledAsync(), "Reset is live on a week that is not renamed");
         await page.FillAsync("#pn-name", "  playoffs   vs  hawks ");
         await page.ClickAsync("#pn-save");
@@ -212,21 +252,21 @@ public sealed class PackChecks(AppFixture app)
 
         // the chip, the storage, the count; the deck and the slot's plays are untouched
         Assert.Equal(0, await page.Locator("#pnsheet").CountAsync());
-        Assert.StartsWith("PLAYOFFS VS HAWKS", (await page.InnerTextAsync("#pack-week3")).Trim().ToUpperInvariant());
+        Assert.StartsWith("PLAYOFFS VS HAWKS", (await page.InnerTextAsync("#pack-week1")).Trim().ToUpperInvariant());
         Assert.Equal("playoffs vs hawks", await page.EvaluateAsync<string>(
-            "() => JSON.parse(localStorage.getItem('hb.packnames')).byId.week3"));
+            "() => JSON.parse(localStorage.getItem('hb.packnames')).byId.week1"));
         Assert.Equal(1, await page.EvaluateAsync<int>("renamedPackCount()"));
         Assert.Equal(0, await page.EvaluateAsync<int>("savedPackCount()"));
         Assert.Equal(0, await page.Locator("#packs .pack.mine").CountAsync());
         Assert.Equal(before, await page.EvaluateAsync<string>(DeckProbe));
 
         // taking the week still takes the shipped plays, and the note wears the coach's name
-        await page.ClickAsync("#pack-week3");
-        await page.ClickAsync("#pack-week3");
+        await page.ClickAsync("#pack-week1");
+        await page.ClickAsync("#pack-week1");
         await page.WaitForTimeoutAsync(400);
-        Assert.Equal(Ids(Week3.Plays), await page.EvaluateAsync<string>(DeckProbe));
+        Assert.Equal(Ids(Week1.Plays), await page.EvaluateAsync<string>(DeckProbe));
         Assert.Contains("playoffs vs hawks", await page.InnerTextAsync("#lnote"));
-        Assert.Contains(Week3.Blurb, await page.InnerTextAsync("#lnote"));
+        Assert.Contains(Week1.Blurb, await page.InnerTextAsync("#lnote"));
 
         // Setup counts it, and its Reset all is live
         await page.ClickAsync("#done");
@@ -241,26 +281,26 @@ public sealed class PackChecks(AppFixture app)
 
         // retyping the shipped name is not a rename
         await page.ClickAsync("#prename");
-        await page.ClickAsync("#pack-week3");
+        await page.ClickAsync("#pack-week1");
         await page.WaitForSelectorAsync("#pnsheet");
         Assert.False(await page.Locator("#pn-reset").IsDisabledAsync());
-        await page.FillAsync("#pn-name", Week3.Name.ToLowerInvariant());
+        await page.FillAsync("#pn-name", Week1.Name.ToLowerInvariant());
         await page.PressAsync("#pn-name", "Enter");
         await page.WaitForTimeoutAsync(300);
         Assert.Equal(0, await page.EvaluateAsync<int>("renamedPackCount()"));
-        Assert.StartsWith(Week3.Name, (await page.InnerTextAsync("#pack-week3")).Trim(), StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith(Week1.Name, (await page.InnerTextAsync("#pack-week1")).Trim(), StringComparison.OrdinalIgnoreCase);
 
         // Reset in the sheet puts the shipped name back
-        await page.EvaluateAsync("setPackName('week3', 'SEAHAWKS'); renderLibrary();");
+        await page.EvaluateAsync("setPackName('week1', 'SEAHAWKS'); renderLibrary();");
         await page.WaitForTimeoutAsync(400);
-        Assert.StartsWith("SEAHAWKS", (await page.InnerTextAsync("#pack-week3")).Trim().ToUpperInvariant());
+        Assert.StartsWith("SEAHAWKS", (await page.InnerTextAsync("#pack-week1")).Trim().ToUpperInvariant());
         await page.ClickAsync("#prename");
-        await page.ClickAsync("#pack-week3");
+        await page.ClickAsync("#pack-week1");
         await page.WaitForSelectorAsync("#pnsheet");
         await page.ClickAsync("#pn-reset");
         await page.WaitForTimeoutAsync(300);
         Assert.Equal(0, await page.EvaluateAsync<int>("renamedPackCount()"));
-        Assert.StartsWith(Week3.Name, (await page.InnerTextAsync("#pack-week3")).Trim(), StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith(Week1.Name, (await page.InnerTextAsync("#pack-week1")).Trim(), StringComparison.OrdinalIgnoreCase);
 
         // Start over puts every name back, alongside every saved deck
         await page.EvaluateAsync("setPackName('week2', 'TIGERS'); setPackName('week5', 'BYE'); resetEverything(); renderLibrary();");
@@ -304,8 +344,10 @@ public sealed class PackChecks(AppFixture app)
         await page.EvaluateAsync("renderLibrary()");
         await page.WaitForTimeoutAsync(400);
 
-        Assert.Equal(0, await page.Locator("#packs .pack[data-pack]").CountAsync());
-        Assert.False(await page.Locator("#packs").IsVisibleAsync());
+        // Week 1 names plays this library does not have, so it is not offered;
+        // the empty weeks have no holes to have, and are still somewhere to save
+        Assert.Equal(0, await page.Locator("#pack-week1").CountAsync());
+        Assert.Equal(PlayPacks.All.Count - 1, await page.Locator("#packs .pack.empty[data-pack]").CountAsync());
         Assert.Empty(errors);
     }
 

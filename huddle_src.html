@@ -176,6 +176,9 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 /* armed: the same amber as the clock's warning — one colour for "about to" */
 .pack[data-armed]{background:#8A5A00;border-style:solid;border-color:#C58A16;color:#fff}
 .pack:active{transform:scale(.96)}
+/* an empty week: a slot waiting for a deck, quieter than one that holds plays */
+.pack.empty{border-color:#39433C;color:#7E8A81}
+.pack[disabled]{opacity:.4;cursor:default}
 .pack:focus-visible{outline:3px solid #5FBF8F;outline-offset:2px}
 /* a week the coach saved his own deck into wears the same pencil as a renamed row */
 .pack .pmark{font-size:.85em;color:#8FC9A8;margin-right:-2px}
@@ -187,6 +190,17 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .packs.saving .pack:not(.pverb),.packs.renaming .pack:not(.pverb){
   border-style:solid;border-color:#C58A16;color:#F2D9A6;background:#3A2A08}
 .pverb.on{background:#8A5A00;border-color:#C58A16;color:#fff}
+/* the deck with nothing in it: where the plays are, and one green way there.
+   The same .start button the intro uses, because it is the same kind of step:
+   the one thing to do next. */
+.dempty{grid-column:1/-1;grid-row:1/-1;align-self:center;justify-self:center;
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+  gap:clamp(10px,1.8vh,18px);max-width:560px;padding:clamp(14px,3vh,32px) 8px}
+.dempty h2{font-family:var(--disp);margin:0;text-transform:uppercase;letter-spacing:.01em;
+  color:#F2F4F1;font-size:clamp(26px,5vh,46px);line-height:1}
+.dempty p{margin:0;color:#B4BEB6;line-height:1.45;font-size:clamp(13px,2vh,18px)}
+.dempty p b{color:#F2F4F1;font-weight:600}
+.dempty .start{width:min(100%,420px)}
 .lempty{grid-column:1/-1;align-self:start;display:flex;align-items:center;gap:14px;
   color:#8A968C;font-size:clamp(13px,2vh,18px);padding:clamp(14px,2.5vh,28px) 4px}
 
@@ -767,10 +781,12 @@ function buildTimeline(play){
 const S = {screen:"deck", play:null, tl:null, stage:"lineup", solo:null,
            t0:0, running:false, hintSeen:false};
 
+// An empty deck is a deck: a coach who cleared it to build his own should
+// find it still empty after a reload, not quietly refilled with Week 1.
 let deck = DATA.defaultDeck.slice();
 try {
   const saved = JSON.parse(localStorage.getItem("hb.deck") || "null");
-  if (Array.isArray(saved) && saved.length) deck = saved;
+  if (Array.isArray(saved)) deck = saved;
 } catch(e){}
 function saveDeck(){ try { localStorage.setItem("hb.deck", JSON.stringify(deck)); } catch(e){} }
 const byNum = (a,b) => a.num - b.num;
@@ -997,7 +1013,10 @@ function readSetup(text){
   let o = null;
   try { o = JSON.parse(text); } catch(e){}
   if (!o || o.format !== SETUP_FORMAT || o.v !== 1) throw new Error("not a setup file");
-  const s = {deck:[], names:{}, settings:{}, ourSide:null, dropped:0, plays:{}};
+  // an empty deck in the file is a choice, the same as on the tablet; only a
+  // deck that is not there at all is something the file failed to say
+  const s = {deck:[], hasDeck: Array.isArray(o.deck), names:{}, settings:{}, ourSide:null, dropped:0,
+             plays:{}};
   // the plays first, because the deck and the weeks may name them. Each one is
   // a drawing to compile, never a play to trust: it has to be the right shape,
   // and then it has to pass the same checker the designer holds a coach to.
@@ -1031,7 +1050,11 @@ function readSetup(text){
     if (!DATA.packs.some(k => k.id === id) || !Array.isArray(list)){ s.dropped++; continue; }
     const ok = [];
     for (const p of list){ if (knownPlay(p) && !ok.includes(p)) ok.push(p); else s.dropped++; }
-    if (ok.length) s.packs[id] = ok; else s.dropped++;
+    // a week that ships empty and is still empty is the file saying so, not a
+    // mistake; an empty list for a week that ships full means nothing
+    if (ok.length) s.packs[id] = ok;
+    else if (!list.length && !DATA.packs.find(k => k.id === id).plays.length) continue;
+    else s.dropped++;
   }
   // week names: a slot the build knows, and text — tidied and compared on the way in
   s.packNames = {};
@@ -1046,7 +1069,7 @@ function applySetup(s){
   // the plays land first, so the deck and the weeks below can resolve them
   designs = Object.assign({}, s.plays); strayDesigns = {};
   saveDesigns(); refreshPlays();
-  if (s.deck.length){ deck = s.deck.slice(); saveDeck(); } else s.dropped++;
+  if (s.hasDeck){ deck = s.deck.slice(); saveDeck(); } else s.dropped++;
   names = {};
   for (const id of Object.keys(s.names)) setNames(id, s.names[id].coach, s.names[id].kid);
   saveNames();
@@ -1764,7 +1787,6 @@ const newPlayId = () => "u_" + Math.random().toString(36).slice(2, 10).padEnd(8,
 // a play that is gone leaves no hole: out of the deck, out of every saved week
 function forgetPlays(ids){
   deck = deck.filter(id => !ids.includes(id));
-  if (!deck.length) deck = DATA.defaultDeck.slice();
   saveDeck();
   for (const k of Object.keys(packSaves)){
     const left = packSaves[k].filter(id => !ids.includes(id));
@@ -2059,7 +2081,7 @@ function tourField(){
    turns off pointer-events for the whole slide. */
 function tourPacks(){
   const list = packsNow().filter(k => k.plays.every(knownPlay));
-  const cur = list.find(k => sameDeck(k.plays, deck));
+  const cur = list.find(k => k.plays.length && sameDeck(k.plays, deck));
   return `<div class="tourpacks"><div class="packs">
     ${list.map(k => `<button class="pack ${cur && cur.id === k.id ? "on" : ""}" tabindex="-1">
       ${k.mine ? `<span class="pmark">&#9998;</span>` : ""}${esc(k.name)}<span class="n">${k.plays.length}</span></button>`).join("")}
@@ -2097,12 +2119,12 @@ function tourSlides(){
        and the square snaps, each in his colour.</p>
        <p>Every route is one of nine shapes &mdash; GO, OUT, IN, SIT, CORNER, POST, WHEEL,
        SWING, CARRY &mdash; and a kid with no job runs GO.</p>`},
-    {title: "Start from a plan", sub: "Six weeks of plays, ready to go", art: tourPacks(),
+    {title: "Start from a plan", sub: "Week 1 is ready; the rest are yours", art: tourPacks(),
      text: `<p><b>Change plays</b> in the menu opens the library. Tap any play to add or
        drop it from your deck, or the pencil on its row to give it your own name.</p>
-       <p>The strip along the bottom is a week at a time. Tap one and it <b>replaces</b>
-       your whole deck &mdash; two taps, so a stray thumb costs nothing &mdash; or tap
-       <b>Save deck</b> to keep the one you built in a week of your own.</p>`},
+       <p>The strip along the bottom is a week at a time. <b>Week 1</b> is a whole game,
+       ready to take &mdash; two taps, and it <b>replaces</b> your deck. The other weeks
+       start empty: build a deck and tap <b>Save deck</b> to keep it in one.</p>`},
     {title: "Make it yours", sub: "The clock, the names, and syncing tablets", art: tourSettings(),
      text: `<p><b>Setup</b> in the menu holds the clock length and its warning, whether the
        tablet buzzes, and whether a play shows its real name or the one the kids shout.</p>
@@ -2258,7 +2280,7 @@ function renderDeck(){
   // stay away only when every play in the deck would answer both questions
   // the same way — one chip lit with nothing to switch to teaches nothing.
   const cats = CAT_ORDER.filter(k => all.some(p => p.category === k));
-  const showFilters = cats.length > 1 || all.some(isRun) !== all.every(isRun);
+  const showFilters = all.length > 0 && (cats.length > 1 || all.some(isRun) !== all.every(isRun));
   // columns follow the room available, not just how many plays there are —
   // four columns on a narrow tablet leaves tiles too small to read
   const roomFor = Math.max(1, Math.min(4, Math.floor(innerWidth / 340)));
@@ -2305,17 +2327,27 @@ function renderDeck(){
           </span>
           <span class="thumb">${thumbSVG(p)}</span>
         </button>`).join("")}
-        ${list.length ? "" : `<div class="lempty">Nothing in your deck matches.
+        ${list.length || !all.length ? "" : `<div class="lempty">Nothing in your deck matches.
            <button class="fchip" id="dclear">Show all ${all.length}</button></div>`}
+        ${all.length ? "" : `<div class="dempty" id="dempty">
+           <h2>Your deck is empty</h2>
+           <p>The <b>play library</b> holds every play on this tablet &mdash; the ${DATA.plays.filter(p => !p.custom).length}
+             that come with the app and any you draw yourself. Tap a play there to put it in your deck,
+             take a week to load a whole game's worth at once, or tap <b>New play</b> to draw your own.</p>
+           <button class="start" id="dlib">Open the play library</button>
+         </div>`}
       </div>
       <div class="decknote">${list.length
         ? `Tap a play &rarr; line them up &rarr; run it. Tap any player to show
            that kid his own job. Every play mirrors, so this is really
            ${list.length * 2} looks.`
-        : `Your deck still has ${all.length} play${all.length === 1 ? "" : "s"} in it.`}</div>
+        : all.length ? `Your deck still has ${all.length} play${all.length === 1 ? "" : "s"} in it.`
+        : `The deck is what you carry into a game &mdash; the plays you can open from here in one tap.`}</div>
     </div>`;
   bindDeckFilters();
   document.getElementById("edit").onclick = () => { closeMenu(); renderLibrary(); };
+  const dlib = document.getElementById("dlib");
+  if (dlib) dlib.onclick = () => { logEvent("empty_deck_library"); renderLibrary(); };
   const ham = document.getElementById("ham");
   ham.onclick = () => {
     const open = !ham.parentElement.classList.contains("open");
@@ -2695,10 +2727,8 @@ function renderLibrary(){
     lib.querySelectorAll(".lrow").forEach(b => b.addEventListener("click", ev => {
       if (ev.target.closest("[data-ren]")) return;   // the pencil, not the row
       const id = b.dataset.id;
-      if (deck.includes(id)){
-        if (deck.length === 1) return;          // never leave the deck empty
-        deck = deck.filter(x => x !== id);
-      } else deck.push(id);
+      if (deck.includes(id)) deck = deck.filter(x => x !== id);
+      else deck.push(id);
       saveDeck(); logEvent("deck_changed", {deck: deck.slice()});
       drawCounts(); drawRows();
     }));
@@ -2741,7 +2771,9 @@ function renderLibrary(){
      own like an armed button does. */
   let mode = "", modeTimer = 0;                 // "" | "save" | "rename"
   const packs = () => packsNow().filter(k => k.plays.every(knownPlay));
-  const packOf = () => packs().find(k => sameDeck(k.plays, deck)) || null;
+  // an empty week is a slot, not a deck: it is never "the deck you have", even
+  // when the deck is empty too
+  const packOf = () => packs().find(k => k.plays.length && sameDeck(k.plays, deck)) || null;
   const blurbOf = k => k.mine ? "Your own deck, saved on this tablet." : k.blurb;
   const drawPacks = () => {
     const el = document.getElementById("packs");
@@ -2752,9 +2784,11 @@ function renderLibrary(){
     el.classList.toggle("saving", saving);
     el.classList.toggle("renaming", renaming);
     el.innerHTML = (mode ? `<span class="plab">${saving ? "Save into" : "Rename"}</span>` : "") + list.map(k =>
-      `<button class="pack ${isCur(k) ? "on" : ""} ${k.mine ? "mine" : ""}" id="pack-${k.id}"
+      `<button class="pack ${isCur(k) ? "on" : ""} ${k.mine ? "mine" : ""} ${k.plays.length ? "" : "empty"}" id="pack-${k.id}"
          data-pack="${k.id}" title="${esc(blurbOf(k))}">${k.mine ? `<span class="pmark">&#9998;</span>` : ""}${esc(k.name)}<span class="n">${k.plays.length}</span></button>`).join("") +
-      `<button class="pack pverb psave ${saving ? "on" : ""}" id="psave">${saving ? "Cancel" : "Save deck"}</button>` +
+      // an empty deck has nothing to keep, and saving it would only empty a week
+      `<button class="pack pverb psave ${saving ? "on" : ""}" id="psave"
+         ${deck.length || saving ? "" : "disabled"}>${saving ? "Cancel" : "Save deck"}</button>` +
       `<button class="pack pverb ${renaming ? "on" : ""}" id="prename">${renaming ? "Cancel" : "Rename"}</button>`;
     document.getElementById("psave").onclick = () => setMode(saving ? "" : "save");
     document.getElementById("prename").onclick = () => setMode(renaming ? "" : "rename");
@@ -2769,6 +2803,12 @@ function renderLibrary(){
         document.getElementById("pack-" + k.id).onclick = () => {
           setMode("");
           openPackRename(k.id, () => { drawPacks(); drawRows(); });
+        };
+      } else if (!k.plays.length){
+        // nothing to take: say what the slot is for instead of emptying the deck
+        document.getElementById("pack-" + k.id).onclick = () => {
+          document.getElementById("lnote").innerHTML = `<b>${esc(k.name)} is empty.</b> Build a deck,
+            then tap Save deck and ${esc(k.name)} to keep it here.`;
         };
       } else if (!isCur(k)){                    // already the deck: nothing to take
         confirmTap("pack-" + k.id, () => {
