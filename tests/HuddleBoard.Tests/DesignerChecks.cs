@@ -441,6 +441,139 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
 
+    /// <summary>
+    /// PITCH REVERSE, drawn from scratch: the back takes the pitch going to
+    /// orange and hands it to the wide orange coming back. The coach draws
+    /// two runs and names two carriers; both exchanges are placed for him,
+    /// they pass the checker, and the ball changes hands where they meet.
+    /// </summary>
+    [Fact]
+    public async Task AReverseHandsItOnWhereTheTwoRunnersMeet()
+    {
+        var (page, errors) = await OpenDesignerAsync(Desk, "ACE");
+
+        await ToolAsync(page, "ball");
+        await page.ClickAsync("[data-mode=\"carry\"]");
+        await TapAsync(page, -1.5, -5);                            // the BACK takes it first
+        await page.ClickAsync("#dz-hand");
+        await TapAsync(page, 9, 0);                                // ...and gives it to WIDE ORANGE
+        Assert.Equal(new[] { "H" }, await page.EvaluateAsync<string[]>("DZ.d.ball.via"));
+        Assert.Equal("Z", await page.EvaluateAsync<string>("DZ.d.ball.who"));
+
+        await ToolAsync(page, "route");
+        await RouteAsync(page, (-1.5, -5), (2, -4), (5, -3), (8.5, -2), (11, 0.5));
+        await RouteAsync(page, (9, 0), (8, -2.5), (4.5, -4), (0, -4.5), (-5, -4), (-10, -0.5), (-12, 7));
+
+        Assert.Equal(0, await ErrorCountAsync(page));
+        var hands = await page.EvaluateAsync<string[]>(
+            "S.play.paths.filter(p => p.type === 'handoff').map(p => p.who + '>' + p.to)");
+        Assert.Equal(new[] { "QB>H", "H>Z" }, hands);
+        Assert.Equal(new[] { "H", "Z" }, await page.EvaluateAsync<string[]>("S.play.ball.legs.map(l => l.who)"));
+
+        var calls = await CallsAsync(page);
+        Assert.Contains("take it from BACK and CARRY to blue", calls);
+        Assert.Contains("CARRY to orange, then hand it off", calls);
+        Assert.Contains("hand it to BACK", calls);
+        // the carriers lead the strip in the order they have it, as play 26's does
+        Assert.Equal(new[] { "BACK", "WIDE ORANGE", "THROWER" },
+            (await page.EvaluateAsync<string[]>("S.play.calls.map(c => c[0])")).Take(3).ToArray());
+
+        // a frame either side of the second exchange: the back has it, then the wide orange
+        var sides = await page.EvaluateAsync<double[]>("""
+            (() => {
+              S.stage = "run"; S.tl = buildTimeline(S.play);
+              const legs = S.tl.ball.legs, at = legs[1].start;
+              const off = (t, leg) => {
+                S.t0 = 0; frame(t);
+                const m = /translate\(\s*(-?[\d.]+)\s+(-?[\d.]+)/.exec(SC.ball.getAttribute('transform'));
+                const seg = S.tl.paths[leg.pathIdx];
+                const e = walk(S.play.paths[leg.pathIdx].pts, Math.max(0, Math.min(1, (t - seg.start) / seg.dur))).end;
+                const s = F2S(e[0], e[1]);
+                return Math.hypot(+m[1] - s[0], +m[2] - s[1]);
+              };
+              return [off(at - 200, legs[0]), off(at + 300, legs[1])];
+            })()
+            """);
+        Assert.True(sides[0] < 3, $"before the exchange the ball is {sides[0]} off the back");
+        Assert.True(sides[1] < 3, $"after the exchange the ball is {sides[1]} off the wide orange");
+        await page.EvaluateAsync("dzRefresh()");
+
+        // it survives the trip through storage, chain and all
+        Assert.True(await page.EvaluateAsync<bool>(
+            "(() => { const d = saneDesign(Object.assign({}, DZ.d, {id: 'u_reverse1'})); " +
+            "return !!d && d.ball.via.join() === 'H' && d.ball.who === 'Z'; })()"));
+
+        // the thrower only ever starts a chain; Take back undoes the last handoff
+        await ToolAsync(page, "ball");
+        await page.ClickAsync("#dz-hand");
+        await TapAsync(page, 0, -3);
+        Assert.Contains("thrower", await page.InnerTextAsync("#dz-line"));
+        Assert.Equal("Z", await page.EvaluateAsync<string>("DZ.d.ball.who"));
+        await page.ClickAsync("#dz-unhand");
+        Assert.Equal("H", await page.EvaluateAsync<string>("DZ.d.ball.who"));
+        Assert.True(await page.EvaluateAsync<bool>("!DZ.d.ball.via"));
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
+    /// A drawing gone wrong goes back to the formation it started from without
+    /// leaving the screen: every kid on his spot, no routes, nobody with the
+    /// ball, on the second tap. The names stay, and on a saved play the id, so
+    /// Save still overwrites the play it came from.
+    /// </summary>
+    [Fact]
+    public async Task StartOverPutsEverybodyBackOnTheFormation()
+    {
+        var (page, errors) = await OpenDesignerAsync(Desk, "TWINS RIGHT");
+        Assert.True(await page.Locator("#dz-reset").IsDisabledAsync(), "Start over is live on an untouched play");
+
+        await RouteAsync(page, (-9, 0), (-9, 6), (-12, 6));
+        await ToolAsync(page, "move");
+        await DragAsync(page, (6, 0), (4, -2));
+        await ToolAsync(page, "ball");
+        await TapAsync(page, 11, 0);
+        Assert.False(await page.Locator("#dz-reset").IsDisabledAsync());
+
+        await page.ClickAsync("#dz-reset");                        // one tap only arms it
+        Assert.Equal("SURE?", (await page.InnerTextAsync("#dz-reset")).Trim().ToUpperInvariant());
+        Assert.Equal("Z", await page.EvaluateAsync<string>("DZ.d.ball && DZ.d.ball.who"));
+        await page.ClickAsync("#dz-reset");
+        await page.WaitForTimeoutAsync(150);
+
+        Assert.True(await page.EvaluateAsync<bool>("""
+            (() => {
+              const d = DZ.d, f = FORMATIONS[d.base];
+              return d.ball === null && Object.keys(d.routes).length === 0 && DZ.sel === null
+                && Object.keys(f).every(k => d.spots[k][0] === f[k].x && d.spots[k][1] === f[k].y);
+            })()
+            """), "Start over left part of the old drawing behind");
+        Assert.DoesNotContain("SHIFTED", await page.InnerTextAsync("#dz-fm"));
+        Assert.Equal("EVERYONE ELSE", (await CallsAsync(page)).Split('\n')[0].Trim());
+        Assert.True(await page.Locator("#dz-reset").IsDisabledAsync());
+        Assert.Equal("route", await page.EvaluateAsync<string>("DZ.tool"));
+
+        // a new play started over is a new play again: leaving costs one tap
+        await page.ClickAsync("#dz-back");
+        await page.WaitForSelectorAsync(".lib");
+
+        // a saved play started over keeps who it is, so Save overwrites it
+        await page.EvaluateAsync(Seed, SlotIn());
+        await page.EvaluateAsync("renderLibrary()");
+        await page.ClickAsync(".lrow[data-id=\"u_slotin01\"] [data-ren]");
+        await page.WaitForSelectorAsync(".designer #field");
+        await page.ClickAsync("#dz-reset");
+        await page.ClickAsync("#dz-reset");
+        await page.WaitForTimeoutAsync(150);
+        Assert.Equal("u_slotin01", await page.EvaluateAsync<string>("DZ.id"));
+        Assert.Equal("SLOT IN", await page.EvaluateAsync<string>("DZ.d.coachName"));
+        Assert.True(await page.EvaluateAsync<bool>("DZ.dirty"));
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
     [Fact]
     public async Task SaveStaysShutUntilTheCheckerIsHappy()
     {
@@ -516,6 +649,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         var field = await page.Locator("#field").BoundingBoxAsync();
         Assert.True(field is not null && field.Height > 200, $"no room to draw at {size}");
         await OnScreen("#dz-save");
+        await OnScreen("#dz-reset");
         await OnScreen("#dz-back");
         await OnScreen("#dz-line");
         await OnScreen("#dz-calls");
@@ -528,6 +662,11 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         await ToolAsync(page, "ball");
         await OnScreen("[data-mode=\"pass\"]");
         await OnScreen("[data-mode=\"carry\"]");
+        // the fullest the ball tool gets: a run, with a handoff to hand on
+        await page.ClickAsync("[data-mode=\"carry\"]");
+        await TapAsync(page, -2.6, -4.4);
+        await OnScreen("#dz-hand");
+        await OnScreen("#dz-unhand");
 
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
