@@ -56,7 +56,7 @@ sheet — as PDFs. The first test or print run downloads Chromium for Playwright
 | `huddle_src.html` | the whole app: markup, styles, script — one file, no framework |
 | `src/HuddleBoard.Playbook` | the 27 plays, the checker, the build, the print documents |
 | `src/HuddleBoard.Build` | the command line |
-| `src/HuddleBoard.Web` | an ASP.NET Core host for F5 and for Azure |
+| `src/HuddleBoard.Web` | the website — pages at `/`, the app at `/app/` — for F5 and for Azure |
 | `tests/HuddleBoard.Tests` | verification — real browser, five tablet shapes |
 | `art/intro-art.png` | the intro illustration; swap the file and rebuild |
 | `LICENSE` | MIT |

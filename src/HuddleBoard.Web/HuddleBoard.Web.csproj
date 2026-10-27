@@ -15,6 +15,11 @@
     folder does not exist at evaluation time; the base path is normalised and the
     glob is flat, because `**` over a base containing `..` matches every file
     twice, and two entries for one relative path is a hard error.
+
+    The app is staged into wwwroot/app, because the site owns the root. The
+    static-host config is left behind: this host applies those rules itself, and
+    a nested IIS web.config under an ASP.NET Core app is a conflict waiting to
+    happen. dist/deploy itself is untouched and still a complete static site.
   -->
   <Target Name="BuildHuddleBoardSite" BeforeTargets="ComputeFilesToPublish"
           Condition="'$(_HuddleBoardSiteStaged)' != 'true'">
@@ -24,9 +29,10 @@
       <_HuddleBoardSiteStaged>true</_HuddleBoardSiteStaged>
     </PropertyGroup>
     <ItemGroup>
-      <HuddleBoardSiteFile Include="$(HuddleBoardDeploy)*" />
+      <HuddleBoardSiteFile Include="$(HuddleBoardDeploy)*"
+                           Exclude="$(HuddleBoardDeploy)web.config;$(HuddleBoardDeploy)staticwebapp.config.json;$(HuddleBoardDeploy)_headers;$(HuddleBoardDeploy)README.md" />
       <ResolvedFileToPublish Include="@(HuddleBoardSiteFile)">
-        <RelativePath>wwwroot\%(Filename)%(Extension)</RelativePath>
+        <RelativePath>wwwroot\app\%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </ResolvedFileToPublish>
     </ItemGroup>

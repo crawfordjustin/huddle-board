@@ -11,20 +11,23 @@ namespace HuddleBoard.Tests;
 [Collection(AppCollection.Name)]
 public sealed class PwaChecks(AppFixture app) : IDisposable
 {
-    private readonly StaticSite _site = new(Workspace.Deploy);
-
     public void Dispose()
     {
-        _site.Dispose();
-
         // put the real version back in dist/ for whatever runs next
         AppBuilder.Run(output: TextWriter.Null);
     }
 
-    [Fact]
-    public async Task ItInstallsCachesOfflineAndUpdatesOnlyOnTap()
+    /// <summary>
+    /// At the root is <c>dist/deploy</c> hosted alone, the static-host guarantee;
+    /// at <c>/app</c> is the website, which serves the same files under a path.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("/app")]
+    public async Task ItInstallsCachesOfflineAndUpdatesOnlyOnTap(string mount)
     {
-        var url = _site.Origin + "/index.html";
+        using var site = new StaticSite(Workspace.Deploy, mount);
+        var url = site.Url + "index.html";
         var context = await app.Browser.NewContextAsync(new BrowserNewContextOptions
         {
             ViewportSize = new ViewportSize { Width = 1600, Height = 1000 },
@@ -40,6 +43,8 @@ public sealed class PwaChecks(AppFixture app) : IDisposable
         Assert.True(
             await page.EvaluateAsync<bool>("navigator.serviceWorker.getRegistration().then(r => !!r)"),
             "the service worker did not register");
+        Assert.Equal(site.Url,
+            await page.EvaluateAsync<string>("navigator.serviceWorker.getRegistration().then(r => r.scope)"));
         Assert.Equal(1, await page.Locator("link[rel=manifest]").CountAsync());
         var installed = await page.EvaluateAsync<string>("APP_BUILD");
         Assert.False(string.IsNullOrWhiteSpace(installed));
@@ -79,6 +84,90 @@ public sealed class PwaChecks(AppFixture app) : IDisposable
         await context.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
+}
+
+/// <summary>
+/// The website's root <c>/sw.js</c>: a browser that ran the app when it was
+/// served at the root loses that worker on its next update check, and keeps the
+/// app at <c>/app/</c> — its worker and its offline cache, which share the
+/// root's <c>huddle-*</c> cache names because caches are per origin.
+/// </summary>
+[Collection(AppCollection.Name)]
+public sealed class KillSwitchChecks(AppFixture app) : IDisposable
+{
+    private readonly string _root = Directory.CreateTempSubdirectory("hb-site-").FullName;
+
+    public void Dispose()
+    {
+        try
+        {
+            Directory.Delete(_root, recursive: true);
+        }
+        catch (IOException)
+        {
+            // the browser can still be holding a file; it is a temp folder
+        }
+    }
+
+    [Fact]
+    public async Task TheOldRootWorkerGoesAndTheAppAtAppStays()
+    {
+        // the site as it was (the app at the root) and as it is (the app at
+        // /app/). The root never served the build /app/ runs, so it gets a
+        // version of its own; one shared version would be one shared cache.
+        Directory.CreateDirectory(Path.Combine(_root, "app"));
+        foreach (var file in Directory.GetFiles(Workspace.Deploy))
+        {
+            File.Copy(file, Path.Combine(_root, Path.GetFileName(file)));
+            File.Copy(file, Path.Combine(_root, "app", Path.GetFileName(file)));
+        }
+        var oldWorker = Path.Combine(_root, "sw.js");
+        File.WriteAllText(oldWorker,
+            File.ReadAllText(oldWorker).Replace("const VERSION = \"", "const VERSION = \"old-root-"));
+        using var site = new StaticSite(_root);
+
+        var context = await app.Browser.NewContextAsync();
+        await AppFixture.MarkTourSeenAsync(context);
+        var page = await context.NewPageAsync();
+        var errors = new List<string>();
+        page.PageError += (_, e) => errors.Add(e);
+
+        await page.GotoAsync(site.Origin + "/index.html");
+        await page.WaitForTimeoutAsync(1500);
+        await page.GotoAsync(site.Origin + "/app/");
+        await page.WaitForTimeoutAsync(1500);
+        Assert.Equal([site.Origin + "/", site.Origin + "/app/"], await ScopesAsync(page));
+
+        // deploy the website: the old root worker's next update check finds this
+        File.Copy(Path.Combine(Workspace.Root, "src", "HuddleBoard.Web", "wwwroot", "sw.js"),
+            Path.Combine(_root, "sw.js"), overwrite: true);
+        await page.EvaluateAsync("""
+            navigator.serviceWorker.getRegistrations().then(rs =>
+              Promise.all(rs.filter(r => r.scope === location.origin + "/").map(r => r.update())))
+            """);
+        await page.WaitForTimeoutAsync(2500);
+
+        Assert.Equal([site.Origin + "/app/"], await ScopesAsync(page));
+        Assert.False(await CachedAsync(page, "/index.html"), "the root's cache survived");
+        Assert.True(await CachedAsync(page, "/app/index.html"), "the kill-switch took /app/'s cache too");
+
+        await context.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    private static async Task<string[]> ScopesAsync(IPage page) =>
+        (await page.EvaluateAsync<string[]>(
+            "navigator.serviceWorker.getRegistrations().then(rs => rs.map(r => r.scope))"))
+        .Order(StringComparer.Ordinal).ToArray();
+
+    private static Task<bool> CachedAsync(IPage page, string path) =>
+        page.EvaluateAsync<bool>("""
+            async path => {
+              for (const key of await caches.keys())
+                if (await (await caches.open(key)).match(location.origin + path)) return true;
+              return false;
+            }
+            """, path);
 }
 
 /// <summary>

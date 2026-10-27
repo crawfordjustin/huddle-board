@@ -1,10 +1,13 @@
 # Every push to master rebuilds the site and ships it to the Azure App Service.
 #
-# What gets deployed is dist/HuddleBoard-deploy.zip — the artifact the build
-# already produces, containing exactly the flat contents of dist/deploy/. That
-# zip carries web.config, which is what applies the only two response rules
-# that matter: .webmanifest as application/manifest+json, and no-cache on
-# index.html and sw.js. Miss the second and tablets never see a new build.
+# What gets deployed is the published HuddleBoard.Web: the website's pages at
+# the root, and the built app staged into wwwroot/app and served at /app/. The
+# host applies the response rules that matter (Program.cs): .webmanifest as
+# application/manifest+json, and no-cache on index.html and sw.js. Miss the
+# second and tablets never see a new build.
+#
+# The App Service has to run the .NET 10 stack with Always On, so the first
+# open before a game is not a cold start.
 #
 # Nothing in dist/ is committed, so CI builds it from source on every run.
 name: Deploy
@@ -15,7 +18,7 @@ on:
   workflow_dispatch:
 
 # A push while a deploy is running should win, but never overlap with it — two
-# zip deploys landing in the same wwwroot is not a state worth reasoning about.
+# deploys landing in the same wwwroot is not a state worth reasoning about.
 concurrency:
   group: deploy-huddleboard
   cancel-in-progress: false
@@ -60,11 +63,15 @@ jobs:
       # worker names its cache, so it has to change on every deploy and has to
       # be traceable back to a commit. Same shape the local build stamps, plus
       # the short SHA.
-      - name: Build the site
+      #
+      # Publishing runs `build` itself (BuildHuddleBoardSite in the Web
+      # project), so it has to happen in the same step that exports the
+      # version, or the app ships stamped with a local build's version.
+      - name: Publish the site
         run: |
           export HB_VERSION="$(date -u +%Y.%m.%d-%H%M)+${GITHUB_SHA::7}"
           echo "building $HB_VERSION"
-          dotnet run --project src/HuddleBoard.Build -- build
+          dotnet publish src/HuddleBoard.Web -c Release -o publish
 
       # These three are identifiers, not credentials, so they are repository
       # variables rather than secrets — a failed login is far easier to read
@@ -76,8 +83,11 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      # clean, because the old static app sat at the root of wwwroot, and a
+      # stale /index.html left there would still be served as the old app.
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: dist/HuddleBoard-deploy.zip
+          package: publish
+          clean: true

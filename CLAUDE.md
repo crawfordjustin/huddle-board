@@ -15,13 +15,38 @@ to children. Do not simplify the football. Simplify the explaining.
 src/HuddleBoard.Playbook    the play library, the checker, the build, the print
                             documents. All the substance is here.
 src/HuddleBoard.Build       the command line — this is what `make` used to be
-src/HuddleBoard.Web         an ASP.NET Core host, so F5 serves the real thing
+src/HuddleBoard.Web         the website: Razor Pages at /, the app at /app/
 tests/HuddleBoard.Tests     the verification suite, driving real Chromium
 ```
 
 Nothing depends on Python. The app itself is still one hand-written HTML file
 with no framework and no runtime dependencies — that has not changed and should
-not.
+not. The website around it is ordinary ASP.NET Core, so APIs and a database can
+follow; the commented `MapGroup("/api")` in `Program.cs` is where. Nothing is
+added there that has no caller.
+
+### The app lives at `/app/`, on the same host
+
+The site's pages own the root; the built app is mounted at `/app/`
+(`Program.cs`). It is a path and never a subdomain because everything a coach
+keeps is `localStorage`, which is keyed by origin: same host, same storage, and
+a subdomain would start every tablet empty. The app did not change for this —
+every path it uses is relative, so its worker scopes itself to `/app/` and the
+installed icon launches `/app/`.
+
+`/app` **redirects to `/app/`** (301), and that is load-bearing: without the
+slash `./sw.js` resolves to `/sw.js` and nothing installs. The root `/sw.js` is
+a **kill-switch** (`wwwroot/sw.js`), for any browser that ran the app when it
+was served at `/`: it unregisters itself and deletes only the cache holding the
+root's `/index.html`, because cache names are per origin and the `/app/`
+worker's `huddle-*` caches must survive it. Nothing registers it; it only ever
+arrives as an update.
+
+`dist/deploy/` and `HuddleBoard-deploy.zip` are unchanged: still a complete
+static site for anyone hosting the app alone. Publish stages the app into
+`wwwroot/app/` and leaves the static-host config (`web.config`, `_headers`, …)
+behind, because this host applies those rules itself. `PwaChecks` runs once at
+the root and once under `/app` (`StaticSite`'s `mount`), so both stay true.
 
 ## Commands
 
@@ -480,7 +505,8 @@ src/HuddleBoard.Playbook/
 
 src/HuddleBoard.Build/          the CLI, plus the Playwright PDF and screenshot
                                 steps that need a browser
-src/HuddleBoard.Web/            static host with the two headers that matter
+src/HuddleBoard.Web/            the website: Razor Pages (Pages/, wwwroot/) and the
+                                app mounted at /app/, with the rules that matter
 tests/HuddleBoard.Tests/        the verification suite
 ```
 
@@ -648,24 +674,40 @@ whole sweep cannot pass vacuously.
 
 ## Deploy
 
-`dist/deploy/` is a static site — no server code, no build step. Drop it at the
-site root of an Azure App Service (or any static host; the config file for each
-is included). Only two things actually matter: serve `.webmanifest` as
-`application/manifest+json`, and send `Cache-Control: no-cache` for
-`index.html` and `sw.js`. Miss the second and tablets never see a new build.
+The live site is the published **HuddleBoard.Web**: the pages at `/` and the
+app at `/app/` (see "The app lives at `/app/`" above). From Visual Studio,
+right-click **HuddleBoard.Web** → **Publish** → Azure App Service. Publishing
+runs the build first and stages `dist/deploy/` into `wwwroot/app/`, and the host
+applies the response rules itself.
 
-From Visual Studio, right-click **HuddleBoard.Web** → **Publish** → Azure App
-Service. Publishing runs the build first and stages `dist/deploy/` into
-`wwwroot`, and the host applies the same two rules the generated `web.config`
-applies. Either route works; the static one has fewer moving parts.
+`dist/deploy/` on its own is still a static site — no server code, no build
+step — for anyone hosting just the app. Drop it at the root of any static host;
+the config file for each is included. Only two things actually matter: serve
+`.webmanifest` as `application/manifest+json`, and send `Cache-Control:
+no-cache` for `index.html` and `sw.js`. Miss the second and tablets never see a
+new build.
 
 ### The pipeline
 
 `.github/workflows/deploy.yml` deploys every push to `master` to the
 `huddleboard` App Service (`rg-default`, westus2, Windows). It runs `check`,
-runs `build`, and zip-deploys `dist/HuddleBoard-deploy.zip` — the artifact the
-build already produces, which is exactly `dist/deploy/` flattened, `web.config`
-included. Nothing in `dist/` is committed, so CI builds it from source.
+then `dotnet publish src/HuddleBoard.Web` in the same step that exports
+`HB_VERSION` (publish runs `build`, so it inherits the version), and deploys the
+publish folder with `clean: true` — the old static app sat at the root of
+`wwwroot`, and a stale `/index.html` there would still be served. Nothing in
+`dist/` is committed, so CI builds it from source.
+
+The App Service runs the **.NET 10 stack on Windows with Always On**. A static
+site never cold-started; an ASP.NET one does after idling, and the first open
+before a game should not be the slow one. Both are one-time settings on the app,
+not in the workflow:
+
+```
+az webapp config set -g rg-default -n huddleboard --net-framework-version v10.0 --always-on true
+```
+
+If the plan ever stops offering .NET 10, publish self-contained instead
+(`-r win-x64 --self-contained`).
 
 The deploy is gated on `check`, not on `dotnet test`. That is a deliberate
 trade for a fast sideline fix; the browser suite still has to be run by hand

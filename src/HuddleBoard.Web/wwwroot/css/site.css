@@ -1,0 +1,62 @@
+/* The website, in the app's palette and type, so the two read as one product.
+   The tokens are the ones at the top of huddle_src.html. */
+:root{
+  --ground:#F2F4F1; --surface:#FBFCFA; --ink:#141A16; --ink-2:#4A554E;
+  --hair:#D8DED8; --blue:#1D6FD0; --orange:#E4610F;
+  --green:#1B5E3A; --green-2:#154C2F;
+  --oob:#1E2521; --oob-ink:#7C887F;
+  --card:#F7F5EE;
+  --disp:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow","Helvetica Neue",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{background:var(--ground)}
+body{margin:0;color:var(--ink);font:400 18px/1.5 var(--body);background:var(--ground)}
+a{color:var(--green)}
+a:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+h1,h2{font-family:var(--disp);font-weight:700;line-height:1.05;letter-spacing:.01em;margin:0 0 .4em}
+h1{font-size:clamp(36px,5vw,60px)}
+h2{font-size:clamp(24px,2.6vw,30px)}
+img{max-width:100%;height:auto}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:12px clamp(16px,4vw,48px);background:var(--oob);color:#fff}
+.brand{font:700 26px/1 var(--disp);color:#fff;text-decoration:none;letter-spacing:.02em}
+.bar nav{display:flex;align-items:center;gap:clamp(12px,2vw,24px)}
+.bar nav a{color:#fff;text-decoration:none;font-weight:600}
+.bar nav a:not(.go):hover{text-decoration:underline}
+
+.go{display:inline-block;background:var(--green);border:2px solid var(--green-2);color:#fff;
+  font:700 18px/1 var(--disp);letter-spacing:.04em;text-transform:uppercase;text-decoration:none;
+  padding:10px 16px;border-radius:8px}
+.go:hover{background:var(--green-2)}
+.go.big{font-size:24px;padding:14px 26px}
+.bar .go{color:#fff}
+
+main{max-width:1200px;margin:0 auto;padding:clamp(24px,5vw,64px) clamp(16px,4vw,48px)}
+.lede{font-size:clamp(19px,1.8vw,22px);color:var(--ink-2)}
+.small{font-size:15px;color:var(--ink-2)}
+.shot{border-radius:12px;box-shadow:0 12px 32px rgba(20,26,22,.18);background:var(--oob)}
+
+.hero{display:grid;grid-template-columns:1fr 1.2fr;gap:clamp(24px,4vw,56px);align-items:center}
+.points{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin:clamp(48px,7vw,88px) 0}
+.points article{background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:20px}
+.points p{margin:0;color:var(--ink-2)}
+.feature{display:grid;grid-template-columns:1.2fr 1fr;gap:clamp(24px,4vw,56px);align-items:center}
+
+.prose{max-width:720px}
+.prose h2{margin-top:1.4em}
+
+.foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 24px;
+  padding:20px clamp(16px,4vw,48px);background:var(--oob);color:var(--oob-ink);font-size:15px}
+.foot a{color:#fff}
+
+@media (max-width:960px){
+  .points{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:720px){
+  .hero,.feature{grid-template-columns:1fr}
+  .points{grid-template-columns:1fr}
+  .bar nav a:not(.go){display:none}
+  .brand{font-size:22px}
+}

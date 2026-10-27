@@ -41,6 +41,16 @@ internal static class DeployReadme
 
         The extra config files are inert on hosts that do not read them.
 
+        ## Under a path instead of the root
+
+        The app does not have to own the site root. Every path in it is relative, so
+        the same files work in a folder — the Huddle Board website serves them at
+        `/app/`. Two things matter there: the folder's address must redirect to
+        itself with a trailing slash (`/app` → `/app/`), or `./sw.js` resolves to
+        `/sw.js` and nothing installs; and keep it on the same host as anywhere it was
+        served before, because a tablet's deck and settings belong to the host, and a
+        new subdomain starts every tablet empty.
+
         ## What will NOT work
 
         **OneDrive, SharePoint, Dropbox, Google Drive.** They serve a viewer page and
@@ -60,7 +70,8 @@ internal static class DeployReadme
         A web page cannot hide Chrome's address bar in an ordinary tab. Full screen
         comes from **installing** it:
 
-        1. Open the URL in Chrome (must be **https**, not a local file).
+        1. Open the app's address in Chrome (must be **https**, not a local file). On
+           the Huddle Board website that is `…/app/`, not the home page.
         2. Menu → **Install app** (or **Add to Home screen**).
         3. Launch it from the new home-screen icon — *not* from a Chrome tab.
 
