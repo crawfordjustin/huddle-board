@@ -518,6 +518,141 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
     }
 
     /// <summary>
+    /// JET PASS, drawn: the THROWER hands it to the back, the back runs to
+    /// orange, stops behind the line and throws it to the wide orange. The
+    /// handoff is placed for the coach, the ball rides the back's run and
+    /// flies from where it ends, his line cannot be drawn past the line, and
+    /// a handoff keeps it out of the no-run zone even though it is a pass.
+    /// </summary>
+    [Fact]
+    public async Task ABackCanTakeAHandoffAndThrowIt()
+    {
+        var (page, errors) = await OpenDesignerAsync(Desk, "TWINS RIGHT");
+
+        await ToolAsync(page, "ball");
+        Assert.True(await page.Locator("#dz-hand").IsDisabledAsync(), "a handoff with nobody to throw to");
+        await TapAsync(page, 11, 0);                               // WIDE ORANGE catches it
+        await page.ClickAsync("#dz-hand");
+        await TapAsync(page, -2.6, -4.4);                          // ...from the BACK
+        Assert.Equal(new[] { "H" }, await page.EvaluateAsync<string[]>("DZ.d.ball.via"));
+        Assert.Equal("Z", await page.EvaluateAsync<string>("DZ.d.ball.who"));
+
+        await ToolAsync(page, "route");
+        await RouteAsync(page, (-2.6, -4.4), (1, -3.8), (5, -2.5));
+
+        Assert.Equal(0, await ErrorCountAsync(page));
+        var hand = await page.EvaluateAsync<JsonElement>("S.play.paths.find(p => p.type === 'handoff')");
+        Assert.Equal("QB>H", hand.GetProperty("who").GetString() + ">" + hand.GetProperty("to").GetString());
+        Assert.False(hand.TryGetProperty("pitch", out _));
+        Assert.Equal("pass", await page.EvaluateAsync<string>("S.play.ball.mode"));
+        Assert.Equal("H", await page.EvaluateAsync<string>("S.play.ball.thrower"));
+        Assert.Equal(new[] { 5.0, -2.5 }, await page.EvaluateAsync<double[]>("throwArc(S.play).src"));
+
+        var calls = await CallsAsync(page);
+        Assert.Contains("CARRY to orange, stop, throw it to WIDE ORANGE", calls);
+        Assert.Contains("hand it to BACK", calls);
+        Assert.Equal(new[] { "BACK", "WIDE ORANGE", "THROWER" },
+            (await page.EvaluateAsync<string[]>("S.play.calls.map(c => c[0])")).Take(3).ToArray());
+        Assert.Contains("from BACK", await page.EvaluateAsync<string>("S.play.assign.Z"));
+
+        // mid-run the ball is in the back's hands; after the catch it is with the wide orange
+        var off = await page.EvaluateAsync<double[]>("""
+            (() => {
+              S.stage = "run"; S.tl = buildTimeline(S.play);
+              const b = S.tl.ball, leg = b.legs[0], seg = S.tl.paths[leg.pathIdx];
+              const at = t => {
+                S.t0 = 0; frame(t);
+                const m = /translate\(\s*(-?[\d.]+)\s+(-?[\d.]+)/.exec(SC.ball.getAttribute('transform'));
+                return [+m[1], +m[2]];
+              };
+              const mid = at(seg.start + seg.dur * 0.6), e = walk(S.play.paths[leg.pathIdx].pts, 0.6).end;
+              const s = F2S(e[0], e[1]), done = at(b.start + b.dur + 50), d = F2S(b.dst[0], b.dst[1]);
+              return [Math.hypot(mid[0] - s[0], mid[1] - s[1]), Math.hypot(done[0] - d[0], done[1] - d[1])];
+            })()
+            """);
+        Assert.True(off[0] < 3, $"mid-run the ball is {off[0]} off the back");
+        Assert.True(off[1] < 3, $"after the catch the ball is {off[1]} off the catch point");
+        await page.EvaluateAsync("dzRefresh()");
+
+        // whoever throws it throws from behind the line
+        await TapAsync(page, 5, -2.5);
+        await TapAsync(page, 8, 3);
+        Assert.Equal(new[] { 8.0, 0 }, await page.EvaluateAsync<double[]>("DZ.d.routes.H.pts[2]"));
+
+        // the THROWER's line is the exchange; the back cannot be his own target
+        await TapAsync(page, 0, -3);
+        Assert.NotEqual("QB", await page.EvaluateAsync<string>("DZ.sel || ''"));
+        await ToolAsync(page, "ball");
+        await TapAsync(page, -2.6, -4.4);
+        Assert.Contains("throws it", await page.InnerTextAsync("#dz-line"));
+        await TapAsync(page, 6, 0);                                // a new target keeps the thrower
+        Assert.Equal("Y", await page.EvaluateAsync<string>("DZ.d.ball.who"));
+        Assert.Equal(new[] { "H" }, await page.EvaluateAsync<string[]>("DZ.d.ball.via"));
+
+        // it survives storage, and an exchange on a pass is still out of the no-run zone
+        Assert.True(await page.EvaluateAsync<bool>(
+            "(() => { const d = saneDesign(Object.assign({}, DZ.d, {id: 'u_jetpass1'})); " +
+            "return !!d && d.ball.mode === 'pass' && d.ball.via.join() === 'H' && !d.ball.pitch; })()"));
+        await page.ClickAsync("#dz-save");
+        await page.WaitForSelectorAsync("#dzsheet");
+        Assert.True(await page.Locator("#dz-cat [data-cat=\"NO-RUN ZONE\"]").IsDisabledAsync());
+        await page.ClickAsync("#dz-cancel");
+
+        // Take back: the THROWER throws it again, to the same kid
+        await page.ClickAsync("#dz-unhand");
+        Assert.True(await page.EvaluateAsync<bool>("!DZ.d.ball.via && DZ.d.ball.who === 'Y'"));
+        Assert.True(await page.EvaluateAsync<bool>("!S.play.paths.some(p => p.type === 'handoff')"));
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
+    /// The same trick off a pitch: a soft toss back to the back already going
+    /// to the edge — PITCH RIGHT until he stops and throws. The pitch is
+    /// placed out in front of him and behind the THROWER. One that would have
+    /// to go forward is a forward pass, and the checker will not let the kid
+    /// who caught it throw another.
+    /// </summary>
+    [Fact]
+    public async Task ABackCanTakeAPitchAndThrowIt()
+    {
+        var (page, errors) = await OpenDesignerAsync(Desk, "ACE");
+
+        await ToolAsync(page, "ball");
+        await TapAsync(page, 9, 0);                                // WIDE ORANGE catches it
+        await page.ClickAsync("#dz-pitch");
+        await TapAsync(page, -1.5, -5);                            // ...from the BACK
+        Assert.True(await page.EvaluateAsync<bool>("DZ.d.ball.pitch === true"));
+
+        await ToolAsync(page, "route");
+        await RouteAsync(page, (-1.5, -5), (2, -4.5), (6, -3), (8, -2));
+
+        Assert.Equal(0, await ErrorCountAsync(page));
+        var pts = await page.EvaluateAsync<double[][]>(
+            "S.play.paths.find(p => p.type === 'handoff' && p.pitch).pts");
+        Assert.True(pts[1][1] <= pts[0][1], "the pitch went forward");
+        var toss = Math.Sqrt(Math.Pow(pts[1][0] - pts[0][0], 2) + Math.Pow(pts[1][1] - pts[0][1], 2));
+        Assert.True(toss >= 3, $"a {toss:0.0} yd pitch is a handoff");
+        Assert.Contains("soft pitch to BACK", await CallsAsync(page));
+        Assert.Contains("stop, throw it to WIDE ORANGE", await CallsAsync(page));
+
+        // a slot who never comes back behind the THROWER cannot be pitched to
+        await ToolAsync(page, "ball");
+        Assert.Contains("the pitch", await page.InnerTextAsync("#dz-unhand"), StringComparison.OrdinalIgnoreCase);
+        await page.ClickAsync("#dz-unhand");
+        await page.ClickAsync("#dz-pitch");
+        await TapAsync(page, 3, 0);                                // SLOT ORANGE
+        await ToolAsync(page, "route");
+        await RouteAsync(page, (3, 0), (6, 0));
+        Assert.Contains("LEGAL/pitch", await page.EvaluateAsync<string[]>("DZ.findings.map(f => f.rule)"));
+        Assert.True(await page.Locator("#dz-save").IsDisabledAsync());
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
     /// A drawing gone wrong goes back to the formation it started from without
     /// leaving the screen: every kid on his spot, no routes, nobody with the
     /// ball, on the second tap. The names stay, and on a saved play the id, so

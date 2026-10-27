@@ -598,6 +598,19 @@ const DATA = __DATA__;
 /* ------------------------------------------------------------ geometry */
 const SCALE = 31.25, VB_W = 1140, VB_H = 672, CX = 570, TOPY = 15;
 const EDGE = 15.7;                   // sideline, in yards from the middle
+/* The designer shows more backfield than the play screen. Two backs behind
+   the THROWER, a pitch and a reverse are all drawn back there, and on the
+   play screen the field stops 6.5 yards behind the line — the deepest spot a
+   coach could tap sat on the bottom edge. So the designer's field runs on to
+   DZ_BOT, two yards past the deepest anyone can be put (FIELD_BOT — deeper
+   than that and the play screen would clip him), and its markers are drawn
+   smaller, because it is a coach at a table and not six kids across a
+   sideline. Same SCALE, so a yard is a yard on both screens; the taller
+   viewBox is what shrinks it to fit. */
+const FIELD_BOT = -6.5, DZ_BOT = -8.5;
+const dzView = () => S.screen === "designer";
+const fieldBot = () => dzView() ? DZ_BOT : FIELD_BOT;
+const vbH = () => dzView() ? (TOPY - DZ_BOT) * SCALE : VB_H;
 let mAnim = 0;                       // 0..1 current mirror
 let mTarget = 0;
 
@@ -1359,6 +1372,18 @@ function checkPlay(p){
           [path.who, path.to]);
   }
 
+  // ---- a pitch goes backward. One that goes forward is a forward pass, and
+  // the kid who catches it cannot throw another. Only a drawn play can say a
+  // handoff is a pitch — the shipped format has no word for it — so this rule
+  // never fires on the library and PlayChecker has nothing to mirror.
+  for (const path of p.paths.filter(q => q.type === "handoff" && q.pitch)){
+    const a = path.pts[0], z = path.pts[path.pts.length-1];
+    if (z[1] > a[1] + 0.05)
+      err("LEGAL/pitch", `${nm(path.who)}'s pitch to ${nm(path.to)} goes forward — that is a ` +
+          "forward pass, so he cannot throw another. Draw his line back behind the thrower",
+          [path.who, path.to]);
+  }
+
   // ---- everything stays on the field
   for (const path of p.paths) for (const q of path.pts){
     if (Math.abs(q[0]) > CK.edge)
@@ -1526,13 +1551,16 @@ function saneDesign(o){
   if (b && (b.mode === "pass" || b.mode === "carry") && base[b.who]){
     d.ball = {mode: b.mode, who: b.who};
     // the carriers before the last on a run, in order: each a kid on the
-    // field, nobody twice, and the THROWER only first (a keeper that pitches)
-    const via = b.via == null ? [] : b.via;
-    if (!Array.isArray(via) || via.length > 2 || (via.length && b.mode !== "carry")) return null;
+    // field, nobody twice, and the THROWER only first (a keeper that pitches).
+    // On a pass, the one kid the THROWER hands or pitches it to, who throws
+    // it himself — never the THROWER, who would be taking it back.
+    const via = b.via == null ? [] : b.via, pass = b.mode === "pass";
+    if (!Array.isArray(via) || via.length > (pass ? 1 : 2)) return null;
     const all = [...via, b.who];
     if (!via.every(k => typeof k === "string" && base[k]) || new Set(all).size !== all.length
-        || all.indexOf("QB") > 0) return null;
+        || all.indexOf("QB") > 0 || (pass && via.length && all.includes("QB"))) return null;
     if (via.length) d.ball.via = via.slice();
+    if (pass && via.length && b.pitch === true) d.ball.pitch = true;
   } else if (b != null) return null;
   return d;
 }
@@ -1615,6 +1643,29 @@ function meetPoint(from, run){
   return null;
 }
 
+/* Where a pitch lands: a soft toss out in front of a runner who is already
+   going, so he runs onto it rather than taking it from a hand — PITCH
+   RIGHT's 3.7 yards, not a handoff's one. It has to travel backward or
+   level, because a pitch that goes forward is a forward pass and the kid who
+   catches it could not throw again. The first point on his run that is
+   behind the thrower, at least PITCH_MIN away, and that the runner reaches
+   within the exchange rule's reach of when the ball does. Failing that, the
+   first behind-the-thrower point where they meet, the way a handoff would;
+   null when his run never comes back behind him at all. */
+const PITCH_MIN = 3, PITCH_LEAD = 1.5;
+function pitchPoint(from, run){
+  const {cum, total} = arcOf(run);
+  let meet = null;
+  for (let s = 0; s <= total + 1e-9; s += 0.05){
+    const q = atDist(run, cum, s);
+    if (q[1] > from[1]) continue;
+    const far = ydist(from, q);
+    if (far >= PITCH_MIN && s >= far && ydist(atDist(run, cum, far), q) <= PITCH_LEAD) return q;
+    if (!meet && s >= far) meet = q;
+  }
+  return meet;
+}
+
 /* What a thrower's drawn line on a pass is called. Not one of the nine
    shapes — those are for kids who catch it — and the thrower's row of the
    call strip is exempt from the vocabulary rule, the same as play 14's
@@ -1666,16 +1717,22 @@ function compileDesign(d, num){
   // keeper; two or three on a reverse, each handing it to the next where the
   // two of them meet. The THROWER starts the chain standing, unless he is in
   // it himself — a keeper that pitches it.
-  const carriers = carry ? [...(ball.via || []), who] : [];
+  // A pass can be thrown by somebody else: the THROWER hands it or pitches it
+  // to him, he runs it, stops behind the line and throws — JET PASS. He is
+  // the one carrier of a pass, and the ball rides his line the same way.
+  const passer = !carry && ball && ball.via ? ball.via[0] : null, pitch = !!passer && !!ball.pitch;
+  const carriers = carry ? [...(ball.via || []), who] : passer ? [passer] : [];
   const keeps = carriers[0] === "QB";
   // the exchanges come first, the way the shipped plays list them
   const hands = [];
   let when = 0;
-  if (carry && !keeps){
+  if (carriers.length && !keeps){
     const run = routeOf(carriers[0]);
-    const meet = meetPoint(d.spots.QB, run) || run[run.length-1];
+    const meet = (pitch ? pitchPoint(d.spots.QB, run) : null) || meetPoint(d.spots.QB, run) || run[run.length-1];
     when = ydist(d.spots.QB, meet) / CK.speed;
-    hands.push(paths.push({who:"QB", type:"handoff", pts:[d.spots.QB.slice(), meet], to: carriers[0]}) - 1);
+    const h = {who:"QB", type:"handoff", pts:[d.spots.QB.slice(), meet], to: carriers[0]};
+    if (pitch) h.pitch = true;
+    hands.push(paths.push(h) - 1);
   } else hands.push(-1);
   for (let i = 1; i < carriers.length; i++){
     const m = meetRunning(routeOf(carriers[i-1]), routeOf(carriers[i]), when);
@@ -1688,34 +1745,39 @@ function compileDesign(d, num){
   // It is a run line, the same picture TRIPLE OUT uses, and the ball rides it
   // in his hands and leaves from where it ends — the ball is wherever the kid
   // holding it is. It has to end behind the line; the checker holds that.
-  const rolls = !carry && !!d.routes.QB;
+  const rolls = !carry && !passer && !!d.routes.QB;
   let rollIdx = -1;
   if (rolls) rollIdx = paths.push({who: "QB", type: "run", pts: routeOf("QB")}) - 1;
   for (const k of keys){
     if (k === "QB" && !carriers.includes("QB")) continue;      // he throws, or hands it off
     const pts = routeOf(k), r = d.routes[k], c = carriers.indexOf(k), isCarrier = c >= 0;
     const path = {who: k, type: isCarrier ? "run" : "route", pts};
-    if (r && r.end === "bar" && !isCarrier) path.end = "bar";
+    // the kid who throws it stops to throw, so his line ends in a bar
+    if ((r && r.end === "bar" && !isCarrier) || k === passer) path.end = "bar";
     const i = paths.push(path) - 1;
     if (isCarrier) runIdx[k] = i;
     const sh = shapeOf(pts, path.end, base[k].side, isCarrier);
     const shift = movedFrom(d, k);
     moved = moved || shift;
     const prev = c > 0 ? carriers[c-1] : null, next = isCarrier ? carriers[c+1] : null;
-    const did = next ? `${sh.job}, then hand it off` : prev ? `take it from ${name(prev)} and ${sh.job}` : sh.job;
+    const did = k === passer ? `${sh.job}, stop, throw it to ${name(who)}`
+              : next ? `${sh.job}, then hand it off` : prev ? `take it from ${name(prev)} and ${sh.job}` : sh.job;
     const job = (shift ? lineupWords(d, k) + ", then " : "") + did;
     if (r || shift || isCarrier || k === who){
       calls.push([name(k), job]); jobs.push(k);
     } else lazy++;
     const start = k === "QB" ? "Catch the snap and keep it. Run your line, both hands on the ball."
                 : prev ? `Run your line, and take the ball from ${name(prev)} with both hands when you meet him.`
+                : pitch ? "Start running BEFORE you catch it, and catch the pitch on the move."
                 : "Take the handoff from the thrower with both hands and run your line.";
     const teach = isCarrier ? start + (next ? ` Then hand it to ${name(next)} coming the other way, ` +
-                                              "and keep running after you give it up — sell it." : "")
+                                              "and keep running after you give it up — sell it."
+                                     : k === passer ? ` Stop before you reach the line, set your feet, and ` +
+                                              `throw it to ${name(who)}. Run it like it is a run until you stop.` : "")
                 : sh.word ? SHAPE_TEACH[sh.word] : "Run the line the coach drew for you.";
     assign[k] = (shift ? lineupWords(d, k) + ". " : "") +
       (r || isCarrier ? `${sh.job}. ${teach}` : DEFAULT_JOB) +
-      (k === who && !carry ? " The ball is coming to you." : "");
+      (k === who && !carry ? ` The ball is coming to you${passer ? ` from ${name(passer)}, not the thrower` : ""}.` : "");
   }
   const qbMoved = movedFrom(d, "QB");
   moved = moved || qbMoved;
@@ -1723,12 +1785,15 @@ function compileDesign(d, num){
     const at = qbMoved ? lineupWords(d, "QB") : "";
     const roll = rolls ? rollWords(routeOf("QB")) : null;
     assign.QB = (at ? at + ". " : "") +
-      (carry ? `Catch the snap, turn, and put the ball in ${name(carriers[0])}'s belly with both hands. Do not watch him run.`
+      (pitch ? `Catch the snap and pitch it underhanded to ${name(carriers[0])}, out in front of him so he ` +
+               "runs onto it. Soft toss, chest high, and toss it back, never forward."
+             : carriers.length ? `Catch the snap, turn, and put the ball in ${name(carriers[0])}'s belly with both hands. Do not watch him run.`
              : roll ? `${roll.teach}${who ? ` Throw it to ${name(who)} when you get there, and get to the sideline if he is covered.` : ""}`
              : who ? `Catch the snap and throw it to ${name(who)}.`
                    : "Catch the snap.");
-    if (carry){
-      calls.push(["THROWER", (at ? at + ", then " : "") + `hand it to ${name(carriers[0])}, don't watch`]);
+    if (carriers.length){
+      calls.push(["THROWER", (at ? at + ", then " : "") +
+                  (pitch ? `soft pitch to ${name(carriers[0])}, out in front` : `hand it to ${name(carriers[0])}, don't watch`)]);
       jobs.push("QB");
     } else if (roll){
       calls.push(["THROWER", (at ? at + ", then " : "") + roll.job]);
@@ -1737,25 +1802,27 @@ function compileDesign(d, num){
   }
   // whoever has the ball, in the order they have it, then the thrower, so the
   // strip reads in the order it matters; everyone else keeps formation order
-  const order = carry ? carriers : who ? [who] : [];
+  const order = carry ? carriers : passer ? [passer, who] : who ? [who] : [];
   const rank = c => {
     const i = order.findIndex(k => c[0] === name(k));
     return i >= 0 ? i : c[0] === "THROWER" ? order.length : order.length + 1;
   };
   calls.sort((x, y) => rank(x) - rank(y));
   if (lazy) calls.push(["EVERYONE ELSE", "GO"]);
-  const legs = carry ? carriers.map((k, i) => hands[i] >= 0 ? {who: k, path: runIdx[k], handoff: hands[i]}
-                                                            : {who: k, path: runIdx[k]})
+  const legs = carriers.length ? carriers.map((k, i) => hands[i] >= 0 ? {who: k, path: runIdx[k], handoff: hands[i]}
+                                                                      : {who: k, path: runIdx[k]})
              : rolls ? [{who: "QB", path: rollIdx}] : null;
   return {
     id: d.id, num, custom: true, coachName: d.coachName, kidName: d.kidName,
     category: d.category, complexity: d.complexity,
     formation: d.base + (moved ? " · SHIFTED" : ""),
     tagline: d.tagline || (!who ? "Your own play."
+             : passer ? `Your own trick pass: ${name(passer)} throws it to ${name(who)}.`
              : carriers.length > 1 ? `Your own reverse: ${name(carriers[0])} hands it to ${name(who)}.`
              : carry ? `Your own run: ${name(who)} carries it.` : `Your own pass to ${name(who)}.`),
     spots, paths, calls, assign, jobs: [...new Set(jobs)].sort(), primary: who,
-    ball: carry ? {mode: "carry", who, legs} : legs ? {mode: "pass", who, legs} : {mode: "pass", who},
+    ball: carry ? {mode: "carry", who, legs} : passer ? {mode: "pass", who, thrower: passer, legs}
+        : legs ? {mode: "pass", who, legs} : {mode: "pass", who},
   };
 }
 
@@ -2932,7 +2999,7 @@ function renderDesigner(){
       </div>
       <div class="stagewrap">
         <div class="fieldwrap">
-          <svg id="field" viewBox="0 0 ${VB_W} ${VB_H}" preserveAspectRatio="xMidYMid meet"></svg>
+          <svg id="field" viewBox="0 0 ${VB_W} ${vbH()}" preserveAspectRatio="xMidYMid meet"></svg>
           <div class="hint" id="dz-hint"></div>
         </div>
         <div class="rail dzrail" id="dz-rail"></div>
@@ -2985,20 +3052,21 @@ function dzYards(e){
 }
 const snapHalf = v => Math.round(v * 2) / 2;
 // a kid lines up between the sidelines, on or behind the line, and no deeper
-// than the checker allows anyone to drop; anyone close to the line is on it
+// than the play screen shows whole; anyone close to the line is on it
 function clampSpot(q){
   const x = Math.max(-15, Math.min(15, snapHalf(q[0])));
-  let y = Math.max(-6.5, Math.min(0, snapHalf(q[1])));
+  let y = Math.max(FIELD_BOT, Math.min(0, snapHalf(q[1])));
   if (y > -0.75) y = 0;
   return [x, y];
 }
 const clampRoute = q => [Math.max(-15.5, Math.min(15.5, snapHalf(q[0]))),
-                         Math.max(-6.5, Math.min(18, snapHalf(q[1])))];
-// a thrower who rolls out on a pass throws from behind the line, so his line
-// cannot be drawn past it; on a keeper he is a ball carrier like any other
+                         Math.max(FIELD_BOT, Math.min(18, snapHalf(q[1])))];
+// whoever throws a pass throws from behind the line, so his line cannot be
+// drawn past it — the THROWER rolling out, or the kid he gave it to; on a
+// keeper the THROWER is a ball carrier like any other
 const clampFor = (key, q) => {
-  const at = clampRoute(q);
-  if (key === 'QB' && !(DZ.d.ball && DZ.d.ball.mode === 'carry')) at[1] = Math.min(at[1], 0);
+  const at = clampRoute(q), b = DZ.d.ball;
+  if (!(b && b.mode === 'carry') && key === (b && b.via ? b.via[0] : 'QB')) at[1] = Math.min(at[1], 0);
   return at;
 };
 /* How close a tap has to be to count as landing on something. Picking a kid
@@ -3009,7 +3077,7 @@ const clampFor = (key, q) => {
    yards — a hit area wider than anything on screen is what once made the
    first point of a route a hunt for the edge of an invisible circle. */
 const HIT_PICK = 1.25, HIT_ON = 0.7, HIT_POINT = 0.6;
-const RING_KID = 44 / SCALE, RING_END = 30 / SCALE;
+const RING_KID = 34 / SCALE, RING_END = 26 / SCALE;
 const dzRingAt = q => ydist(q, dzRouteEnd()) < (DZ.d.routes[DZ.sel] ? RING_END : RING_KID);
 function dzKidAt(q, within){
   let best = null;
@@ -3031,10 +3099,10 @@ const dzRouteEnd = () => {
   const r = DZ.d.routes[DZ.sel];
   return r ? r.pts[r.pts.length - 1] : DZ.d.spots[DZ.sel];
 };
-// on a handoff the thrower's line is the exchange, drawn for him; on a pass he
-// can roll out, and on a keeper he carries it
+// on a handoff or a pitch the thrower's line is the exchange, drawn for him;
+// on a pass he can roll out, and on a keeper he carries it
 const carriersOf = d => d.ball && d.ball.mode === "carry" ? [...(d.ball.via || []), d.ball.who] : [];
-const handsOff = d => !!d.ball && d.ball.mode === "carry" && !carriersOf(d).includes("QB");
+const handsOff = d => !!d.ball && (d.ball.mode === "carry" ? !carriersOf(d).includes("QB") : !!d.ball.via);
 const VIA_CAP = 2;                       // three carriers: a pitch, a reverse, and a double
 
 function dzDown(e){
@@ -3057,8 +3125,11 @@ function dzDown(e){
        pulls a first leg straight out of the kid, or moves the end point. */
     const pick = k => {
       if (k === "QB" && handsOff(d))
-        DZ.msg = "On a handoff the thrower's job is the exchange, and it is drawn for you. To draw " +
-                 "him a rollout make it a pass, or a keeper: Ball, then Run, then tap him.";
+        DZ.msg = d.ball.mode === "pass"
+          ? "The thrower gives it away on this one, and the exchange is drawn for you. To draw him " +
+            "a rollout, Take back the handoff so he throws it himself."
+          : "On a handoff the thrower's job is the exchange, and it is drawn for you. To draw " +
+            "him a rollout make it a pass, or a keeper: Ball, then Run, then tap him.";
       else { DZ.sel = k; DZ.armed = false; }
     };
     if (!DZ.sel){
@@ -3084,8 +3155,18 @@ function dzDown(e){
       else if (kid !== DZ.sel) DZ.msg = "Tap the dotted circle to draw his next leg, or tap another player.";
     }
   } else if (DZ.tool === "ball" && kid){
-    const chain = carriersOf(d);
-    if (DZ.handing){
+    const chain = carriersOf(d), passer = d.ball && d.ball.mode === "pass" && d.ball.via ? d.ball.via[0] : null;
+    if (DZ.handing && DZ.mode === "pass"){
+      // the kid the THROWER hands or pitches it to, who then throws it himself
+      if (kid === "QB") DZ.msg = "The thrower is giving it away. Tap the kid who takes it and throws.";
+      else if (kid === d.ball.who) DZ.msg = "He is the one it is thrown to. Tap somebody else to throw it to him.";
+      else {
+        d.ball = {mode: "pass", who: d.ball.who, via: [kid]};
+        if (DZ.handing === "pitch") d.ball.pitch = true;
+        DZ.handing = false; DZ.dirty = true;
+        if (DZ.sel === "QB") DZ.sel = null;
+      }
+    } else if (DZ.handing){
       // the next carrier of a reverse: somebody who has not had it yet, and
       // never back to the THROWER, who only ever starts a chain
       if (kid === "QB") DZ.msg = "The thrower can start a run but cannot take it back. Tap a runner.";
@@ -3095,10 +3176,19 @@ function dzDown(e){
         DZ.handing = false; DZ.dirty = true;
       }
     } else if (kid === "QB" && DZ.mode === "pass")
-      DZ.msg = "On a pass the thrower throws it. Tap the kid who catches it.";
+      DZ.msg = passer ? "The thrower has given it away. Tap the kid who catches it."
+                      : "On a pass the thrower throws it. Tap the kid who catches it.";
+    else if (kid === passer)
+      DZ.msg = `${FORMATIONS[d.base][kid].name} throws it. Tap the kid who catches it.`;
     else if (!(d.ball && d.ball.who === kid && d.ball.mode === DZ.mode)){
-      // a new carrier starts a new chain; tapping the one who has it changes nothing
-      d.ball = {mode: DZ.mode, who: kid}; DZ.dirty = true;
+      // a new carrier starts a new chain; tapping the one who has it changes
+      // nothing. On a pass a new receiver is only a new target: whoever
+      // throws it still does.
+      const keep = passer && DZ.mode === "pass" ? {via: [passer], pitch: d.ball.pitch} : {};
+      d.ball = {mode: DZ.mode, who: kid};
+      if (keep.via) d.ball.via = keep.via;
+      if (keep.pitch) d.ball.pitch = true;
+      DZ.dirty = true;
     }
   }
   dzRefresh();
@@ -3196,6 +3286,8 @@ function dzRefresh(){
   const hint = document.getElementById("dz-hint");
   hint.textContent = DZ.preview ? "Tap the field to go back to drawing"
     : DZ.tool === "move" ? "Drag a player to where he lines up"
+    : DZ.tool === "ball" && DZ.handing && DZ.mode === "pass"
+      ? `Tap the kid the thrower ${DZ.handing === "pitch" ? "pitches" : "hands"} it to · he throws it to ${S.play.spots[DZ.d.ball.who].name}`
     : DZ.tool === "ball" && DZ.handing ? `Tap the kid ${S.play.spots[DZ.d.ball.who].name} hands it to`
     : DZ.tool === "ball" ? (DZ.mode === "pass" ? "Tap the kid the ball is thrown to"
                                                : "Tap the kid who carries it")
@@ -3244,17 +3336,17 @@ function dzOverlay(p){
   for (const k of hot){
     if (!d.spots[k]) continue;
     const c = F2S(d.spots[k][0], d.spots[k][1]);
-    g.appendChild(mk("circle", {cx: c[0], cy: c[1], r: 31, fill: "none", stroke: "#C0392B",
+    g.appendChild(mk("circle", {cx: c[0], cy: c[1], r: 24, fill: "none", stroke: "#C0392B",
       "stroke-width": 4, "stroke-dasharray": "7 6"}));
   }
   if (DZ.tool === "route" && DZ.sel){
     const c = F2S(d.spots[DZ.sel][0], d.spots[DZ.sel][1]);
-    g.appendChild(mk("circle", {cx: c[0], cy: c[1], r: 34, fill: "rgba(27,94,58,.12)",
+    g.appendChild(mk("circle", {cx: c[0], cy: c[1], r: 26, fill: "rgba(27,94,58,.12)",
       stroke: "#1B5E3A", "stroke-width": 4}));
     const r = d.routes[DZ.sel];
     if (r) r.pts.forEach((q, i) => {
       const s = F2S(q[0], q[1]);
-      g.appendChild(mk("circle", {cx: s[0], cy: s[1], r: i === r.pts.length - 1 ? 12 : 9,
+      g.appendChild(mk("circle", {cx: s[0], cy: s[1], r: i === r.pts.length - 1 ? 10 : 7.5,
         fill: "#fff", stroke: "#1B5E3A", "stroke-width": 4, class: "dzpt"}));
     });
     // the next leg starts here, said with a ring rather than left for a coach
@@ -3282,13 +3374,21 @@ function dzRail(){
       <button class="rbtn sub" id="dz-end" ${r ? "" : "disabled"}>${stop ? "Stop" : "Arrow"}<small>${stop
         ? "turns around" : "keeps going"}</small></button>`;
   } else if (t === "ball"){
-    const run = !!d.ball && d.ball.mode === "carry", via = run ? (d.ball.via || []) : [];
+    const run = !!d.ball && d.ball.mode === "carry", via = d.ball ? (d.ball.via || []) : [];
     sub = `<button class="rbtn sub ${DZ.mode === "pass" ? "on" : ""}" data-mode="pass">Pass<small>throw it</small></button>
       <button class="rbtn sub ${DZ.mode === "carry" ? "on" : ""}" data-mode="carry">Run<small>hand it off</small></button>` +
       // a reverse: the kid with the ball hands it on to somebody else
       (run ? `<button class="rbtn sub ${DZ.handing ? "on" : ""}" id="dz-hand"
                ${via.length >= VIA_CAP ? "disabled" : ""}>Hand off<small>to another runner</small></button>
-             <button class="rbtn sub" id="dz-unhand" ${via.length ? "" : "disabled"}>Take back<small>last handoff</small></button>` : "");
+             <button class="rbtn sub" id="dz-unhand" ${via.length ? "" : "disabled"}>Take back<small>last handoff</small></button>`
+      // a trick pass: the THROWER hands or pitches it to somebody who throws
+      // it. One exchange, so once it is made the two buttons become one
+      : DZ.mode === "pass" && via.length
+        ? `<button class="rbtn sub" id="dz-unhand">Take back<small>the ${d.ball.pitch ? "pitch" : "handoff"}</small></button>`
+      : DZ.mode === "pass"
+        ? `<button class="rbtn sub ${DZ.handing === "hand" ? "on" : ""}" id="dz-hand" ${d.ball ? "" : "disabled"}>Hand off<small>he throws it</small></button>
+           <button class="rbtn sub ${DZ.handing === "pitch" ? "on" : ""}" id="dz-pitch" ${d.ball ? "" : "disabled"}>Pitch<small>he throws it</small></button>`
+      : "");
   }
   rail.innerHTML = tool("move", "Move", "drag kids") + tool("route", "Route", "draw a job") +
     tool("ball", "Ball", "who gets it") + (sub ? `<span class="rsep"></span>${sub}` : "") +
@@ -3302,9 +3402,10 @@ function dzRail(){
     DZ.mode = b.dataset.mode; DZ.msg = ""; DZ.handing = false;
     if (d.ball){
       // a pass to the thrower is not a play; a keeper that becomes a pass loses
-      // its carrier, and a reverse that becomes a pass keeps only its last man
+      // its carrier, and a reverse that becomes a pass keeps only its last man.
+      // A trick pass that becomes a run loses its thrower and keeps its target.
       if (DZ.mode === "pass" && d.ball.who === "QB") d.ball = null;
-      else { d.ball.mode = DZ.mode; if (DZ.mode === "pass") delete d.ball.via; }
+      else if (d.ball.mode !== DZ.mode){ d.ball.mode = DZ.mode; delete d.ball.via; delete d.ball.pitch; }
       DZ.dirty = true;
     }
     if (handsOff(d) && DZ.sel === "QB") DZ.sel = null;
@@ -3315,12 +3416,16 @@ function dzRail(){
   on("dz-undo", () => { const r = d.routes[DZ.sel]; r.pts.pop(); if (!r.pts.length) delete d.routes[DZ.sel]; });
   on("dz-clear", () => { delete d.routes[DZ.sel]; });
   on("dz-end", () => { const r = d.routes[DZ.sel]; r.end = r.end === "bar" ? "arrow" : "bar"; });
-  const hand = document.getElementById("dz-hand");
-  if (hand) hand.onclick = () => { DZ.handing = !DZ.handing; DZ.msg = ""; dzRefresh(); };
+  for (const [id, kind] of [["dz-hand", "hand"], ["dz-pitch", "pitch"]]){
+    const b = document.getElementById(id);
+    if (b) b.onclick = () => { DZ.handing = DZ.handing === kind ? false : kind; DZ.msg = ""; dzRefresh(); };
+  }
   on("dz-unhand", () => {
+    // on a pass the target stays and the THROWER throws it again; on a run
+    // the last carrier goes and the one before him keeps it
     const via = d.ball.via;
-    d.ball.who = via.pop();
-    if (!via.length) delete d.ball.via;
+    if (d.ball.mode === "carry") d.ball.who = via.pop(); else via.length = 0;
+    if (!via.length){ delete d.ball.via; delete d.ball.pitch; }
     DZ.handing = false;
   });
   document.getElementById("dz-prev").onclick = () => dzPreview(!DZ.preview);
@@ -3332,7 +3437,9 @@ function dzRail(){
 function openDesignSheet(){
   closeRename();
   const d = DZ.d, run = !!d.ball && d.ball.mode === "carry";
-  if (run && d.category === "NO-RUN ZONE") d.category = "CUSTOM";
+  // a handoff or a pitch in the no-run zone is a dead ball, even ahead of a throw
+  const zoneOut = run || handsOff(d);
+  if (zoneOut && d.category === "NO-RUN ZONE") d.category = "CUSTOM";
   const w = document.createElement("div");
   w.className = "sheetwrap";
   w.id = "dzsheet";
@@ -3349,7 +3456,7 @@ function openDesignSheet(){
       <div class="nfield"><span>Situation</span>
         <div class="seg wrap" id="dz-cat">${CAT_ORDER.map(k => `<button data-cat="${esc(k)}"
           class="${d.category === k ? "on" : ""}" style="--cat:${CAT[k]}"
-          ${run && k === "NO-RUN ZONE" ? "disabled" : ""}>${esc(k)}</button>`).join("")}</div></div>
+          ${zoneOut && k === "NO-RUN ZONE" ? "disabled" : ""}>${esc(k)}</button>`).join("")}</div></div>
       <div class="nfield"><span>How much it asks</span>
         <div class="seg" id="dz-cx">${Object.keys(COMPLEXITY).map(k => `<button data-cx="${k}"
           class="${d.complexity === k ? "on" : ""}">${k}</button>`).join("")}</div></div>
@@ -3509,6 +3616,7 @@ function mk(tag, attrs){
   for (const k in attrs) e.setAttribute(k, attrs[k]);
   return e;
 }
+const LBL = () => dzView() ? 13.5 : 17;         // the names under the markers
 function buildScene(){
   const svg = document.getElementById("field");
   svg.innerHTML = "";
@@ -3540,10 +3648,10 @@ function buildScene(){
   // on resize rather than per frame — getBoundingClientRect forces layout.
   const measure = () => {
     const b = svg.getBoundingClientRect();
-    const k = Math.min(b.width / VB_W, b.height / VB_H);
+    const h = vbH(), k = Math.min(b.width / VB_W, b.height / h);
     if (!k || !isFinite(k)) return;
     SC.overX = Math.max(0, (b.width / k - VB_W) / 2);
-    SC.overY = Math.max(0, (b.height / k - VB_H) / 2);
+    SC.overY = Math.max(0, (b.height / k - h) / 2);
   };
   measure();
   if (window.ResizeObserver){
@@ -3636,7 +3744,7 @@ function buildScene(){
     // colour says which side, and the words underneath say it out loud.
     // paint-order:stroke draws the halo behind the glyphs, so a route line
     // running under a name does not turn it to mush
-    const lbl = () => mk("text",{"text-anchor":"middle","font-weight":800,"font-size":17,
+    const lbl = () => mk("text",{"text-anchor":"middle","font-weight":800,"font-size":LBL(),
       "font-family":"Barlow Condensed, Arial Narrow, sans-serif","letter-spacing":.6,
       "paint-order":"stroke", stroke:"#F7F9F6", "stroke-width":3.5,
       "stroke-linejoin":"round"});
@@ -3685,10 +3793,11 @@ function frame(now){
   const t = running ? (now - S.t0) % tl.tEnd : 0;
 
   // field
-  const bt = F2S(-EDGE, 15), bb = F2S(EDGE, -6.5);
+  const bot = fieldBot(), VBH = vbH();
+  const bt = F2S(-EDGE, 15), bb = F2S(EDGE, bot);
   SC.base.setAttribute("x", bt[0]); SC.base.setAttribute("y", bt[1]);
   SC.base.setAttribute("width", bb[0] - bt[0]); SC.base.setAttribute("height", bb[1] - bt[1]);
-  const half = [[-EDGE,-6.5],[0,-6.5],[0,15],[-EDGE,15]];
+  const half = [[-EDGE,bot],[0,bot],[0,15],[-EDGE,15]];
   SC.washL.setAttribute("points", half.map(fpt).join(" "));
   SC.washR.setAttribute("points", half.map(q => fpt([-q[0], q[1]])).join(" "));
   SC.goal.setAttribute("points",
@@ -3704,7 +3813,7 @@ function frame(now){
   SC.los.setAttribute("x1",la[0]); SC.los.setAttribute("y1",la[1]);
   SC.los.setAttribute("x2",lb[0]); SC.los.setAttribute("y2",lb[1]);
   [["blue",-EDGE],["orange",EDGE]].forEach(([nm,xv]) => {
-    const a = F2S(xv,-6.5), b = F2S(xv,15), e = SC.side[nm];
+    const a = F2S(xv,bot), b = F2S(xv,15), e = SC.side[nm];
     e.setAttribute("x1",a[0]); e.setAttribute("y1",a[1]);
     e.setAttribute("x2",b[0]); e.setAttribute("y2",b[1]);
   });
@@ -3719,19 +3828,19 @@ function frame(now){
     const w = dir < 0 ? inner + ox : VB_W - inner + ox;
     o.r.setAttribute("x", x); o.r.setAttribute("y", -oy);
     o.r.setAttribute("width", Math.max(0, w));
-    o.r.setAttribute("height", VB_H + 2 * oy);
+    o.r.setAttribute("height", VBH + 2 * oy);
     const cx = x + w / 2, ours = ourSide === nm;
-    o.lbl.setAttribute("transform", `translate(${cx} ${VB_H*0.76}) rotate(${dir<0?-90:90})`);
+    o.lbl.setAttribute("transform", `translate(${cx} ${VBH*0.76}) rotate(${dir<0?-90:90})`);
     o.lbl.setAttribute("opacity", .8);
     o.btxt.textContent = ours ? "OUR SIDE" : "THEIR SIDE";
     const h = ours ? 132 : 152;
-    o.badge.setAttribute("x", cx - 16); o.badge.setAttribute("y", VB_H*0.30 - h/2);
+    o.badge.setAttribute("x", cx - 16); o.badge.setAttribute("y", VBH*0.30 - h/2);
     o.badge.setAttribute("width", 32); o.badge.setAttribute("height", h);
     o.badge.setAttribute("fill", ours ? "#F2F4F1" : "none");
     o.badge.setAttribute("stroke", ours ? "none" : "#4B554E");
     o.btxt.setAttribute("fill", ours ? "#141A16" : "#8B978D");
     o.btxt.setAttribute("transform",
-      `translate(${cx} ${VB_H*0.30}) rotate(${dir<0?-90:90})`);
+      `translate(${cx} ${VBH*0.30}) rotate(${dir<0?-90:90})`);
   });
 
   // routes
@@ -3760,7 +3869,7 @@ function frame(now){
 
   // players
   const lining = !running;                       // LINE UP stage
-  const R = lining ? 17 : 12.5;
+  const R = dzView() ? (lining ? 12.5 : 11) : lining ? 17 : 12.5, f = LBL();
   for (const key in SC.players){
     const sp = p.spots[key], P = SC.players[key], c = W2S(sp.x, sp.y);
     P.g.setAttribute("transform", `translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})`);
@@ -3804,10 +3913,10 @@ function frame(now){
     // players in the backfield get their name above, so it never runs off the edge
     const above = sp.y < -2.5;
     if (above){
-      P.l1.setAttribute("y", -(R + (twoLine ? 24 : 9)));
+      P.l1.setAttribute("y", -(R + (twoLine ? f + 7 : 9)));
       P.l2.setAttribute("y", -(R + 7));
     } else {
-      P.l1.setAttribute("y", R + 20); P.l2.setAttribute("y", R + 37);
+      P.l1.setAttribute("y", R + f + 3); P.l2.setAttribute("y", R + 2 * f + 3);
     }
     [P.l1, P.l2].forEach(t => t.setAttribute("fill", sd === "none" ? "#141A16" : stroke));
 
