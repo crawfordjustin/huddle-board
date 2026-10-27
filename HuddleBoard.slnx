@@ -1,7 +1,26 @@
 <Solution>
+  <Folder Name="/app/">
+    <File Path="huddle_src.html" />
+  </Folder>
+  <Folder Name="/app/art/">
+    <File Path="art/intro-art.png" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/deck.png" />
+    <File Path="docs/intro.png" />
+    <File Path="docs/library.png" />
+    <File Path="docs/play.png" />
+    <File Path="docs/tutorial.png" />
+  </Folder>
   <Folder Name="/project-guidance/">
     <File Path="AGENTS.md" />
     <File Path="CLAUDE.md" />
+  </Folder>
+  <Folder Name="/repo/">
+    <File Path=".github/workflows/deploy.yml" />
+    <File Path="Directory.Build.props" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/HuddleBoard.Build/HuddleBoard.Build.csproj" />
