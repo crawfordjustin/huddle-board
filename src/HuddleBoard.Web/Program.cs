@@ -2,30 +2,50 @@ using HuddleBoard.Playbook;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 
-// Serves the built app. There is no server code in Huddle Board — this host
-// exists so that F5 gives you the real thing over http, which is the only way
-// the service worker, the install prompt and browser storage work at all. A
-// file:// copy cannot do any of it.
+// The Huddle Board website. The pages at the root — home, about — are Razor
+// Pages; the app itself is the built static site, mounted at /app/.
 //
-// Two response rules are load-bearing, and they are the same two the generated
-// web.config applies on Azure App Service:
+// The app lives under /app/ on the same host, never on a subdomain, because
+// everything a coach keeps is localStorage and localStorage is keyed by origin.
+// Same host, same storage: a tablet that used the app at the root still has its
+// deck at /app/.
+//
+// Three response rules are load-bearing for the app, and the first two are the
+// same two the generated web.config applies when dist/deploy is hosted alone:
 //   1. .webmanifest must be served as application/manifest+json, or Chrome will
 //      not offer to install the app.
 //   2. index.html and sw.js must not be cached, or tablets never see a new
 //      build.
+//   3. /app must redirect to /app/. Every path the app uses is relative, so
+//      without the trailing slash ./sw.js resolves to /sw.js and nothing
+//      installs.
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddRazorPages();
 var app = builder.Build();
 
-var root = ResolveSiteRoot(app);
-app.Logger.LogInformation("serving {Root}", root);
+var appRoot = ResolveAppRoot(app);
+app.Logger.LogInformation("serving the app from {Root}", appRoot);
 
 var contentTypes = new FileExtensionContentTypeProvider();
 contentTypes.Mappings[".webmanifest"] = "application/manifest+json";
 
-var files = new PhysicalFileProvider(root);
-var staticFiles = new StaticFileOptions
+var appFiles = new PhysicalFileProvider(appRoot);
+
+app.Use(async (ctx, next) =>
 {
-    FileProvider = files,
+    if (ctx.Request.Path.Value is "/app")
+    {
+        ctx.Response.Redirect("/app/" + ctx.Request.QueryString, permanent: true);
+        return;
+    }
+    await next();
+});
+
+app.UseDefaultFiles(new DefaultFilesOptions { RequestPath = "/app", FileProvider = appFiles });
+app.UseStaticFiles(new StaticFileOptions
+{
+    RequestPath = "/app",
+    FileProvider = appFiles,
     ContentTypeProvider = contentTypes,
     OnPrepareResponse = ctx =>
     {
@@ -34,10 +54,27 @@ var staticFiles = new StaticFileOptions
         if (ctx.File.Name is "index.html" or "sw.js" or "manifest.webmanifest")
             headers.CacheControl = "no-cache, must-revalidate";
     },
-};
+});
 
-app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = files });
-app.UseStaticFiles(staticFiles);
+// The site's own files. /sw.js here is not the app's worker but the one that
+// removes it: see wwwroot/sw.js. It has to be revalidated on every check for the
+// same reason the app's has to.
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        var headers = ctx.Context.Response.Headers;
+        headers.XContentTypeOptions = "nosniff";
+        if (ctx.File.Name is "sw.js")
+            headers.CacheControl = "no-cache, must-revalidate";
+    },
+});
+
+app.MapRazorPages();
+
+// When the site grows an API, it goes here, under one prefix the app's paths
+// and the pages can never collide with:
+// var api = app.MapGroup("/api");
 
 app.Run();
 
@@ -47,9 +84,9 @@ app.Run();
 // host at all, because it lies quietly. The build takes a few hundred
 // milliseconds, which is not worth being clever about.
 //
-// A published site has no repository above it, so the same files sit in wwwroot
-// and are served as they were staged at publish time.
-static string ResolveSiteRoot(WebApplication app)
+// A published site has no repository above it, so the same files sit in
+// wwwroot/app and are served as they were staged at publish time.
+static string ResolveAppRoot(WebApplication app)
 {
     string deploy;
     try
@@ -58,7 +95,7 @@ static string ResolveSiteRoot(WebApplication app)
     }
     catch (InvalidOperationException)
     {
-        return Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+        return Path.Combine(app.Environment.ContentRootPath, "wwwroot", "app");
     }
 
     if (Pipeline.Build(output: TextWriter.Null) != 0)

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@(ViewData["Title"] is string t ? t + " — Huddle Board" : "Huddle Board")</title>
+<meta name="description" content="A sideline play tool for 8U flag football. Pick a play on a tablet, turn it around, and show six kids what to do.">
+<link rel="icon" href="~/img/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="~/css/site.css" asp-append-version="true">
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="/">Huddle Board</a>
+  <nav>
+    <a href="/about">About</a>
+    @* /app/ with the slash, always: see Program.cs *@
+    <a class="go" href="/app/">Open Huddle Board</a>
+  </nav>
+</header>
+<main>
+@RenderBody()
+</main>
+<footer class="foot">
+  <span>Free and open source under the MIT licence.</span>
+  <a href="https://github.com/crawfordjustin/huddle-board">Source on GitHub</a>
+</footer>
+</body>
+</html>

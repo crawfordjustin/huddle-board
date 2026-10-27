@@ -24,3 +24,5 @@ obj/
 .idea/
 *.swp
 .DS_Store
+# the website's own images are source too
+!src/HuddleBoard.Web/wwwroot/img/*.png
