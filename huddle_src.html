@@ -2222,10 +2222,11 @@ function tourSlides(){
        the situation and how much it asks of the team; and the little field is the play itself.</p>
        <p>The chips along the top narrow the deck the same way &mdash; tap <b>PASS</b> and
        <b>GOAL LINE</b> when you need one fast. Tap a tile to open it.</p>`},
-    {title: "Turn it around", sub: "Line them up, then run it", art: tourField(), field: p,
-     text: `<p>A play opens on <b>LINE UP</b>: where each kid stands, with every job on the
-       strip underneath. Turn the tablet around and show them.</p>
-       <p>This is <b>RUN IT</b>, looping on its own so you can see it before you ever open a
+    {title: "Turn it around", sub: "The whole play, then line them up", art: tourField(), field: p,
+     text: `<p>A play opens finished: every route drawn and the ball where it ends up, with
+       every job on the strip underneath. <b>LINE UP</b> puts everybody back on his spot;
+       <b>RUN IT</b> plays it once from the snap, and <b>REPLAY</b> plays it again.</p>
+       <p>This one is running on a loop so you can see it before you ever open a
        play. <b>MIRROR</b> swaps the players to the other side &mdash; the field stays put
        &mdash; so every play is two looks.</p>`},
     {title: "One kid at a time", sub: "Blue and orange, never left and right", art: tourMarkers(),
@@ -2453,7 +2454,7 @@ function renderDeck(){
          </div>`}
       </div>
       <div class="decknote">${list.length
-        ? `Tap a play &rarr; line them up &rarr; run it. Tap any player to show
+        ? `Tap a play to see it whole &rarr; line them up &rarr; run it. Tap any player to show
            that kid his own job. Every play mirrors, so this is really
            ${list.length * 2} looks.`
         : all.length ? `Your deck still has ${all.length} play${all.length === 1 ? "" : "s"} in it.`
@@ -3569,7 +3570,11 @@ function openPlay(id){
   S.screen = "play"; S.play = DATA.plays.find(p => p.id === id); S.tl = buildTimeline(S.play);
   S.openedAt = performance.now();
   logEvent("play_opened", {play: id, num: S.play.num, name: coachNameOf(S.play)});
-  S.stage = "lineup"; S.solo = null; S.running = false;
+  // It opens on the finished play — every route drawn, the ball where it
+  // ends up — because that is the picture a coach turns around to show. It
+  // is the last frame of the run, held: Line up goes back to the spots, and
+  // Run it and Replay play it once from the snap.
+  S.stage = "run"; S.t0 = performance.now() - S.tl.tEnd; S.solo = null; S.running = false;
   mTarget = mAnim = 0;
   const p = S.play;
   app.innerHTML = `
@@ -3627,7 +3632,7 @@ function syncRail(){
   const st = document.getElementById("stage");
   const run = S.stage === "run";
   st.className = "rbtn go";
-  st.innerHTML = run ? "Line up<small>hold it</small>" : "Run it<small>animate</small>";
+  st.innerHTML = run ? "Line up<small>back to spots</small>" : "Run it<small>animate</small>";
   document.getElementById("mirror").classList.toggle("on", mTarget === 1);
   document.getElementById("replay").classList.toggle("hidden", !run);
   const h = document.getElementById("hint");
@@ -3838,7 +3843,11 @@ function frame(now){
 
   const p = S.play, tl = S.tl;
   const running = S.stage === "run";
-  const t = running ? (now - S.t0) % tl.tEnd : 0;
+  // The play screen runs a play once and holds the last frame; Replay is
+  // there for another look. The tutorial and the designer's preview loop,
+  // because nobody is standing there to press it.
+  const t = !running ? 0 : S.screen === "play" ? Math.min(now - S.t0, tl.tEnd)
+                         : (now - S.t0) % tl.tEnd;
 
   // field
   const bot = fieldBot(), VBH = vbH();
