@@ -697,6 +697,14 @@ publish folder with `clean: true` — the old static app sat at the root of
 `wwwroot`, and a stale `/index.html` there would still be served. Nothing in
 `dist/` is committed, so CI builds it from source.
 
+**Keep the package small.** The first publish was 157 MB zipped and the deploy
+failed with "not enough space on the disk": a portable publish carries
+SkiaSharp's native binaries for every platform, and its native symbols are
+86 MB each. CI publishes for `win-x64` only, and the Web project drops
+packages' `.pdb` files (`DropPackageSymbols`), which brings it to about 14 MB.
+The site never draws with Skia — only `build` does, and a published site does
+not run it.
+
 The App Service runs the **.NET 10 stack on Windows with Always On**. A static
 site never cold-started; an ASP.NET one does after idling, and the first open
 before a game should not be the slow one. Both are one-time settings on the app,
@@ -707,7 +715,7 @@ az webapp config set -g rg-default -n huddleboard --net-framework-version v10.0 
 ```
 
 If the plan ever stops offering .NET 10, publish self-contained instead
-(`-r win-x64 --self-contained`).
+(`--self-contained true`) — larger, so check the package against the disk.
 
 The deploy is gated on `check`, not on `dotnet test`. That is a deliberate
 trade for a fast sideline fix; the browser suite still has to be run by hand

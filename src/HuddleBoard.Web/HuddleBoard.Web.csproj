@@ -21,6 +21,19 @@
     a nested IIS web.config under an ASP.NET Core app is a conflict waiting to
     happen. dist/deploy itself is untouched and still a complete static site.
   -->
+  <!--
+    SkiaSharp ships native debug symbols at 86 MB a platform, and a published
+    site never draws with it — it only renders icons during `build`, which a
+    published site does not run. Packages' symbols are left out; ours stay.
+    Without this the package outgrew the App Service's disk.
+  -->
+  <Target Name="DropPackageSymbols" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(Extension)' == '.pdb' and '%(ResolvedFileToPublish.NuGetPackageId)' != ''" />
+    </ItemGroup>
+  </Target>
+
   <Target Name="BuildHuddleBoardSite" BeforeTargets="ComputeFilesToPublish"
           Condition="'$(_HuddleBoardSiteStaged)' != 'true'">
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\HuddleBoard.Build&quot; -- build"
