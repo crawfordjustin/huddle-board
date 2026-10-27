@@ -10,6 +10,10 @@
   --oob:#1E2521; --oob-hatch:#38423B; --oob-ink:#7C887F;
   --run:#127A4D; --route:#232B26;
   --pass:#2A6FD6; --pass-lt:#7FB2F2;   /* run vs pass, legible on either ground */
+  /* the deck: a coach's playbook on a sideline. Warm paper cards on a deep
+     field green, rather than bright white on near-black */
+  --card:#F7F5EE; --deck:#123323; --deck-hi:#1A4431; --deck-line:rgba(255,255,255,.15);
+  --deck-chip:rgba(3,18,10,.42);
   --disp:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --body:"Barlow","Helvetica Neue",system-ui,sans-serif;
 }
@@ -40,7 +44,16 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
    filter chips sit on the left of one bar and the clock, the count and the
    menu on its right. Change plays lives in the menu with Setup and Exit. */
 .decktop{flex:none;display:flex;align-items:center;justify-content:space-between;
-  gap:clamp(10px,1.5vw,20px)}
+  gap:clamp(14px,2.2vw,32px)}
+/* The deck itself — not Setup or the library, which share .deck — sits on
+   field green. On the green the dark chrome would read as holes, so it goes
+   translucent. */
+.deck.home{background:radial-gradient(ellipse 120% 80% at 50% 0%,var(--deck-hi),var(--deck) 70%)}
+.home .fchip:not(.on),.home .edit:not(.upd),.home .ham,.home .clock:not(.warn):not(.danger):not(.gone){
+  background:var(--deck-chip);border-color:var(--deck-line)}
+.home .lsep{background:var(--deck-line)}
+.home .menu{background:#16301F;border-color:var(--deck-line)}
+.home .decknote{color:#9DB5A4}
 .decktop .dfilt{flex:1 1 0;min-width:0;padding:0}
 .decktop .dh-right{flex:none;margin-left:auto;align-self:flex-start}
 .barright{justify-self:end;display:flex;align-items:center;gap:clamp(8px,1.2vw,16px)}
@@ -50,8 +63,8 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .clock{display:flex;align-items:center;gap:clamp(7px,.8vw,12px);background:var(--ink);
   border:2px solid #333D36;border-radius:10px;padding:6px clamp(10px,1.1vw,15px);
   min-height:48px;color:#fff;transition:background .15s ease,border-color .15s ease}
-.clock .clabel{font-size:clamp(7.5px,1.1vh,10px);font-weight:700;letter-spacing:.13em;
-  text-transform:uppercase;color:#8A968C;text-align:right;line-height:1.15;max-width:5.2em}
+.clock .clabel{font-size:clamp(8.5px,1.3vh,12px);font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:#C9D3CC;text-align:right;line-height:1.15;max-width:5.2em}
 .clock .cnum{font-family:var(--disp);font-size:clamp(23px,4vh,38px);font-weight:700;
   line-height:1;font-variant-numeric:tabular-nums;min-width:1.7ch;text-align:right}
 .clock.run{border-color:#4A9C6E}
@@ -102,7 +115,12 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .tiles.compact .tile{padding:clamp(10px,1.6vh,16px) clamp(10px,1.2vw,16px)
   clamp(10px,1.6vh,16px) clamp(22px,2.6vw,32px)}
 
-.tiles.compact .coach{font-size:clamp(9px,1.4vh,12px)}
+/* a grid of three or four columns is the deck a coach hunts through, and a
+   tight one is any grid fitDeck() found spilling, so the rows go back to
+   their smaller sizes and the room goes to the name */
+.tiles.compact .coach,.tiles.tight .coach{font-size:clamp(9px,1.4vh,12px);margin-top:4px}
+.tiles.compact .kind,.tiles.tight .kind{font-size:clamp(11px,1.8vh,17px);letter-spacing:.12em}
+.tiles.compact .tag,.tiles.tight .tag{font-size:clamp(11px,1.7vh,15px)}
 
 /* settings */
 .setrows{flex:1;display:flex;flex-direction:column;
@@ -294,7 +312,8 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
    got narrower — the exact recipe for clipping. Size against the card itself. */
 .tile{container-type:inline-size;
   position:relative;display:flex;align-items:center;gap:clamp(10px,1.4vw,20px);
-  background:var(--surface);border:1.5px solid transparent;border-radius:14px;
+  background:var(--card);border:1px solid rgba(20,26,22,.08);border-radius:14px;
+  box-shadow:0 6px 18px rgba(0,0,0,.28),0 1px 2px rgba(0,0,0,.2);
   padding:clamp(12px,2vh,22px) clamp(14px,1.6vw,22px) clamp(12px,2vh,22px) clamp(26px,3vw,40px);
   text-align:left;transition:transform .12s ease,box-shadow .12s ease;overflow:hidden}
 .tilemain{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;
@@ -302,7 +321,7 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .thumb{flex:none;width:clamp(150px,26vw,380px);align-self:stretch;display:flex;
   align-items:center}
 @supports (container-type:inline-size){
-  .tile .kid{font-size:min(44px, 10.5cqi)}
+  .tile .kid{font-size:min(60px, 12.5cqi)}
   .thumb{width:52cqi}
   .tiles.compact .thumb{width:49cqi}
   .lrow{container-type:inline-size}
@@ -314,21 +333,21 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .tile.pass::before{background:var(--pass)}
 .kindrow{display:flex;align-items:center;gap:clamp(6px,.8vw,11px);
   margin-bottom:clamp(3px,.6vh,7px);flex-wrap:wrap}
-.kind{font-family:var(--disp);font-size:clamp(12px,1.9vh,17px);font-weight:700;
-  letter-spacing:.16em;text-transform:uppercase}
-.catchip{font-size:clamp(7px,1.05vh,9.5px);font-weight:700;letter-spacing:.1em;
-  text-transform:uppercase;color:#fff;background:var(--cat);padding:3px 7px;border-radius:4px;
+.kind{font-family:var(--disp);font-size:clamp(13px,2.4vh,23px);font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase}
+.catchip{font-size:clamp(7.5px,1.35vh,12.5px);font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:#fff;background:var(--cat);padding:.35em .65em;border-radius:4px;
   white-space:nowrap}
 .catchip.complexity{background:var(--complex)}
 /* the situation is the thing a coach is actually looking for under pressure
    ("I need a goal line play"), so it stays on the tile at every column count.
    It used to be hidden here — on the only deck sizes big enough to need it. */
-.tiles.compact .catchip{font-size:clamp(6.5px,.95vh,8.5px);padding:2px 5px}
+.tiles.compact .catchip,.tiles.tight .catchip{font-size:clamp(6.5px,.95vh,8.5px);padding:2px 5px}
 .tile.run .kind{color:var(--run)}
 .tile.pass .kind{color:var(--pass)}
 .tile:active{transform:scale(.985);box-shadow:inset 0 0 0 3px var(--green)}
 .tile:focus-visible{outline:3px solid #5FBF8F;outline-offset:3px}
-.tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:clamp(10px,1.2vw,16px);
+.tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:clamp(7px,.8vw,11px);
   background:var(--cat);border-radius:12px 0 0 12px}
 
 /* Two lines are allowed here so a long real name like PLAY-ACTION CROSS can
@@ -336,12 +355,12 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
    do NOT add a max-height: with line-height under 1 the glyph box is taller
    than the line box, so any height clamp makes scrollHeight permanently
    exceed clientHeight and every name collapses to the floor size. */
-.tile .kid{display:block;font-family:var(--disp);font-size:clamp(20px,4.2vw,44px);
+.tile .kid{display:block;font-family:var(--disp);font-size:clamp(22px,5vw,60px);
   line-height:.95;text-transform:uppercase;letter-spacing:.005em;
   white-space:normal;overflow-wrap:normal;word-break:keep-all}
-.tile .coach{font-size:clamp(11px,1.7vh,15px);color:var(--ink-2);font-weight:600;
-  letter-spacing:.12em;text-transform:uppercase;margin-top:6px}
-.tile .tag{font-size:clamp(11px,1.85vh,16px);color:var(--ink-2);line-height:1.25;
+.tile .coach{font-size:clamp(12px,2.1vh,20px);color:var(--ink-2);font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;margin-top:clamp(4px,.8vh,8px)}
+.tile .tag{font-size:clamp(12px,2.1vh,19px);color:var(--ink-2);line-height:1.3;
   margin-top:clamp(8px,1.4vh,14px);max-width:34ch}
 .decknote{flex:none;padding-top:clamp(8px,1.4vh,14px);font-size:clamp(10px,1.5vh,13px);
   color:#78847B;letter-spacing:.06em}
@@ -1871,17 +1890,30 @@ function clearDesigns(){
 refreshPlays();
 
 /* ---------------------------------------------------- play thumbnail */
-/* same proportions and the same dark-surround / light-field logic as the
-   full-size view, so a tile reads as a small version of the real thing */
+/* same proportions and the same surround / field logic as the full-size
+   view, so a tile reads as a small version of the real thing — on a pale
+   green field with faint yard lines and hashes, so it reads as football
+   before it reads as a diagram. The marks stay faint: routes do the work. */
 const TH = {s:9.5, w:346, h:204, cx:173, top:15, edge:15.7, botY:-6.5};
 function thumbSVG(p){
   const tx = (x,y) => [TH.cx + x*TH.s, (TH.top - y)*TH.s];
   const poly = pts => pts.map(q => tx(q[0],q[1]).join(",")).join(" ");
   const o = [`<svg viewBox="0 0 ${TH.w} ${TH.h}" class="thumbsvg" aria-hidden="true">`];
-  o.push(`<rect x="0" y="0" width="${TH.w}" height="${TH.h}" rx="7" fill="#1E2521"/>`);
+  o.push(`<rect x="0" y="0" width="${TH.w}" height="${TH.h}" rx="7" fill="#173A28"/>`);
   const f0 = tx(-TH.edge, TH.top), f1 = tx(TH.edge, TH.botY);
   o.push(`<rect x="${f0[0]}" y="${f0[1]}" width="${f1[0]-f0[0]}" height="${f1[1]-f0[1]}"
-    fill="#F7F9F6"/>`);
+    fill="#E2EEE0"/>`);
+  [-5, 5, 10].forEach(yv => {
+    const a = tx(-TH.edge, yv), b = tx(TH.edge, yv);
+    o.push(`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#fff"
+      stroke-width="1.6" opacity=".85"/>`);
+  });
+  const hash = [];
+  for (let yv = -6; yv <= 14; yv++) for (const xv of [-12.5, 12.5]){
+    const a = tx(xv - 0.45, yv), b = tx(xv + 0.45, yv);
+    hash.push(`M${a[0]} ${a[1]}H${b[0]}`);
+  }
+  o.push(`<path d="${hash.join("")}" stroke="#fff" stroke-width="1.3" opacity=".85"/>`);
   const g0 = tx(-TH.edge, 15), g1 = tx(TH.edge, 13.3);
   o.push(`<rect x="${g0[0]}" y="${g0[1]}" width="${g1[0]-g0[0]}" height="${g1[1]-g0[1]}"
     fill="#1B5E3A" fill-opacity=".14"/>`);
@@ -1894,7 +1926,7 @@ function thumbSVG(p){
   });
   const l1 = tx(-TH.edge,0), l2 = tx(TH.edge,0);
   o.push(`<line x1="${l1[0]}" y1="${l1[1]}" x2="${l2[0]}" y2="${l2[1]}"
-    stroke="#AEB8B0" stroke-width="2"/>`);
+    stroke="#9DB3A1" stroke-width="2"/>`);
   const col = {route:"#232B26", run:"#127A4D", fake:"#127A4D",
                motion:"#C9700D", handoff:"#7C877F"};
   p.paths.forEach(pa => {
@@ -1917,7 +1949,7 @@ function thumbSVG(p){
     const isBall = k === p.primary;
     const fill = isBall ? "#FFC400"
       : sp.side === "blue" ? "#1D6FD0" : sp.side === "orange" ? "#E4610F" : "#141A16";
-    o.push(`<circle cx="${c[0]}" cy="${c[1]}" r="${isBall ? 6.2 : 4.6}" fill="${fill}"
+    o.push(`<circle cx="${c[0]}" cy="${c[1]}" r="${isBall ? 7.2 : 5.6}" fill="${fill}"
       stroke="#F7F9F6" stroke-width="${isBall ? 2.2 : 1.6}"/>`);
   }
   o.push("</svg>");
@@ -1973,8 +2005,10 @@ function fitText(el, minPx, maxLines){
    top and the bottom: the RUN/PASS row and the formation, the two things a
    coach reads first, while the tagline sat there in full.
 
-   Two things give, in order. The tagline is the only line on a tile that is
-   genuinely optional, so it goes first. Then the name shrinks — for the whole
+   Three things give, in order. The rows around the name drop to their smaller
+   sizes (.tight), which is all a short deck of big cards ever needs. The
+   tagline is the only line on a tile that is genuinely optional, so it goes
+   next. Then the name shrinks — for the whole
    deck at once, because one size across the grid is what makes it scannable,
    and a name that fit at 26px fits at 20px. */
 function tileSpills(t){
@@ -1992,8 +2026,13 @@ function fitDeck(){
   if (!tiles.length) return;
   const tags = tiles.map(t => t.querySelector(".tag")).filter(Boolean);
   tags.forEach(g => { g.style.display = ""; });
+  const grid = tiles[0].closest(".tiles");
+  grid.classList.remove("tight");
 
   fitNames();                                   // the horizontal fit, as before
+  if (!tiles.some(tileSpills)) return;
+  grid.classList.add("tight");
+  fitNames();
   if (!tiles.some(tileSpills)) return;
 
   tags.forEach(g => { g.style.display = "none"; });
@@ -2006,12 +2045,21 @@ function fitDeck(){
   }
 }
 
+const ONE_LINE = 0.72;
 function fitNames(){
   // Fit each name, then drop the whole grid to the smallest of them. One size
   // across the deck scans far faster than fourteen individually-optimal ones,
   // and shrinking is always safe — a name that fit at 30px fits at 22px.
+  // One line first: a name that stays on one line at ONE_LINE of its full
+  // size is shrunk to fit it, because 22 DIVE beside DOUBLE / SLANT on two
+  // lines reads as two different kinds of card. Only a name that cannot —
+  // a long real name like PLAY-ACTION CROSS — goes to two lines instead.
   const kids = [...document.querySelectorAll(".tile .kid")];
-  kids.forEach(e => fitText(e, 15, 2));
+  kids.forEach(e => {
+    e.style.fontSize = "";
+    fitText(e, Math.max(15, parseFloat(getComputedStyle(e).fontSize) * ONE_LINE), 1);
+    if (lineCount(e) > 1 || e.scrollWidth > e.clientWidth + 0.5) fitText(e, 15, 2);
+  });
   if (kids.length){
     const px = Math.min(...kids.map(e => parseFloat(getComputedStyle(e).fontSize)));
     kids.forEach(e => { e.style.fontSize = px + "px"; });
@@ -2355,7 +2403,7 @@ function renderDeck(){
   const cols = Math.min(want, roomFor);
   const compact = cols > 2;
   app.innerHTML = `
-    <div class="deck">
+    <div class="deck home">
       <div class="decktop">
         ${showFilters ? `<div class="dfilt" id="dfilt">${deckFilterHTML(all, cats)}</div>` : ""}
         <div class="dh-right">
