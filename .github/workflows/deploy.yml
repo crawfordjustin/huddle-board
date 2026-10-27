@@ -68,14 +68,18 @@ jobs:
       # project), so it has to happen in the same step that exports the
       # version, or the app ships stamped with a local build's version.
       #
-      # win-x64, because that is what the App Service runs: a portable publish
-      # carries SkiaSharp's native binaries for every platform, and the package
-      # outgrew the app's disk.
+      # One runtime, because a portable publish carries SkiaSharp's native
+      # binaries for every platform and the package outgrew the app's disk. And
+      # win-x86, not x64, because the App Service runs a 32-bit worker (the
+      # Free plan allows nothing else) and a win-x64 publish compiles the site
+      # as x64-only, which a 32-bit worker cannot load: every request was
+      # "500.30 - ASP.NET Core app failed to start". Change this only together
+      # with the app's "Platform" setting.
       - name: Publish the site
         run: |
           export HB_VERSION="$(date -u +%Y.%m.%d-%H%M)+${GITHUB_SHA::7}"
           echo "building $HB_VERSION"
-          dotnet publish src/HuddleBoard.Web -c Release -r win-x64 --self-contained false -o publish
+          dotnet publish src/HuddleBoard.Web -c Release -r win-x86 --self-contained false -o publish
 
       # These three are identifiers, not credentials, so they are repository
       # variables rather than secrets — a failed login is far easier to read
