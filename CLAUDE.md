@@ -700,10 +700,19 @@ publish folder with `clean: true` — the old static app sat at the root of
 **Keep the package small.** The first publish was 157 MB zipped and the deploy
 failed with "not enough space on the disk": a portable publish carries
 SkiaSharp's native binaries for every platform, and its native symbols are
-86 MB each. CI publishes for `win-x64` only, and the Web project drops
-packages' `.pdb` files (`DropPackageSymbols`), which brings it to about 14 MB.
+86 MB each. CI publishes for one runtime only, and the Web project drops
+packages' `.pdb` files (`DropPackageSymbols`), which brings it to about 13 MB.
 The site never draws with Skia — only `build` does, and a published site does
 not run it.
+
+**That runtime is `win-x86`, and it has to match the worker.** The App Service
+runs a 32-bit worker process (`use32BitWorkerProcess`; the Free plan allows
+nothing else). A RID-specific publish compiles the site's own assembly for that
+platform, so a `win-x64` publish is x64-only and a 32-bit worker cannot load it:
+the deploy reports success and every request is *500.30 — ASP.NET Core app
+failed to start*. Moving to a 64-bit worker means changing the app's Platform
+setting and the workflow's `-r` together. To reproduce locally, run the publish
+with the 32-bit `dotnet` under `C:\Program Files (x86)\dotnet`.
 
 The App Service runs the **.NET 10 stack on Windows with Always On**. A static
 site never cold-started; an ASP.NET one does after idling, and the first open
