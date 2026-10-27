@@ -225,17 +225,28 @@ over the shipped defaults, never over what the tablet had before, so the result
 depends on the file alone. `SyncChecks` holds all of it across two browser
 contexts, which is what gives two tablets two separate stores.
 
-**11. A coach starts from a pack, not from an empty deck.** The shipped play
-packs (`PlayPacks.cs`) are six complete game decks, Week 1 through Week 6,
-chosen by name from a strip on the Change plays screen. Every week stands on
-its own — a run, a quick pass, something downfield or for the no-run zone, and
-a goal line call, four to six plays — because a deck is what a coach carries
-into one game, and six he can find without looking beats fourteen he has to
-hunt through. The weeks are not cumulative: where one brings a reverse, the
-sweep or pitch it punishes was a week or two before, and across the season a
-team sees every play in the library once. `PlayLibraryChecks` pins all of
-that. The first pack *is* the starting deck: `ProtoExporter` reads
-`defaultDeck` from it, so Start over and Week 1 cannot disagree.
+**11. A coach starts from Week 1, and builds the rest.** The shipped play
+packs (`PlayPacks.cs`) are six week slots on a strip on the Change plays
+screen. **Week 1** is a complete game deck — a run, a quick pass, a third
+down and a goal line call, four plays — because a deck is what a coach
+carries into one game, and four he can find without looking beats fourteen
+he has to hunt through. **Weeks 2 to 6 ship empty.** They used to be five
+more curated game decks covering the whole library. That was more of somebody
+else's season plan than a coach wanted to start from, so they are slots for
+his own decks. `PlayLibraryChecks` pins both halves: Week 1 is a whole game,
+and every other week ships empty. The first pack *is* the starting deck:
+`ProtoExporter` reads `defaultDeck` from it, so Start over and Week 1 cannot
+disagree, and `PlayPacks.Check` fails the deploy gate if it is ever empty.
+
+**The deck can be empty.** A coach who clears it to build his own keeps an
+empty deck through a reload and a sync. It is not refilled with Week 1; only
+Start over does that. An empty deck screen says what the play library is and
+offers one green button to it (`#dlib`, the intro's own `.start`). An empty
+week is a slot, not a deck. It is never lit as "the deck you have", even when
+the deck is empty too. Tapping it says how to fill it rather than emptying
+the deck, and Save deck is disabled while there is nothing to save. A sync
+file spells empty weeks out as `[]`, and `readSetup` does not count those as
+unrecognised.
 
 Taking a pack replaces the deck, the same way a sync import does and for the
 same reason — the point is a deck somebody chose, not a merge nobody did — so
@@ -463,8 +474,8 @@ is at `|x| = 15.7`, the goal line at `y = 15`.
    `Throwers`, which names the kid who throws it instead (JET PASS: the sweep
    man). Then the chain has to reach him, his run has to end behind the line,
    and `Ball` is *his* first read.
-4. Put it in a week in `PlayPacks.cs` — every play is in exactly one shipped
-   week, and `PlayLibraryChecks` holds that.
+4. Only Week 1 ships with plays, so a new play goes in no week unless it is
+   meant to be part of the deck a new tablet starts with.
 5. `check` until clean, then `dotnet test`.
 
 Prefer **concept × formation** over inventing concepts. Most concepts port to

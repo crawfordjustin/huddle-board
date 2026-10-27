@@ -81,33 +81,30 @@ public sealed class PlayLibraryChecks
     }
 
     /// <summary>
-    /// Every pack is made of real plays, none twice, and the first one is the
-    /// deck a tablet arrives with — so Start over and Week 1 cannot drift apart.
+    /// The first pack is real plays, none twice, and the deck a tablet arrives
+    /// with — so Start over and Week 1 cannot drift apart. The rest ship as
+    /// empty slots for a coach's own decks.
     /// </summary>
     [Fact]
-    public void EveryPackNamesRealPlaysAndTheFirstIsTheStartingDeck()
+    public void Week1IsTheStartingDeckAndTheRestShipEmpty()
     {
         var findings = PlayPacks.Check(PlayLibrary.All).Select(f => f.Message).ToList();
         Assert.True(findings.Count == 0, string.Join("\n", findings));
         Assert.Equal([1, 5, 7, 13], PlayPacks.Starting);
 
-        // every week is a whole game deck on its own: a run, a pass, a goal line call,
+        // week 1 is a whole game deck on its own: a run, a pass, a goal line call,
         // and small enough to find a play in without looking
         var cat = PlayLibrary.All.ToDictionary(p => p.Num, p => p.Category);
-        foreach (var pack in PlayPacks.All)
-        {
-            var cats = pack.Plays.Select(n => cat[n]).ToList();
-            Assert.True(cats.Contains("RUN ZONE"), $"{pack.Name} has no run");
-            Assert.True(cats.Any(c => c != "RUN ZONE" && c != "GOAL LINE"), $"{pack.Name} has no pass");
-            Assert.True(cats.Contains("GOAL LINE"), $"{pack.Name} has no goal line call");
-            Assert.InRange(pack.Plays.Count, 4, 6);
-        }
+        var week1 = PlayPacks.All[0];
+        var cats = week1.Plays.Select(n => cat[n]).ToList();
+        Assert.True(cats.Contains("RUN ZONE"), "Week 1 has no run");
+        Assert.True(cats.Any(c => c != "RUN ZONE" && c != "GOAL LINE"), "Week 1 has no pass");
+        Assert.True(cats.Contains("GOAL LINE"), "Week 1 has no goal line call");
+        Assert.InRange(week1.Plays.Count, 4, 6);
 
-        // no two weeks are the same deck, and the season shows a team every play once
-        Assert.Equal(PlayPacks.All.Count,
-            PlayPacks.All.Select(k => string.Join(",", k.Plays.Order())).Distinct().Count());
-        var seen = PlayPacks.All.SelectMany(k => k.Plays).ToHashSet();
-        var unseen = PlayLibrary.All.Select(p => p.Num).Where(n => !seen.Contains(n)).ToList();
-        Assert.True(unseen.Count == 0, "no week plays: " + string.Join(", ", unseen));
+        // six slots in all, and every one after the first is the coach's to fill
+        Assert.Equal(6, PlayPacks.All.Count);
+        foreach (var pack in PlayPacks.All.Skip(1))
+            Assert.True(pack.Plays.Count == 0, $"{pack.Name} ships with plays in it");
     }
 }
