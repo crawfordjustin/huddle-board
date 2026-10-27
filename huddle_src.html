@@ -10,10 +10,7 @@
   --oob:#1E2521; --oob-hatch:#38423B; --oob-ink:#7C887F;
   --run:#127A4D; --route:#232B26;
   --pass:#2A6FD6; --pass-lt:#7FB2F2;   /* run vs pass, legible on either ground */
-  /* the deck: a coach's playbook on a sideline. Warm paper cards on a deep
-     field green, rather than bright white on near-black */
-  --card:#F7F5EE; --deck:#123323; --deck-hi:#1A4431; --deck-line:rgba(255,255,255,.15);
-  --deck-chip:rgba(3,18,10,.42);
+  --card:#F7F5EE;                      /* the deck's cards: warm paper, not bright white */
   --disp:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --body:"Barlow","Helvetica Neue",system-ui,sans-serif;
 }
@@ -45,15 +42,6 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
    menu on its right. Change plays lives in the menu with Setup and Exit. */
 .decktop{flex:none;display:flex;align-items:center;justify-content:space-between;
   gap:clamp(14px,2.2vw,32px)}
-/* The deck itself — not Setup or the library, which share .deck — sits on
-   field green. On the green the dark chrome would read as holes, so it goes
-   translucent. */
-.deck.home{background:radial-gradient(ellipse 120% 80% at 50% 0%,var(--deck-hi),var(--deck) 70%)}
-.home .fchip:not(.on),.home .edit:not(.upd),.home .ham,.home .clock:not(.warn):not(.danger):not(.gone){
-  background:var(--deck-chip);border-color:var(--deck-line)}
-.home .lsep{background:var(--deck-line)}
-.home .menu{background:#16301F;border-color:var(--deck-line)}
-.home .decknote{color:#9DB5A4}
 .decktop .dfilt{flex:1 1 0;min-width:0;padding:0}
 .decktop .dh-right{flex:none;margin-left:auto;align-self:flex-start}
 .barright{justify-self:end;display:flex;align-items:center;gap:clamp(8px,1.2vw,16px)}
@@ -2404,7 +2392,7 @@ function renderDeck(){
   const cols = Math.min(want, roomFor);
   const compact = cols > 2;
   app.innerHTML = `
-    <div class="deck home">
+    <div class="deck">
       <div class="decktop">
         ${showFilters ? `<div class="dfilt" id="dfilt">${deckFilterHTML(all, cats)}</div>` : ""}
         <div class="dh-right">
