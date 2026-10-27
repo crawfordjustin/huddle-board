@@ -341,7 +341,11 @@ formations), draw each kid's ROUTE by tapping points, and give someone the
 BALL as a pass or a run. It is a coach's screen at a table before practice,
 never the sideline, so it can ask for precision the deck never could. The
 field is the play screen's own `buildScene()`/`frame()` with the drawing laid
-over it, and **Preview** runs the real animation. **Start over**, beside Save,
+over it, and **Preview** runs the real animation. The designer's field runs
+to `DZ_BOT`, two yards deeper than the play screen's `FIELD_BOT`, and draws
+its markers and names smaller, because two backs and a pitch behind the
+THROWER did not fit; a kid or a point still stops at `FIELD_BOT`, the deepest
+the play screen shows whole. **Start over**, beside Save,
 puts the drawing back on the formation it began from: every kid on his spot,
 no routes, no ball. It keeps the names and, on a saved play, the id, so Save
 still overwrites that play. It takes two taps and is disabled while there is
@@ -385,6 +389,28 @@ the closest they come. Runners drawn so they never meet get an honest checker
 error saying how far apart they are. The call strip names the carriers in the
 order they have the ball, as play 26's does. `DesignerChecks` rebuilds PITCH
 REVERSE from scratch and reads the ball either side of the exchange.
+
+A pass can be thrown by a **back**: JET PASS, drawn. With a target picked,
+**Hand off** or **Pitch** (both "he throws it") and a tap on a kid makes him
+the passer — stored as `ball.via` on a pass, one kid, never the THROWER and
+never the target, plus `ball.pitch` for a toss. He runs his line, stops, and
+throws from where it ends; `clampFor` holds his line behind the line exactly
+as it holds a rollout's, and the compiled play names him in `ball.thrower`
+with one leg, which is all `buildTimeline` and `throwArc` already needed. A
+handoff is placed by `meetPoint`. A pitch is placed by `pitchPoint`: a toss
+of at least `PITCH_MIN` yards, out in front of the runner and **behind or
+level with the THROWER**, because a pitch that goes forward is a forward pass
+and the kid who catches it could not throw again. The compiled handoff
+carries `pitch: true`, and `checkPlay` errors on one that goes forward
+(`LEGAL/pitch`) — the one rule with no copy in `PlayChecker.cs`, because the
+shipped format has no word for a pitch, so it cannot fire on the library and
+parity holds. Tapping a new target keeps the passer; **Take back** gives the
+throw back to the THROWER with the same target; switching to Run drops the
+passer. Any exchange keeps the play out of NO-RUN ZONE. The flea flicker —
+the ball coming back to the THROWER — is deliberately not drawable:
+`saneDesign` still holds that he only ever starts a chain. `DesignerChecks`
+draws both, reads the ball mid-run and after the catch, and holds that a
+pitch to a kid who never comes back behind the THROWER will not save.
 
 What is stored is the **drawing**, not the play — spots, route points, who
 gets the ball, names — under `localStorage` `hb.plays`, keyed by `u_` ids that
@@ -701,8 +727,9 @@ classic route into quirks mode) and writes `LICENSE.txt` into `dist/deploy/`.
   draws plays that live on one tablet and its sync partners; the library
   itself still grows by editing `PlaysMore.cs`. Not yet in the designer, and
   the obvious next steps: copy-and-edit of a shipped play, pre-snap motion
-  (REVERSE and JET REVERSE start with it), a non-THROWER passer (JET PASS:
-  the chain is there, the throw at the end of it is not), a rollout that throws on the run
+  (REVERSE and JET REVERSE start with it), a reverse that ends in a throw
+  (the passer takes the ball from the THROWER and nobody else), a pitch on a
+  run, the flea flicker (decided against for now), a rollout that throws on the run
   (partway along, rather than from the end), editable per-kid instructions, and
   printing or graduating a drawn play into the library.
 - **Rewriting the app in Blazor.** The single HTML file is the product: it opens
