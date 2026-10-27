@@ -67,11 +67,15 @@ jobs:
       # Publishing runs `build` itself (BuildHuddleBoardSite in the Web
       # project), so it has to happen in the same step that exports the
       # version, or the app ships stamped with a local build's version.
+      #
+      # win-x64, because that is what the App Service runs: a portable publish
+      # carries SkiaSharp's native binaries for every platform, and the package
+      # outgrew the app's disk.
       - name: Publish the site
         run: |
           export HB_VERSION="$(date -u +%Y.%m.%d-%H%M)+${GITHUB_SHA::7}"
           echo "building $HB_VERSION"
-          dotnet publish src/HuddleBoard.Web -c Release -o publish
+          dotnet publish src/HuddleBoard.Web -c Release -r win-x64 --self-contained false -o publish
 
       # These three are identifiers, not credentials, so they are repository
       # variables rather than secrets — a failed login is far easier to read
