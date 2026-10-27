@@ -314,6 +314,64 @@ that has not seen it, and holds that NEXT is on screen on every slide at every
 size — the slides are the one screen with no other way off — and that once
 means once.
 
+**13. A coach can draw his own play, and the tablet checks it.** **New play**
+on the Change plays screen opens the designer: pick one of the four
+formations, then MOVE anyone anywhere legal (trick plays live outside the
+formations), draw each kid's ROUTE by tapping points, and give someone the
+BALL as a pass or a run. It is a coach's screen at a table before practice,
+never the sideline, so it can ask for precision the deck never could. The
+field is the play screen's own `buildScene()`/`frame()` with the drawing laid
+over it, and **Preview** runs the real animation. A route is drawn one leg
+at a time, on purpose: tapping a kid only picks him. Tapping inside the
+dotted ring (round the kid, then on the end of his route) starts a leg, the
+next tap is where it ends, and he is back to just picked with the ring on the
+new end. It used to keep drawing after every leg, so picking another player
+dragged a leg across the field after him. Dragging from the ring pulls a first
+leg out of the kid, or moves the route's end. While a leg is being drawn, a tap
+lands on a marker only if it is right on it (`HIT_ON`); picking uses the wider
+`HIT_PICK`. The ring's drawn radius is its hit area (`RING_KID`, `RING_END`),
+because an invisible hit circle wider than anything on screen once made the
+first point a hunt for its edge.
+
+The checker is ported to JavaScript (`checkPlay`) because a drawn play has to
+pass the same gate as a shipped one and the tablet has no C#. It reads the
+tablet's play format, so it runs unchanged on shipped and drawn plays, and
+`DesignerChecks` holds that it finds exactly what `PlayChecker` finds on the
+whole shipped library — two copies of one rulebook are only safe while
+something proves they agree. **Change a rule in `PlayChecker.cs` and you must
+make the same change in `checkPlay`**, or that check fails. Save stays shut
+while there is an error; warnings are shown and allowed. A coach never draws
+a handoff: `meetPoint` puts the exchange where the thrower and the carrier
+actually meet at 6 yd/s, so it passes the timing rule by construction. On a
+pass the thrower stays put; he gets a route only as the carrier of a keeper.
+
+What is stored is the **drawing**, not the play — spots, route points, who
+gets the ball, names — under `localStorage` `hb.plays`, keyed by `u_` ids that
+cannot collide with `p_NN`. `compileDesign` turns it into the tablet's play on
+every load, so the call strip and jobs are always the running build's words,
+and a play from a sync file is numbers and names, never markup. Routes are
+named in the nine shapes by `shapeOf` (OUT is toward the kid's own sideline);
+a route that is none of them gets the checker's vocabulary warning, which is
+rule 1 reaching the designer. A dragged kid **keeps his formation name** —
+the huddle told him he is SLOT ORANGE — and his job starts with where to line
+up ("LINE UP behind SLOT ORANGE, then OUT at 4"); the formation reads
+"· SHIFTED". A play files under one of the five situations or **CUSTOM**, and
+wears a "Yours" chip and a ★ in the library. A new play goes straight into
+the deck. The pencil on a drawn play's row opens the designer, not the rename
+sheet. A stored design the checker now rejects is kept and marked "Needs
+fixing", never dropped; one this build cannot read at all is carried through
+saves untouched.
+
+Drawn plays survive an update and survive **Start over**, which puts back what
+shipped and a drawn play is not that — Setup's **Your own plays** row clears
+them, two taps, and clearing leaves no hole in the deck or a saved week. The
+sync file carries them as drawings and import **replaces** them like
+everything else (rule 10), so with any on the tablet Import arms on the first
+tap and the row says how many it will replace. `readSetup` runs every play in
+the file through `saneDesign` and then the checker, and counts what fails.
+`DesignerChecks` holds the parity, drawing, moving, the handoff, the save
+gate, the fit across the five sizes, the update, the sync and the storage.
+
 ## Source layout
 
 ```
@@ -598,8 +656,12 @@ classic route into quirks mode) and writes `LICENSE.txt` into `dist/deploy/`.
 
 ## Out of scope (decided, not forgotten)
 
-- **Coach-authored plays.** The library grows by editing `PlaysMore.cs`, not
-  through UI. Revisit only with the checker validating user input.
+- **Coach-authored plays in the shipped library.** The designer (rule 13)
+  draws plays that live on one tablet and its sync partners; the library
+  itself still grows by editing `PlaysMore.cs`. Not yet in the designer, and
+  the obvious next steps: copy-and-edit of a shipped play, pre-snap motion,
+  reverses and a non-THROWER passer, editable per-kid instructions, and
+  printing or graduating a drawn play into the library.
 - **Rewriting the app in Blazor.** The single HTML file is the product: it opens
   from a file, on a tablet, with no network and no runtime. A WASM runtime works
   against that, and every gotcha above would have to be re-solved.

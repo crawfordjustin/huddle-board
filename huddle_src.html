@@ -533,6 +533,45 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   .toursay{flex:0 1 auto;width:100%;align-items:center;text-align:center}
   .toursay p{max-width:44ch}
 }
+/* ------------------------------------------------------------- designer
+   The play screen's own layout — bar, field, rail, strip — because it draws
+   the play screen's own field. It is a coach's screen at a table, so the rail
+   holds more buttons than the play screen's three, smaller, and scrolls
+   rather than pushing anything off the short landscape. */
+.dzrail{justify-content:flex-start;overflow-y:auto;overscroll-behavior:contain;
+  gap:clamp(5px,1vh,10px);scrollbar-width:thin}
+.dzrail .rbtn{padding:clamp(6px,1.3vh,13px) 4px;min-height:46px}
+.dzrail .rbtn[disabled]{opacity:.4}
+.dzrail .rbtn.sub{background:var(--ground)}
+.dzrail .rbtn.sub.on{background:var(--ink);color:#fff}
+.dzrail .rsep{flex:none;height:1.5px;background:var(--hair);margin:1px 2px}
+.designer #field{touch-action:none;cursor:crosshair}
+.dznext:not(.armed){animation:dzpulse 1.2s ease-in-out infinite}
+@keyframes dzpulse{50%{stroke-opacity:.25}}
+@media (prefers-reduced-motion:reduce){.dznext{animation:none}}
+.dzline{flex:none;padding:clamp(5px,.9vh,9px) clamp(10px,1.4vw,18px);
+  font-size:clamp(11px,1.7vh,15px);font-weight:600;line-height:1.3;
+  background:var(--surface);border-top:1.5px solid var(--hair);color:var(--ink-2)}
+.dzline.err{background:#FBE9E6;color:#8E2418}
+.dzline.warn{background:#FBF2DF;color:#6B4A00}
+.dzline.ok{color:var(--run)}
+.dzline.note{background:#E8F1FC;color:#174E93}
+.designer .calls{max-height:clamp(58px,13vh,110px);overflow-y:auto}
+.fmpick{display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,1.4vh,14px)}
+.fmbtn{display:flex;flex-direction:column;gap:6px;align-items:stretch;padding:8px;
+  border-radius:12px;background:#141A16;border:1.5px solid #39433C}
+.fmbtn b{font-family:var(--disp);font-size:clamp(14px,2.3vh,20px);text-transform:uppercase;
+  letter-spacing:.04em;color:#EDF0EC}
+.fmbtn:active{transform:scale(.97)}
+.seg.wrap{flex-wrap:wrap}
+.seg button[data-cat].on{background:var(--cat);border-color:var(--cat)}
+.sheet .seg button{min-height:44px;padding:0 10px}
+.nfield input.plain{text-transform:none;font-family:var(--body);font-size:clamp(14px,2.2vh,18px)}
+.catchip.mine{background:#56657A}
+.lnum.mine{color:var(--ball)}
+.lren.mine{color:#8FC9A8}
+.lfix{font-style:normal;color:#F08A7E}
+.lrow.on .lfix{color:#B23A2B}
 .hidden{display:none!important}
 @media (prefers-reduced-motion:reduce){.tile,.rbtn,.start{transition:none}}
 </style>
@@ -948,6 +987,8 @@ function setupBlob(){
     packs: Object.fromEntries(packsNow().map(k => [k.id, k.plays.slice()])),
     // and the coach's own names for them, like play names: only what differs
     packNames,
+    // the plays drawn here, as drawings: the other tablet compiles them itself
+    plays: Object.values(designs),
   });
 }
 // The file, read with suspicion. Returns what will be applied plus a count of
@@ -956,14 +997,25 @@ function readSetup(text){
   let o = null;
   try { o = JSON.parse(text); } catch(e){}
   if (!o || o.format !== SETUP_FORMAT || o.v !== 1) throw new Error("not a setup file");
-  const known = id => typeof id === "string" && DATA.plays.some(p => p.id === id);
-  const s = {deck:[], names:{}, settings:{}, ourSide:null, dropped:0};
+  const s = {deck:[], names:{}, settings:{}, ourSide:null, dropped:0, plays:{}};
+  // the plays first, because the deck and the weeks may name them. Each one is
+  // a drawing to compile, never a play to trust: it has to be the right shape,
+  // and then it has to pass the same checker the designer holds a coach to.
+  // This tablet's own plays are no help here — import replaces them.
+  if (Array.isArray(o.plays)) for (const raw of o.plays){
+    const d = saneDesign(raw);
+    if (!d || s.plays[d.id] || errorsIn(compileDesign(d, 0)).length){ s.dropped++; continue; }
+    s.plays[d.id] = d;
+  }
+  const shipped = id => typeof id === "string" && DATA.plays.some(p => p.id === id && !p.custom);
+  const known = id => shipped(id) || (typeof id === "string" && !!s.plays[id]);
+  const knownPlay = known;            // the weeks below are read against the file, too
   if (Array.isArray(o.deck)) for (const id of o.deck){
     if (known(id) && !s.deck.includes(id)) s.deck.push(id); else s.dropped++;
   }
   if (o.names && typeof o.names === "object") for (const id of Object.keys(o.names)){
     const n = o.names[id];
-    if (!known(id) || !n || typeof n !== "object"){ s.dropped++; continue; }
+    if (!shipped(id) || !n || typeof n !== "object"){ s.dropped++; continue; }
     s.names[id] = {coach: typeof n.coach === "string" ? n.coach : "",
                    kid:   typeof n.kid   === "string" ? n.kid   : ""};
   }
@@ -991,6 +1043,9 @@ function readSetup(text){
   return s;
 }
 function applySetup(s){
+  // the plays land first, so the deck and the weeks below can resolve them
+  designs = Object.assign({}, s.plays); strayDesigns = {};
+  saveDesigns(); refreshPlays();
   if (s.deck.length){ deck = s.deck.slice(); saveDeck(); } else s.dropped++;
   names = {};
   for (const id of Object.keys(s.names)) setNames(id, s.names[id].coach, s.names[id].kid);
@@ -1047,6 +1102,7 @@ async function importSetup(file){
                    `${renamedCount()} renamed play${renamedCount() === 1 ? "" : "s"}`,
                    `${savedPackCount()} saved week${savedPackCount() === 1 ? "" : "s"}`,
                    `${renamedPackCount()} renamed week${renamedPackCount() === 1 ? "" : "s"}`,
+                   `${customCount()} play${customCount() === 1 ? "" : "s"} of your own`,
                    "settings", `${ourSide.toUpperCase()} sideline`];
     const d = s.dropped;
     syncMsg = "Imported: " + parts.join(", ") + "." +
@@ -1111,13 +1167,526 @@ function paintClock(){
   if (clk.running && !clk.warned && t <= cfg.warnAt){ clk.warned = true; buzz(60); }
   if (gone && !clk.expired){ clk.expired = true; buzz([120,90,120]); logEvent("clock_expired"); }
 }
+// CUSTOM is the one situation no shipped play is in: a coach's own play that
+// he did not want to file under one of the five. It is last, so it sorts last.
 const CAT = {"RUN ZONE":"#127A4D","QUICK GAME":"#1B6BA8","SHOT PLAY":"#8A3AB0",
-             "NO-RUN ZONE":"#C9700D","GOAL LINE":"#C0392B"};
+             "NO-RUN ZONE":"#C9700D","GOAL LINE":"#C0392B","CUSTOM":"#56657A"};
 const COMPLEXITY = {simple:"#2A7B50",moderate:"#826C32",advanced:"#7045A0"};
 const complexityHTML = p =>
   `<span class="catchip complexity" style="--complex:${COMPLEXITY[p.complexity]}">${p.complexity}</span>`;
+// a coach's own play says so, or he cannot tell it from a shipped one in the same colour
+const mineChip = p => p.custom ? `<span class="catchip mine">Yours</span>` : "";
 const SIDE = {blue:"#1D6FD0", orange:"#E4610F", none:"#141A16"};
 const app = document.getElementById("app");
+
+/* ---------------------------------------------------------- the checker
+   PlayChecker.cs, ported line for line, because a coach's own play has to
+   pass the same gate as a shipped one and the tablet has no C# on it. It
+   reads the play the way the tablet does — spots, paths, calls — so it runs
+   unchanged on a shipped play and on a drawn one. DesignerChecks holds that
+   it finds exactly what PlayChecker finds on all the shipped plays: two
+   copies of one rulebook are only safe while something proves they agree.
+   Findings name spots ("WIDE BLUE"), not keys, because a coach reads them. */
+const CK = {edge:15.7, goal:15, backfield:-7, minEndGap:3, minLane:1.6, maxExchange:2,
+            maxOffLine:0.5, downfield:1.5, speed:6, step:0.06};
+const SHAPE_WORDS = ["GO","OUT","IN","SIT","CORNER","POST","WHEEL","SWING","CARRY"];
+const EXTRA_VERBS = ["MOTION","FAKE","SNAP","BLOCK-FREE"];
+const ydist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const orElse = (v, f) => v !== 0 ? v : f;
+const f1 = v => v.toFixed(1);
+
+function segDist(a, b, c, d){         // shortest distance between ab and cd
+  const ux = b[0]-a[0], uy = b[1]-a[1], vx = d[0]-c[0], vy = d[1]-c[1];
+  const wx = a[0]-c[0], wy = a[1]-c[1];
+  const A = ux*ux + uy*uy, B = ux*vx + uy*vy, C = vx*vx + vy*vy;
+  const D = ux*wx + uy*wy, E = vx*wx + vy*wy;
+  const den = A*C - B*B;
+  let sN = 0, sD = orElse(den, 1), tN = 0, tD = orElse(den, 1);
+  if (den < 1e-9){ sN = 0; sD = 1; tN = E; tD = orElse(C, 1); }
+  else {
+    sN = B*E - C*D; tN = A*E - B*D;
+    if (sN < 0){ sN = 0; tN = E; tD = orElse(C, 1); }
+    else if (sN > sD){ sN = sD; tN = E + B; tD = orElse(C, 1); }
+  }
+  if (tN < 0){ tN = 0; sN = A !== 0 ? Math.min(Math.max(-D, 0), A) : 0; sD = orElse(A, 1); }
+  else if (tN > tD){ tN = tD; sN = A !== 0 ? Math.min(Math.max(B - D, 0), A) : 0; sD = orElse(A, 1); }
+  const sc = Math.abs(sD) > 1e-9 ? sN / sD : 0, tc = Math.abs(tD) > 1e-9 ? tN / tD : 0;
+  return Math.hypot(wx + sc*ux - tc*vx, wy + sc*uy - tc*vy);
+}
+// only the part of a path at or past the crowd at the line
+function clipDownfield(pts){
+  const segs = [];
+  for (let i = 0; i < pts.length - 1; i++)
+    if (pts[i][1] >= CK.downfield || pts[i+1][1] >= CK.downfield) segs.push([pts[i], pts[i+1]]);
+  return segs;
+}
+function arcOf(pts){                  // cumulative distance along a path, and its length
+  const cum = [0];
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++){ total += ydist(pts[i+1], pts[i]); cum.push(total); }
+  return {cum, total};
+}
+function atDist(pts, cum, d){         // where a kid is once he has run d yards
+  if (d <= 0) return pts[0];
+  if (d >= cum[cum.length-1]) return pts[pts.length-1];
+  for (let i = 0; i < cum.length - 1; i++){
+    if (d > cum[i+1]) continue;
+    const span = cum[i+1] - cum[i], f = span < 1e-9 ? 0 : (d - cum[i]) / span;
+    return [pts[i][0] + f*(pts[i+1][0] - pts[i][0]), pts[i][1] + f*(pts[i+1][1] - pts[i][1])];
+  }
+  return pts[pts.length-1];
+}
+function nearestOn(pts, cum, q){      // how far q is from a path, and how far along it
+  if (pts.length === 1) return {gap: ydist(q, pts[0]), along: 0};
+  let best = Infinity, along = 0;
+  for (let i = 0; i < pts.length - 1; i++){
+    const a = pts[i], b = pts[i+1], dx = b[0]-a[0], dy = b[1]-a[1], len2 = dx*dx + dy*dy;
+    const f = len2 < 1e-9 ? 0 : Math.min(1, Math.max(0, ((q[0]-a[0])*dx + (q[1]-a[1])*dy) / len2));
+    const gap = ydist(q, [a[0] + f*dx, a[1] + f*dy]);
+    if (gap < best){ best = gap; along = cum[i] + f*Math.sqrt(len2); }
+  }
+  return {gap: best, along};
+}
+const trackOrder = t => t === "motion" ? 0 : t === "handoff" ? 1 : 2;
+// one kid's segments stitched into the path he actually walks, plus his head start
+function playerTrack(paths){
+  let segs = paths.slice();
+  if (segs.some(q => q.type === "run" || q.type === "route" || q.type === "fake"))
+    segs = segs.filter(q => q.type !== "handoff");
+  segs.sort((a, b) => trackOrder(a.type) - trackOrder(b.type));   // stable, like OrderBy
+  const pts = [];
+  let head = 0;
+  for (const seg of segs){
+    let chunk = seg.pts;
+    if (pts.length && ydist(seg.pts[0], pts[pts.length-1]) < 0.4) chunk = chunk.slice(1);
+    if (seg.type === "motion") head += arcOf(seg.pts).total;
+    pts.push(...chunk);
+  }
+  return {pts, head};
+}
+function closestInTime(t1, h1, t2, h2){
+  const a1 = arcOf(t1), a2 = arcOf(t2);
+  const duration = Math.max(a1.total - h1, a2.total - h2) / CK.speed + 0.4;
+  let best = 99, when = 0;
+  for (let t = 0; t <= duration; t += CK.step){
+    const gap = ydist(atDist(t1, a1.cum, h1 + CK.speed*t), atDist(t2, a2.cum, h2 + CK.speed*t));
+    if (gap < best){ best = gap; when = t; }
+  }
+  return {gap: best, when};
+}
+
+function checkPlay(p){
+  const out = [];
+  const nm = k => (p.spots[k] && p.spots[k].name) || k;
+  const err  = (rule, msg, keys) => out.push({level:"error",   rule, msg, keys: keys || []});
+  const warn = (rule, msg, keys) => out.push({level:"warning", rule, msg, keys: keys || []});
+  const spots = p.spots, keysOf = Object.keys(spots);
+
+  // ---- every spot has exactly one job, and it starts where he stands
+  const seen = new Map();
+  for (const path of p.paths){
+    if (!seen.has(path.who)) seen.set(path.who, []);
+    seen.get(path.who).push(path);
+  }
+  const throws = !p.paths.some(q => q.type === "run" || q.type === "handoff");
+  for (const key of keysOf){
+    if (seen.has(key)) continue;
+    if (key === "QB" && throws) continue;     // the thrower throws
+    err("SAFE/no-job", `${nm(key)} has no path — he will stand still while five kids run`, [key]);
+  }
+  for (const [key, paths] of seen){
+    if (!spots[key]){ err("LEGAL/ghost", `${key} is not in this formation`); continue; }
+    const first = paths.find(q => q.type === "motion") || paths.find(q => q.type !== "handoff")
+               || paths[0];
+    const start = first.pts[0], origin = [spots[key].x, spots[key].y];
+    if (ydist(start, origin) > 0.35)
+      err("SAFE/start", `${nm(key)}'s route starts at (${f1(start[0])}, ${f1(start[1])}) but he ` +
+          `lines up at (${f1(origin[0])}, ${f1(origin[1])})`, [key]);
+  }
+
+  // ---- a handoff starts in the giver's hands and ends in the receiver's, at
+  // the same moment
+  for (const path of p.paths.filter(q => q.type === "handoff")){
+    if (path.to == null){
+      err("LEGAL/handoff", `${nm(path.who)} hands the ball to nobody`, [path.who]); continue;
+    }
+    if (path.to === path.who || !spots[path.to]){
+      err("LEGAL/handoff", `${nm(path.who)} hands the ball to somebody who is not on the field`,
+          [path.who]); continue;
+    }
+    const takerPaths = seen.get(path.to);
+    if (!takerPaths || !takerPaths.some(q => q.type === "run" || q.type === "route")){
+      err("LEGAL/handoff", `${nm(path.to)} takes the ball and has nowhere to run — draw him a run`,
+          [path.to]); continue;
+    }
+    const giver = playerTrack(seen.get(path.who)), taker = playerTrack(takerPaths);
+    const gc = arcOf(giver.pts).cum, tc = arcOf(taker.pts).cum;
+    const off = nearestOn(giver.pts, gc, path.pts[0]).gap;
+    if (off > CK.maxOffLine)
+      err("LEGAL/handoff", `${nm(path.who)}'s handoff starts ${f1(off)} yd from anywhere he runs`,
+          [path.who]);
+    const end = path.pts[path.pts.length-1];
+    const along = nearestOn(giver.pts, gc, end).along;
+    const when = Math.max(0, (along - giver.head) / CK.speed);
+    const there = atDist(taker.pts, tc, taker.head + CK.speed*when);
+    const gap = ydist(there, end);
+    if (gap > CK.maxExchange)
+      err("LEGAL/handoff", `${nm(path.who)} hands off ${f1(when)}s into the play, but ` +
+          `${nm(path.to)} is ${f1(gap)} yd away at that moment (needs ${f1(CK.maxExchange)})`,
+          [path.who, path.to]);
+  }
+
+  // ---- everything stays on the field
+  for (const path of p.paths) for (const q of path.pts){
+    if (Math.abs(q[0]) > CK.edge)
+      err("LEGAL/out", `${nm(path.who)} runs out of bounds`, [path.who]);
+    if (q[1] > CK.goal + 4)
+      warn("field/deep", `${nm(path.who)} runs past the back of the end zone`, [path.who]);
+    if (q[1] < CK.backfield)
+      err("field/deep", `${nm(path.who)} drops ${f1(-q[1])} yards behind the line`, [path.who]);
+  }
+
+  // ---- ball handling pairs are allowed to be close; nobody else is
+  const exempt = new Set(["QB", "C"]);
+  for (const path of p.paths)
+    if (path.type === "handoff" || path.type === "motion" || path.type === "run") exempt.add(path.who);
+  const tracks = {};
+  for (const [key, paths] of seen) if (spots[key]) tracks[key] = playerTrack(paths);
+  const tk = Object.keys(tracks).sort();          // ordinal, as SortedDictionary
+  for (let i = 0; i < tk.length; i++) for (let j = i + 1; j < tk.length; j++){
+    const ka = tk[i], kb = tk[j];
+    if (exempt.has(ka) && exempt.has(kb)) continue;
+    const c = closestInTime(tracks[ka].pts, tracks[ka].head, tracks[kb].pts, tracks[kb].head);
+    if (c.gap < CK.minLane)
+      err("SAFE/collide", `${nm(ka)} and ${nm(kb)} are ${f1(c.gap)} yd apart ${f1(c.when)}s into ` +
+          `the play (needs ${f1(CK.minLane)}) — at 8U that is a pileup`, [ka, kb]);
+  }
+
+  // ---- an arrowhead landing on somebody else's line reads as one route
+  const routes = p.paths.filter(q => q.type === "route" || q.type === "run");
+  for (let i = 0; i < routes.length; i++) for (let j = i + 1; j < routes.length; j++){
+    const a = routes[i], b = routes[j];
+    if (a.who === b.who || (exempt.has(a.who) && exempt.has(b.who))) continue;
+    for (const [lead, other] of [[a, b], [b, a]]){
+      const tip = lead.pts[lead.pts.length-1];
+      if (tip[1] < CK.downfield) continue;
+      const segs = clipDownfield(other.pts);
+      if (!segs.length) continue;
+      const dd = Math.min(...segs.map(s => segDist(tip, tip, s[0], s[1])));
+      if (dd < CK.minEndGap && (lead.end || "arrow") === "arrow")
+        warn("SAFE/arrowhead", `${nm(lead.who)}'s arrowhead finishes ${f1(dd)} yd off ` +
+             `${nm(other.who)}'s line — hard to tell whose route is whose`, [lead.who, other.who]);
+    }
+  }
+
+  // ---- the vocabulary: every job must be one of the nine shapes
+  for (const [label, job] of p.calls){
+    const words = job.replace(/→/g, " ").split(/\s+/).filter(Boolean)
+      .map(w => w.replace(/^[ .,—-]+|[ .,—-]+$/g, "").toUpperCase());
+    if (words.some(w => SHAPE_WORDS.includes(w) || EXTRA_VERBS.includes(w))) continue;
+    if (label === "THROWER" || label === "SNAPPER") continue;
+    warn("TEACHABLE/vocab", `${label} is told "${job}" — not one of the nine shapes`,
+         keysOf.filter(k => label.split("/").map(x => x.trim()).includes(nm(k))));
+  }
+
+  // ---- the call strip must name real spots
+  const names = new Set(keysOf.map(nm));
+  for (const [label] of p.calls){
+    if (label === "EVERYONE ELSE" || label === "BOTH WIDES") continue;
+    for (const part of label.split("/").map(x => x.trim()))
+      if (!names.has(part)) err("LEGAL/label", `${part} is not a spot in this formation`);
+  }
+
+  // ---- category promises
+  if (p.category === "NO-RUN ZONE" && p.paths.some(q => q.type === "run" || q.type === "handoff"))
+    err("LEGAL/zone", "filed under NO-RUN ZONE but the ball is handed off — that is a dead ball");
+
+  // ---- the ball has to end up with somebody, the way the exporter insists
+  const b = p.ball || {};
+  if (!b.who || !spots[b.who])
+    err("LEGAL/ball", "nobody gets the ball — pick who catches it or carries it");
+  else if (b.mode !== "carry" && !p.paths.some(q => q.who === b.who))
+    err("LEGAL/ball", `${nm(b.who)} is the target but has no route`, [b.who]);
+  else if (b.mode === "carry"){
+    const legs = b.legs || [];
+    const bad = !legs.length || legs[legs.length-1].who !== b.who || legs.some(l => {
+      const q = p.paths[l.path];
+      return !q || q.who !== l.who || (q.type !== "run" && q.type !== "route");
+    });
+    if (bad) err("LEGAL/ball", `the ball never reaches ${nm(b.who)}`, [b.who]);
+  }
+  return out;
+}
+const errorsIn = p => checkPlay(p).filter(f => f.level === "error");
+
+/* --------------------------------------------------------- a coach's plays
+   Drawn on this tablet in the designer, kept on this tablet under hb.plays,
+   and never in the build, so an update cannot touch them. What is stored is
+   the DESIGN — where six kids stand, the points of each route, who gets the
+   ball, and the names — not the play the tablet reads. The play is compiled
+   from it on every load, by whichever build is running, so the call strip,
+   the per-kid jobs and the handoff are always this build's words for that
+   drawing, and a play that arrives in a sync file is numbers and names
+   rather than markup somebody else wrote. A design the checker now rejects
+   is kept and marked rather than dropped: it is a coach's work, and a
+   stricter rule in a later build is a reason to fix it, not to lose it.
+
+   A kid keeps the name his formation gives him wherever he is dragged: he
+   was told "you are SLOT ORANGE" in the huddle and the rotation sheet agrees.
+   A moved kid's job starts with where to line up instead. */
+const DESIGN_V = 1;
+const ROUTE_CAP = 10;                    // points per route; a real one needs four
+const TAG_CAP = 80;
+// where everybody lines up, read off the shipped plays before any of ours join them
+const FORMATIONS = {};
+for (const p of DATA.plays)
+  if (!FORMATIONS[p.formation]) FORMATIONS[p.formation] = JSON.parse(JSON.stringify(p.spots));
+const FORMATION_ORDER = Object.keys(FORMATIONS);
+const SHAPE_TEACH = {
+  GO: "Sprint straight downfield as fast as you can. Do not stop.",
+  OUT: "Run to the number, plant, and break toward the sideline.",
+  IN: "Run to the number, plant, and break toward the middle.",
+  SIT: "Run to the number, stop, and turn around facing the thrower.",
+  CORNER: "Run up, then break at an angle toward the deep corner.",
+  POST: "Run up, then break at an angle toward the deep middle.",
+  WHEEL: "Run out behind the line, get wide, then turn straight up the sideline.",
+  SWING: "Loop out of the backfield toward the sideline and look back.",
+  CARRY: "You get the ball. Run where the coach points.",
+};
+const DEFAULT_JOB = "GO. Sprint straight downfield and take your defender with you.";
+
+const isNum = v => typeof v === "number" && isFinite(v);
+const isPt = (q, xMax, yMin, yMax) => Array.isArray(q) && q.length === 2 && isNum(q[0]) && isNum(q[1])
+  && Math.abs(q[0]) <= xMax && q[1] >= yMin && q[1] <= yMax;
+const tidyText = (s, cap) => (typeof s === "string" ? s : "").replace(/\s+/g, " ").trim().slice(0, cap);
+
+/* A design, read with suspicion — from storage or from somebody else's file.
+   Returns a clean copy or null. Shape only: whether the play is any GOOD is
+   the checker's question, asked of what this returns. */
+function saneDesign(o){
+  if (!o || typeof o !== "object") return null;
+  if (typeof o.id !== "string" || !/^u_[a-z0-9]{4,16}$/.test(o.id)) return null;
+  const base = FORMATIONS[o.base];
+  if (!base) return null;
+  const d = {id: o.id, v: DESIGN_V, base: o.base, spots: {}, routes: {}, ball: null,
+             coachName: tidyName(o.coachName) || "MY PLAY", kidName: tidyName(o.kidName),
+             tagline: tidyText(o.tagline, TAG_CAP),
+             category: Object.prototype.hasOwnProperty.call(CAT, o.category) ? o.category : "CUSTOM",
+             complexity: Object.prototype.hasOwnProperty.call(COMPLEXITY, o.complexity)
+               ? o.complexity : "simple",
+             created: isNum(o.created) ? o.created : 0};
+  const spots = o.spots && typeof o.spots === "object" ? o.spots : {};
+  for (const k of Object.keys(base)){
+    if (!isPt(spots[k], 16, -8, 1)) return null;
+    d.spots[k] = [spots[k][0], spots[k][1]];
+  }
+  const routes = o.routes && typeof o.routes === "object" ? o.routes : {};
+  for (const k of Object.keys(routes)){
+    const r = routes[k];
+    if (!base[k] || !r || !Array.isArray(r.pts) || r.pts.length > ROUTE_CAP) return null;
+    if (!r.pts.every(q => isPt(q, 17, -8, 20))) return null;
+    if (r.pts.length) d.routes[k] = {pts: r.pts.map(q => [q[0], q[1]]),
+                                     end: r.end === "bar" ? "bar" : "arrow"};
+  }
+  const b = o.ball;
+  if (b && (b.mode === "pass" || b.mode === "carry") && base[b.who]) d.ball = {mode: b.mode, who: b.who};
+  else if (b != null) return null;
+  return d;
+}
+
+/* What a drawn route is, in the nine shapes. Relative to the kid: OUT is
+   toward HIS sideline and IN toward the middle, so the same picture on the
+   other side of the ball is the same word. Anything that is not one of the
+   nine comes back unnamed, and the checker's vocabulary rule says so. */
+function shapeOf(pts, end, side, carrier){
+  const lat = dx => dx < 0 ? "blue" : "orange";
+  const a = pts[0], z = pts[pts.length-1];
+  if (carrier){
+    const dx = z[0] - a[0];
+    return {word: "CARRY", job: Math.abs(dx) < 2.5 ? "CARRY — straight ahead" : `CARRY to ${lat(dx)}`};
+  }
+  const segs = [];
+  for (let i = 1; i < pts.length; i++) segs.push([pts[i][0] - pts[i-1][0], pts[i][1] - pts[i-1][1]]);
+  if (!segs.length) return {word: "GO", job: "GO"};
+  // which way is "out" for this kid: his own side, or for a kid on the ball,
+  // whichever way he ends up going
+  const outSign = side === "blue" ? -1 : side === "orange" ? 1 : Math.sign(z[0] - a[0]) || 1;
+  const up = s => s[1] > 0 && Math.abs(s[0]) <= s[1] * 0.4;
+  const flat = s => Math.abs(s[1]) <= Math.abs(s[0]) * 0.5;
+  const diag = s => s[1] > 0 && !up(s) && !flat(s);
+  const depth = q => Math.max(1, Math.round(q[1]));       // yards past the line, as "OUT at 5" means
+  const toOut = s => Math.sign(s[0]) === outSign;
+  const [s1, s2] = segs;
+  if (segs.length === 1){
+    if (up(s1) || (diag(s1) && s1[1] >= Math.abs(s1[0])))
+      return end === "bar" ? {word: "SIT", job: `SIT at ${depth(z)}`} : {word: "GO", job: "GO"};
+    if (flat(s1) && z[1] <= 1.5) return {word: "SWING", job: `SWING to ${lat(s1[0])}`};
+    if (flat(s1)) return {word: toOut(s1) ? "OUT" : "IN", job: `${toOut(s1) ? "OUT" : "IN"} at ${depth(z)}`};
+  }
+  if (segs.length === 2 && up(s1)){
+    const w = flat(s2) ? (toOut(s2) ? "OUT" : "IN")
+            : diag(s2) ? (toOut(s2) ? "CORNER" : "POST")
+            : up(s2) ? "GO" : null;
+    if (w === "GO") return end === "bar" ? {word: "SIT", job: `SIT at ${depth(z)}`} : {word: "GO", job: "GO"};
+    if (w) return {word: w, job: `${w} at ${depth(pts[1])}`};
+  }
+  // out of the backfield or along the line first: a SWING stays shallow, a
+  // WHEEL turns up the sideline
+  if (!up(s1) && Math.abs(s1[0]) >= Math.abs(s1[1]) * 0.8){
+    const dx = z[0] - a[0];
+    if (z[1] <= 1.5) return {word: "SWING", job: `SWING to ${lat(dx)}`};
+    if (up(segs[segs.length-1]) && Math.abs(dx) >= 2) return {word: "WHEEL", job: `WHEEL to ${lat(dx)}`};
+  }
+  return {word: null, job: "RUN YOUR LINE"};
+}
+
+/* Where to stand, for a kid dragged off his formation spot — said against
+   the nearest teammate, because that is what a seven-year-old can find. */
+function lineupWords(d, key){
+  const here = d.spots[key], base = FORMATIONS[d.base];
+  let best = null;
+  for (const k of Object.keys(d.spots)){
+    if (k === key) continue;
+    const g = ydist(here, d.spots[k]);
+    if (!best || g < best.g) best = {k, g};
+  }
+  const t = d.spots[best.k], name = base[best.k].name;
+  const dx = here[0] - t[0], dy = here[1] - t[1];
+  const where = Math.abs(dx) < 1.25 && dy < 0 ? "behind" : Math.abs(dx) < 1.25 ? "in front of"
+              : Math.abs(dy) < 1 ? "next to" : "near";
+  return `LINE UP ${where} ${name}`;
+}
+const movedFrom = (d, k) => ydist(d.spots[k], [FORMATIONS[d.base][k].x, FORMATIONS[d.base][k].y]) > 0.25;
+
+/* Where the thrower and the carrier meet, at the same speed the checker
+   models: the point on the carrier's run that he reaches at the moment the
+   thrower, walking straight at it from the snap, gets there too. A coach
+   should never have to draw a handoff; this one passes the exchange rule by
+   construction. Null when the run never comes back within reach. */
+function meetPoint(from, run){
+  const {cum, total} = arcOf(run);
+  for (let s = 0; s <= total + 1e-9; s += 0.05){
+    const q = atDist(run, cum, s);
+    if (s >= ydist(from, q)) return q;
+  }
+  return null;
+}
+
+// a design compiled into exactly the shape of play the tablet already reads
+function compileDesign(d, num){
+  const base = FORMATIONS[d.base], keys = Object.keys(base);
+  const spots = {};
+  for (const k of keys) spots[k] = Object.assign({}, base[k], {x: d.spots[k][0], y: d.spots[k][1]});
+  const ball = d.ball, carry = !!ball && ball.mode === "carry", who = ball ? ball.who : "";
+  const paths = [], calls = [], assign = {}, jobs = [];
+  const name = k => base[k].name;
+  const routeOf = k => {
+    const at = d.spots[k], r = d.routes[k];
+    return r ? [at, ...r.pts] : [at, [at[0], 10]];           // the default rule: GO
+  };
+  // the exchange comes first, the way the shipped plays list it
+  let hand = -1;
+  if (carry && who !== "QB"){
+    const run = routeOf(who);
+    const meet = meetPoint(d.spots.QB, run) || run[run.length-1];
+    hand = paths.push({who:"QB", type:"handoff", pts:[d.spots.QB.slice(), meet], to: who}) - 1;
+  }
+  let runIdx = -1, moved = false, lazy = 0;
+  for (const k of keys){
+    if (k === "QB" && !(carry && who === "QB")) continue;      // he throws, or hands it off
+    const pts = routeOf(k), r = d.routes[k], isCarrier = carry && k === who;
+    const path = {who: k, type: isCarrier ? "run" : "route", pts};
+    if (r && r.end === "bar" && !isCarrier) path.end = "bar";
+    const i = paths.push(path) - 1;
+    if (isCarrier) runIdx = i;
+    const sh = shapeOf(pts, path.end, base[k].side, isCarrier);
+    const shift = movedFrom(d, k);
+    moved = moved || shift;
+    const job = (shift ? lineupWords(d, k) + ", then " : "") + sh.job;
+    if (r || shift || isCarrier || k === who){
+      calls.push([name(k), job]); jobs.push(k);
+    } else lazy++;
+    const teach = isCarrier ? (k === "QB" ? "Catch the snap and keep it. Run your line, both hands on the ball."
+                                          : "Take the handoff from the thrower with both hands and run your line.")
+                : sh.word ? SHAPE_TEACH[sh.word] : "Run the line the coach drew for you.";
+    assign[k] = (shift ? lineupWords(d, k) + ". " : "") +
+      (r || isCarrier ? `${sh.job}. ${teach}` : DEFAULT_JOB) +
+      (k === who && !carry ? " The ball is coming to you." : "");
+  }
+  const qbMoved = movedFrom(d, "QB");
+  moved = moved || qbMoved;
+  if (!carry || who !== "QB"){
+    const at = qbMoved ? lineupWords(d, "QB") : "";
+    assign.QB = (at ? at + ". " : "") +
+      (carry ? `Catch the snap, turn, and put the ball in ${name(who)}'s belly with both hands. Do not watch him run.`
+             : who ? `Catch the snap and throw it to ${name(who)}.`
+                   : "Catch the snap.");
+    if (carry){
+      calls.push(["THROWER", (at ? at + ", then " : "") + `hand it to ${name(who)}, don't watch`]);
+      jobs.push("QB");
+    } else if (at) calls.push(["THROWER", at]);
+  }
+  // the kid with the ball first and the thrower next, so the strip reads in
+  // the order it matters; everyone else keeps formation order
+  const rank = c => who && c[0] === name(who) ? 0 : c[0] === "THROWER" ? 1 : 2;
+  calls.sort((x, y) => rank(x) - rank(y));
+  if (lazy) calls.push(["EVERYONE ELSE", "GO"]);
+  const legs = carry ? [hand >= 0 ? {who, path: runIdx, handoff: hand} : {who, path: runIdx}] : null;
+  return {
+    id: d.id, num, custom: true, coachName: d.coachName, kidName: d.kidName,
+    category: d.category, complexity: d.complexity,
+    formation: d.base + (moved ? " · SHIFTED" : ""),
+    tagline: d.tagline || (!who ? "Your own play."
+             : carry ? `Your own run: ${name(who)} carries it.` : `Your own pass to ${name(who)}.`),
+    spots, paths, calls, assign, jobs: [...new Set(jobs)].sort(), primary: who,
+    ball: carry ? {mode: "carry", who, legs} : {mode: "pass", who},
+  };
+}
+
+let designs = {}, strayDesigns = {};
+try {
+  const saved = JSON.parse(localStorage.getItem("hb.plays") || "null");
+  if (saved && saved.v === 1 && saved.byId) for (const id of Object.keys(saved.byId)){
+    const d = saneDesign(saved.byId[id]);
+    // one this build cannot read is still somebody's work: carried, never shown
+    if (d && d.id === id) designs[id] = d; else strayDesigns[id] = saved.byId[id];
+  }
+} catch(e){}
+function saveDesigns(){
+  try { localStorage.setItem("hb.plays",
+          JSON.stringify({v:1, byId: Object.assign({}, strayDesigns, designs)})); } catch(e){}
+}
+const customCount = () => Object.keys(designs).length;
+// the library the rest of the app reads: shipped plays, then the coach's, oldest first
+function refreshPlays(){
+  const mine = Object.values(designs).sort((a, b) => a.created - b.created)
+    .map((d, i) => {
+      const p = compileDesign(d, 1001 + i);
+      p.problems = errorsIn(p).length;
+      return p;
+    });
+  DATA.plays = DATA.plays.filter(p => !p.custom).concat(mine);
+}
+const newPlayId = () => "u_" + Math.random().toString(36).slice(2, 10).padEnd(8, "0");
+// a play that is gone leaves no hole: out of the deck, out of every saved week
+function forgetPlays(ids){
+  deck = deck.filter(id => !ids.includes(id));
+  if (!deck.length) deck = DATA.defaultDeck.slice();
+  saveDeck();
+  for (const k of Object.keys(packSaves)){
+    const left = packSaves[k].filter(id => !ids.includes(id));
+    if (left.length) packSaves[k] = left; else delete packSaves[k];
+  }
+  savePackSaves();
+}
+function deleteDesign(id){
+  delete designs[id]; saveDesigns(); refreshPlays(); forgetPlays([id]);
+}
+function clearDesigns(){
+  const ids = Object.keys(designs);
+  designs = {}; strayDesigns = {}; saveDesigns(); refreshPlays(); forgetPlays(ids);
+}
+refreshPlays();
 
 /* ---------------------------------------------------- play thumbnail */
 /* same proportions and the same dark-surround / light-field logic as the
@@ -1364,11 +1933,11 @@ function tourTile(p){
       <span class="kindrow">
         <span class="kind">${isRun(p) ? "Run" : "Pass"}</span>
         <span class="catchip situation">${p.category}</span>
-        ${complexityHTML(p)}
+        ${complexityHTML(p)}${mineChip(p)}
       </span>
       <span class="kid">${esc(nameOf(p).big)}</span>
-      <span class="coach">${[esc(nameOf(p).small), p.formation].filter(Boolean).join(" &middot; ")}</span>
-      <span class="tag">${p.tagline}</span>
+      <span class="coach">${[esc(nameOf(p).small), esc(p.formation)].filter(Boolean).join(" &middot; ")}</span>
+      <span class="tag">${esc(p.tagline)}</span>
     </span>
     <span class="thumb">${thumbSVG(p)}</span>
   </div>`;
@@ -1635,11 +2204,11 @@ function renderDeck(){
               <span class="kindrow">
                 <span class="kind">${isRun(p) ? "Run" : "Pass"}</span>
               <span class="catchip situation">${p.category}</span>
-              ${complexityHTML(p)}
+              ${complexityHTML(p)}${mineChip(p)}
             </span>
             <span class="kid">${esc(nameOf(p).big)}</span>
-            <span class="coach">${[esc(nameOf(p).small), p.formation].filter(Boolean).join(" &middot; ")}</span>
-            ${compact ? "" : `<span class="tag">${p.tagline}</span>`}
+            <span class="coach">${[esc(nameOf(p).small), esc(p.formation)].filter(Boolean).join(" &middot; ")}</span>
+            ${compact ? "" : `<span class="tag">${esc(p.tagline)}</span>`}
           </span>
           <span class="thumb">${thumbSVG(p)}</span>
         </button>`).join("")}
@@ -1751,13 +2320,20 @@ function renderSettings(){
       tap Save deck and then the week to keep it in, or Rename and then the week to call it something else.
       Both are kept through an update; Reset all puts every shipped week back, deck and name.`,
      `<div class="seg"><button id="pkreset" ${savedPackCount() || renamedPackCount() ? "" : "disabled"}>Reset all</button></div>`],
+    ["Your own plays", `${customCount()} play${customCount() === 1 ? "" : "s"} drawn on this tablet. Draw
+      one from Change plays &mdash; tap New play. They are kept through an update and through Start
+      over, because nothing else on the tablet can draw them again; Clear all is the only thing that
+      removes them.`,
+     `<div class="seg"><button id="dzclear" ${customCount() ? "" : "disabled"}>Clear all</button></div>`],
     ["Show the clock", "Turn it off entirely if your league does not run one.",
      seg("showClock", [[true,"On"],[false,"Off"]])],
     ["Sync tablets", `${msg ? `<em class="setmsg" id="syncmsg">${esc(msg)}</em>` : ""}Assistant
       coaches' tablets do not talk to each other, so carry your choices across as one file: the
-      deck, your own names and decks, every setting above, and which sideline is ours. Export shares the
+      deck, your own names, decks and plays, every setting above, and which sideline is ours. Export shares the
       file &mdash; Quick Share reaches the next tablet with no network. Import on the other
-      tablet replaces its choices with yours. The game log stays put.`,
+      tablet replaces its choices with yours${customCount()
+        ? ` &mdash; <strong>including the ${customCount()} play${customCount() === 1 ? "" : "s"} drawn here</strong>,
+           so export them first if they are only on this tablet` : ""}. The game log stays put.`,
      `<div class="seg"><button id="syncexp">Export</button>
       <button id="syncimp">Import</button>
       <input type="file" id="syncfile" accept=".json,application/json" hidden></div>`],
@@ -1766,8 +2342,8 @@ function renderSettings(){
      `<div class="seg"><button id="logexp">Export</button>
       <button id="logclr">Clear</button></div>`],
     ["Start over", `Puts this tablet back the way it came &mdash; the ${DATA.defaultDeck.length}-play
-      starting deck, every play's shipped name, every week's shipped deck and name, and every setting above. The game log is left
-      alone; clear that with the row above.`,
+      starting deck, every play's shipped name, every week's shipped deck and name, and every setting above. The game log
+      and the plays you drew are left alone; clear those with their own rows.`,
      `<div class="seg"><button id="allreset">Reset tablet</button></div>`],
   ];
   app.innerHTML = `
@@ -1786,8 +2362,13 @@ function renderSettings(){
   document.getElementById("logexp").onclick = e => exportLog(e.currentTarget);
   document.getElementById("syncexp").onclick = e => exportSetup(e.currentTarget);
   const pick = document.getElementById("syncfile");
-  document.getElementById("syncimp").onclick = () => pick.click();
+  // Import replaces, and a play drawn on this tablet exists nowhere else, so
+  // with any here it is two taps like every other button that throws work away
+  if (customCount()) confirmTap("syncimp", () => pick.click());
+  else document.getElementById("syncimp").onclick = () => pick.click();
   pick.onchange = () => { if (pick.files[0]) importSetup(pick.files[0]); };
+  confirmTap("dzclear", () => {
+    logEvent("plays_cleared", {count: customCount()}); clearDesigns(); renderSettings(); });
   confirmTap("logclr", () => { events = []; flushLog(); renderSettings(); });
   confirmTap("nmreset", () => {
     resetNames(); logEvent("play_rename_reset", {play: "all"}); renderSettings(); });
@@ -1856,7 +2437,7 @@ function libFilterHTML(){
    coach's, never turned around at the kids, so a stray tap here cannot rewrite
    a play name in the middle of a huddle. */
 function closeRename(){
-  for (const id of ["rensheet", "pnsheet"]){
+  for (const id of ["rensheet", "pnsheet", "fmsheet", "dzsheet"]){
     const w = document.getElementById(id);
     if (w) w.remove();
   }
@@ -1966,15 +2547,18 @@ function renderLibrary(){
     const on = deck.includes(p.id), nm = nameOf(p);
     return `<button class="lrow ${on ? "on" : ""}" data-id="${p.id}"
               style="--cat:${CAT[p.category]}">
-      <span class="lnum">${p.num}</span>
-      <span class="lname"><b>${esc(nm.big)}</b><i>${nm.small ? esc(nm.small) + " &middot; " : ""}${p.formation}</i></span>
+      <span class="lnum ${p.custom ? "mine" : ""}">${p.custom ? "&#9733;" : p.num}</span>
+      <span class="lname"><b>${esc(nm.big)}</b><i>${p.problems ? `<em class="lfix">Needs fixing</em> &middot; ` : ""}${nm.small ? esc(nm.small) + " &middot; " : ""}${esc(p.formation)}</i></span>
       <span class="lthumb">${thumbSVG(p)}</span>
       <span class="lmeta">
         <span class="lkind ${isRun(p) ? "run" : "pass"}">${isRun(p) ? "Run" : "Pass"}</span>
         <span class="lcomplexity" style="--complex:${COMPLEXITY[p.complexity]}">${p.complexity}</span>
       </span>
-      <span class="lren ${isRenamed(p) ? "on" : ""}" data-ren="${p.id}" role="button"
-        tabindex="0" aria-label="Rename ${esc(nameOf(p).big)}" title="Rename">&#9998;</span>
+      ${p.custom
+        ? `<span class="lren mine" data-ren="${p.id}" role="button" tabindex="0"
+             aria-label="Edit ${esc(nameOf(p).big)}" title="Edit">&#9998;</span>`
+        : `<span class="lren ${isRenamed(p) ? "on" : ""}" data-ren="${p.id}" role="button"
+             tabindex="0" aria-label="Rename ${esc(nameOf(p).big)}" title="Rename">&#9998;</span>`}
       <span class="lmark">${on ? "&#10003;" : "&#43;"}</span>
     </button>`;
   };
@@ -2004,8 +2588,12 @@ function renderLibrary(){
       drawFilters(); drawRows();
     };
     lib.querySelectorAll("[data-ren]").forEach(e => {
+      // a coach's own play has no shipped name to rename away from: its
+      // pencil opens the drawing, names and all
       const open = ev => { ev.stopPropagation(); ev.preventDefault();
-                           openRename(e.dataset.ren, () => { drawCounts(); drawRows(); }); };
+                           const id = e.dataset.ren;
+                           if (designs[id]) openDesigner(id);
+                           else openRename(id, () => { drawCounts(); drawRows(); }); };
       e.addEventListener("click", open);
       e.addEventListener("keydown", ev => {
         if (ev.key === "Enter" || ev.key === " ") open(ev);
@@ -2123,6 +2711,7 @@ function renderLibrary(){
         <h1>Play Library</h1>
         <div class="dh-right">
           <p id="lcount"></p>
+          <button class="edit" id="lnew">New play</button>
           <button class="edit done" id="done">Done</button>
         </div>
       </div>
@@ -2132,7 +2721,492 @@ function renderLibrary(){
       <div class="decknote" id="lnote"></div>
     </div>`;
   document.getElementById("done").onclick = renderDeck;
+  document.getElementById("lnew").onclick = () => pickFormation();
   drawFilters(); drawPacks(); drawRows();
+}
+
+/* -------------------------------------------------------- play designer
+   A coach's screen, for the kitchen table before practice, never for the
+   sideline: so it can ask for care (drag to the half yard, tap each point of
+   a route) that the deck never could. It starts from one of the four
+   formations and lets anyone go anywhere legal, because trick plays live
+   outside the formations. Three tools, one at a time — MOVE a kid, draw a
+   ROUTE for him, give someone the BALL — and the picture is the real field,
+   the real markers and the real names, drawn by buildScene()/frame() exactly
+   as the play screen draws them, with the drawing laid over it.
+
+   Every change compiles the design into a real play and runs the checker on
+   it, so the strip under the field always says what a coach has to fix, and
+   Save stays shut until there is nothing. What it saves is the drawing; see
+   compileDesign() for why. */
+let DZ = null;
+
+function pickFormation(){
+  closeRename();
+  const w = document.createElement("div");
+  w.className = "sheetwrap";
+  w.id = "fmsheet";
+  w.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="fmtitle">
+      <h2 id="fmtitle">New play &middot; start from</h2>
+      <div class="fmpick">${FORMATION_ORDER.map(f => `
+        <button class="fmbtn" data-fm="${esc(f)}">
+          ${thumbSVG({spots: FORMATIONS[f], paths: [], jobs: [], primary: "", ball: {mode: "carry"}})}
+          <b>${esc(f)}</b></button>`).join("")}</div>
+      <p class="sheetnote">Where everybody starts. Once you are in, drag anyone anywhere &mdash;
+        a kid keeps his name wherever he stands, and his job says where to line up.</p>
+      <div class="sheetbtns"><button class="sbtn" id="fm-cancel">Cancel</button></div>
+    </div>`;
+  document.body.appendChild(w);
+  w.addEventListener("click", e => { if (e.target === w) w.remove(); });
+  w.addEventListener("keydown", e => { if (e.key === "Escape"){ e.stopPropagation(); w.remove(); } });
+  document.getElementById("fm-cancel").onclick = () => w.remove();
+  w.querySelectorAll("[data-fm]").forEach(b => b.onclick = () => {
+    w.remove(); openDesigner(null, b.dataset.fm); });
+}
+
+// a new drawing from a formation, or a working copy of one of the coach's plays
+function openDesigner(id, base){
+  closeRename();
+  const src = id ? designs[id] : null;
+  if (id && !src) return;
+  const d = src ? JSON.parse(JSON.stringify(src)) : {
+    id: null, v: DESIGN_V, base, spots: {}, routes: {}, ball: null, coachName: "", kidName: "",
+    tagline: "", category: "CUSTOM", complexity: "simple", created: 0};
+  if (!src) for (const k of Object.keys(FORMATIONS[base]))
+    d.spots[k] = [FORMATIONS[base][k].x, FORMATIONS[base][k].y];
+  DZ = {d, id, tool: "route", sel: null, armed: false, drag: null, preview: false, dirty: false,
+        mode: d.ball ? d.ball.mode : "pass", msg: "", findings: []};
+  logEvent("designer_open", {play: id || "new", base: d.base});
+  renderDesigner();
+}
+
+function renderDesigner(){
+  S.screen = "designer"; S.solo = null; S.stage = "lineup";
+  mTarget = mAnim = 0;                 // the designer never mirrors: it is drawn one way
+  app.innerHTML = `
+    <div class="play designer">
+      <div class="bar">
+        <button class="back" id="dz-back">&larr; Library</button>
+        <div class="titlewrap">
+          <span class="kid" id="dz-title"></span>
+          <span class="coach" id="dz-fm"></span>
+        </div>
+        <div class="barright"><button class="edit done" id="dz-save">Save</button></div>
+      </div>
+      <div class="stagewrap">
+        <div class="fieldwrap">
+          <svg id="field" viewBox="0 0 ${VB_W} ${VB_H}" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="hint" id="dz-hint"></div>
+        </div>
+        <div class="rail dzrail" id="dz-rail"></div>
+      </div>
+      <div class="dzline" id="dz-line"></div>
+      <div class="calls" id="dz-calls"></div>
+    </div>`;
+  const back = document.getElementById("dz-back");
+  // throwing a drawing away is two taps, like every other button that loses work
+  back.onclick = () => {
+    if (!DZ.dirty || back.dataset.armed){ DZ = null; renderLibrary(); return; }
+    back.dataset.armed = "1"; back.textContent = "Discard?";
+    setTimeout(() => {
+      if (back.isConnected){ delete back.dataset.armed; back.innerHTML = "&larr; Library"; }
+    }, 2500);
+  };
+  document.getElementById("dz-save").onclick = openDesignSheet;
+  const svg = document.getElementById("field");
+  svg.addEventListener("pointerdown", dzDown);
+  svg.addEventListener("pointermove", dzMove);
+  svg.addEventListener("pointerup", dzUp);
+  svg.addEventListener("pointercancel", dzUp);
+  dzRefresh();
+}
+
+/* ---- yards under a finger, and the half-yard grid everything lands on */
+function dzYards(e){
+  const m = document.getElementById("field").getScreenCTM();
+  if (!m) return null;
+  const q = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+  return [(q.x - CX) / SCALE, TOPY - q.y / SCALE];
+}
+const snapHalf = v => Math.round(v * 2) / 2;
+// a kid lines up between the sidelines, on or behind the line, and no deeper
+// than the checker allows anyone to drop; anyone close to the line is on it
+function clampSpot(q){
+  const x = Math.max(-15, Math.min(15, snapHalf(q[0])));
+  let y = Math.max(-6.5, Math.min(0, snapHalf(q[1])));
+  if (y > -0.75) y = 0;
+  return [x, y];
+}
+const clampRoute = q => [Math.max(-15.5, Math.min(15.5, snapHalf(q[0]))),
+                         Math.max(-6.5, Math.min(18, snapHalf(q[1])))];
+/* How close a tap has to be to count as landing on something. Picking a kid
+   is generous, because a kid is all there is to tap. While a leg is being
+   drawn the field is what a coach is aiming at, so a tap only lands on a
+   marker if it is really on it. The dotted ring that starts a leg is tapped
+   inside what is drawn, and RING_KID / RING_END are its drawn radii in
+   yards — a hit area wider than anything on screen is what once made the
+   first point of a route a hunt for the edge of an invisible circle. */
+const HIT_PICK = 1.25, HIT_ON = 0.7, HIT_POINT = 0.6;
+const RING_KID = 44 / SCALE, RING_END = 30 / SCALE;
+const dzRingAt = q => ydist(q, dzRouteEnd()) < (DZ.d.routes[DZ.sel] ? RING_END : RING_KID);
+function dzKidAt(q, within){
+  let best = null;
+  for (const k of Object.keys(DZ.d.spots)){
+    const g = ydist(q, DZ.d.spots[k]);
+    if (g < within && (!best || g < best.g)) best = {k, g};
+  }
+  return best && best.k;
+}
+function dzPointAt(q){
+  const r = DZ.sel && DZ.d.routes[DZ.sel];
+  if (!r) return -1;
+  let best = -1, bg = HIT_POINT;
+  r.pts.forEach((p, i) => { const g = ydist(q, p); if (g < bg){ bg = g; best = i; } });
+  return best;
+}
+// where the next leg starts: the end of his route, or the kid himself
+const dzRouteEnd = () => {
+  const r = DZ.d.routes[DZ.sel];
+  return r ? r.pts[r.pts.length - 1] : DZ.d.spots[DZ.sel];
+};
+const keeper = d => !!d.ball && d.ball.mode === "carry" && d.ball.who === "QB";
+
+function dzDown(e){
+  if (!DZ) return;
+  if (DZ.preview){ dzPreview(false); return; }       // a tap on the running play goes back to drawing
+  const q = dzYards(e);
+  if (!q) return;
+  const d = DZ.d, kid = dzKidAt(q, DZ.armed ? HIT_ON : HIT_PICK), svg = document.getElementById("field");
+  DZ.msg = "";
+  const grab = drag => { DZ.drag = drag; try { svg.setPointerCapture(e.pointerId); } catch(x){} };
+  if (DZ.tool === "move"){
+    if (kid === "C") DZ.msg = "The snapper is always on the ball. Move everybody else.";
+    else if (kid) grab({kind: "kid", key: kid});
+  } else if (DZ.tool === "route"){
+    /* One leg at a time, and only on purpose. Tapping inside the dotted ring
+       — round the kid, or on the end of his route — starts a leg; the next
+       tap is where it ends, and then he is back to just picked, with the ring
+       on the new end. So a coach can pick somebody else without a leg
+       chasing his finger across the field. A press in the ring that drags
+       pulls a first leg straight out of the kid, or moves the end point. */
+    const pick = k => {
+      if (k === "QB" && !keeper(d))
+        DZ.msg = "The thrower throws from where he stands, or hands it off. To draw him a run, " +
+                 "make him the carrier first: Ball, then Run, then tap him.";
+      else { DZ.sel = k; DZ.armed = false; }
+    };
+    if (!DZ.sel){
+      if (kid) pick(kid);
+      else DZ.msg = "Tap a player first, then the dotted circle to draw his route.";
+    } else if (DZ.armed){
+      if (dzRingAt(q)) DZ.armed = false;             // the ring again: never mind
+      else if (kid && kid !== DZ.sel) pick(kid);
+      else {
+        const r = d.routes[DZ.sel] || {pts: [], end: "arrow"};
+        if (r.pts.length >= ROUTE_CAP) DZ.msg = "That is as many points as one route takes.";
+        else {
+          d.routes[DZ.sel] = r;
+          r.pts.push(clampRoute(q)); DZ.dirty = true; DZ.armed = false;
+          grab({kind: "pt", key: DZ.sel, i: r.pts.length - 1});   // and drag it into place
+        }
+      }
+    } else if (dzRingAt(q)) grab({kind: "ring", key: DZ.sel, at: q});
+    else {
+      const at = dzPointAt(q);
+      if (at >= 0) grab({kind: "pt", key: DZ.sel, i: at});
+      else if (kid && kid !== DZ.sel) pick(kid);
+      else if (kid !== DZ.sel) DZ.msg = "Tap the dotted circle to draw his next leg, or tap another player.";
+    }
+  } else if (DZ.tool === "ball" && kid){
+    if (kid === "QB" && DZ.mode === "pass")
+      DZ.msg = "On a pass the thrower throws it. Tap the kid who catches it.";
+    else { d.ball = {mode: DZ.mode, who: kid}; DZ.dirty = true; }
+  }
+  dzRefresh();
+}
+function dzMove(e){
+  if (!DZ) return;
+  const q = dzYards(e);
+  if (!q) return;
+  if (!DZ.drag){ dzNextLeg(q); return; }
+  const d = DZ.d, g = DZ.drag;
+  if (g.kind === "ring"){
+    // a press in the ring that turns into a drag: the end point moves, or a
+    // first leg comes out of the kid
+    if (ydist(q, g.at) < 0.75) return;
+    const r = d.routes[g.key] || (d.routes[g.key] = {pts: [], end: "arrow"});
+    if (!r.pts.length) r.pts.push(clampRoute(q));
+    Object.assign(g, {kind: "pt", i: r.pts.length - 1});
+  }
+  if (g.kind === "kid"){
+    const was = d.spots[g.key], now = clampSpot(q);
+    if (now[0] === was[0] && now[1] === was[1]) return;
+    // his route comes with him: moving a kid is not a reason to redraw his job
+    const r = d.routes[g.key];
+    if (r) r.pts = r.pts.map(p => clampRoute([p[0] + now[0] - was[0], p[1] + now[1] - was[1]]));
+    d.spots[g.key] = now;
+  } else {
+    const r = d.routes[g.key], now = clampRoute(q), was = r.pts[g.i];
+    if (now[0] === was[0] && now[1] === was[1]) return;
+    r.pts[g.i] = now;
+  }
+  DZ.dirty = true;
+  dzRefresh();
+}
+function dzUp(){
+  if (!DZ || !DZ.drag) return;
+  const g = DZ.drag;
+  DZ.drag = null;
+  if (g.kind === "ring") DZ.armed = true;           // a tap in the ring, not a drag: draw a leg
+  dzRefresh();
+}
+/* A pointer that can hover (a mouse, a pen) sees the leg it is drawing
+   before it commits to it: a dashed line from the end of the route to where
+   the tap would land. Only while a leg is being drawn — a picked kid with no
+   leg started has nothing to follow the pointer. Drawn in place, without a
+   refresh. */
+function dzNextLeg(q){
+  const ghost = document.getElementById("dz-next");
+  if (!ghost) return;
+  const on = DZ.tool === "route" && DZ.sel && DZ.armed && !DZ.preview && !dzRingAt(q)
+          && !dzKidAt(q, HIT_ON);
+  ghost.setAttribute("opacity", on ? 1 : 0);
+  if (on) ghost.setAttribute("points", [dzRouteEnd(), clampRoute(q)].map(fpt).join(" "));
+}
+
+function dzPreview(on){
+  DZ.preview = on && !!DZ.d.ball;
+  S.t0 = performance.now();
+  dzRefresh();
+}
+
+/* Everything on the screen comes from one compile: the field (through the
+   real buildScene), the drawing over it, the checker's verdict and the call
+   strip the kids will see. */
+function dzRefresh(){
+  const d = DZ.d, p = compileDesign(d, 0);
+  S.play = p;
+  S.tl = p.primary ? buildTimeline(p) : {paths: [], tSnap: HOLD, tEnd: 1, ball: {}};
+  S.stage = DZ.preview ? "run" : "lineup";
+  buildScene();
+  DZ.findings = checkPlay(p);
+  dzOverlay(p);
+  dzRail();
+
+  const errs = DZ.findings.filter(f => f.level === "error");
+  const warns = DZ.findings.filter(f => f.level === "warning");
+  const line = document.getElementById("dz-line");
+  line.className = "dzline " + (DZ.msg ? "note" : errs.length ? "err" : warns.length ? "warn" : "ok");
+  line.textContent = DZ.msg ? DZ.msg
+    : errs.length ? `${errs.length} to fix before it saves: ${errs[0].msg}` +
+                    (errs.length > 1 ? ` (and ${errs.length - 1} more)` : "")
+    : warns.length ? `Ready to save, but: ${warns[0].msg}` +
+                     (warns.length > 1 ? ` (and ${warns.length - 1} more)` : "")
+    : "Ready to save.";
+  document.getElementById("dz-calls").innerHTML = callsHTML(p.calls, false);
+  const save = document.getElementById("dz-save");
+  save.disabled = errs.length > 0;
+  document.getElementById("dz-title").textContent = d.coachName || "New play";
+  document.getElementById("dz-fm").textContent = p.formation;
+  const hint = document.getElementById("dz-hint");
+  hint.textContent = DZ.preview ? "Tap the field to go back to drawing"
+    : DZ.tool === "move" ? "Drag a player to where he lines up"
+    : DZ.tool === "ball" ? (DZ.mode === "pass" ? "Tap the kid the ball is thrown to"
+                                               : "Tap the kid who carries it")
+    : DZ.sel && DZ.armed ? "Tap where this leg ends · tap the circle again to cancel"
+    : DZ.sel ? (DZ.d.routes[DZ.sel] ? "Tap the dotted circle for another leg · drag a point to move it"
+                                    : "Tap the dotted circle to start his route")
+    : "Tap a player, then tap the field to draw his route";
+  hint.style.opacity = 1;
+}
+
+// the drawing, laid between the field paint and the players
+function dzOverlay(p){
+  const svg = document.getElementById("field"), d = DZ.d;
+  const g = mk("g", {id: "dz-over"});
+  const firstKid = SC.players[Object.keys(SC.players)[0]];
+  svg.insertBefore(g, firstKid ? firstKid.g : null);
+  if (DZ.preview) return;                         // the play draws itself
+  const line = (pts, attrs) => g.appendChild(mk("polyline", Object.assign({
+    points: pts.map(fpt).join(" "), fill: "none",
+    "stroke-linejoin": "round", "stroke-linecap": "round"}, attrs)));
+  const hot = new Set(DZ.findings.filter(f => f.level === "error").flatMap(f => f.keys));
+  for (const path of p.paths){
+    const drawn = !!d.routes[path.who] || path.type !== "route";
+    if (path.type === "handoff")
+      line(path.pts, {stroke: "#5B6472", "stroke-width": 6, "stroke-dasharray": "13 9",
+                      "marker-end": "url(#a-handoff)"});
+    else if (!drawn)                               // the default rule, shown as a ghost
+      line(path.pts, {stroke: "#9AA59D", "stroke-width": 4, "stroke-dasharray": "4 10", opacity: .9});
+    else {
+      const col = path.type === "run" ? "#127A4D" : "#232B26";
+      line(path.pts, Object.assign({stroke: col, "stroke-width": path.type === "run" ? 8 : 6},
+        path.end === "bar" ? {} : {"marker-end": `url(#a-${path.type})`}));
+      if (path.end === "bar"){
+        const n = path.pts.length, a = path.pts[n-2], b = path.pts[n-1];
+        const dx = b[0]-a[0], dy = b[1]-a[1], len = Math.hypot(dx, dy) || 1;
+        const nx = -dy/len*0.45, ny = dx/len*0.45;
+        const s1 = F2S(b[0]-nx, b[1]-ny), s2 = F2S(b[0]+nx, b[1]+ny);
+        g.appendChild(mk("line", {x1: s1[0], y1: s1[1], x2: s2[0], y2: s2[1], stroke: col,
+          "stroke-width": 6, "stroke-linecap": "round"}));
+      }
+    }
+  }
+  const arc = throwArc(p);
+  if (arc) line(throwPts(arc), {stroke: "#5B6472", "stroke-width": 6, "stroke-dasharray": "13 9",
+                                "marker-end": "url(#a-handoff)"});
+  for (const k of hot){
+    if (!d.spots[k]) continue;
+    const c = F2S(d.spots[k][0], d.spots[k][1]);
+    g.appendChild(mk("circle", {cx: c[0], cy: c[1], r: 31, fill: "none", stroke: "#C0392B",
+      "stroke-width": 4, "stroke-dasharray": "7 6"}));
+  }
+  if (DZ.tool === "route" && DZ.sel){
+    const c = F2S(d.spots[DZ.sel][0], d.spots[DZ.sel][1]);
+    g.appendChild(mk("circle", {cx: c[0], cy: c[1], r: 34, fill: "rgba(27,94,58,.12)",
+      stroke: "#1B5E3A", "stroke-width": 4}));
+    const r = d.routes[DZ.sel];
+    if (r) r.pts.forEach((q, i) => {
+      const s = F2S(q[0], q[1]);
+      g.appendChild(mk("circle", {cx: s[0], cy: s[1], r: i === r.pts.length - 1 ? 12 : 9,
+        fill: "#fff", stroke: "#1B5E3A", "stroke-width": 4, class: "dzpt"}));
+    });
+    // the next leg starts here, said with a ring rather than left for a coach
+    // to guess at: dotted and pulsing while it is waiting to be tapped, solid
+    // while a leg is being drawn. Its radius is its hit area — see RING_KID.
+    const e = F2S(...dzRouteEnd());
+    g.appendChild(mk("circle", {cx: e[0], cy: e[1], r: (r ? RING_END : RING_KID) * SCALE,
+      fill: DZ.armed ? "rgba(27,94,58,.16)" : "rgba(27,94,58,.05)", stroke: "#1B5E3A",
+      "stroke-width": DZ.armed ? 4 : 3, "stroke-dasharray": DZ.armed ? "" : "6 6",
+      class: DZ.armed ? "dznext armed" : "dznext"}));
+    g.appendChild(mk("polyline", {id: "dz-next", fill: "none", stroke: "#1B5E3A",
+      "stroke-width": 4, "stroke-dasharray": "8 8", "stroke-linecap": "round", opacity: 0}));
+  }
+}
+
+function dzRail(){
+  const d = DZ.d, t = DZ.tool, rail = document.getElementById("dz-rail");
+  const tool = (k, label, small) =>
+    `<button class="rbtn ${t === k && !DZ.preview ? "on" : ""}" data-tool="${k}">${label}<small>${small}</small></button>`;
+  let sub = "";
+  if (t === "route" && DZ.sel){
+    const r = d.routes[DZ.sel], stop = !!r && r.end === "bar";
+    sub = `<button class="rbtn sub" id="dz-undo" ${r ? "" : "disabled"}>Undo<small>last point</small></button>
+      <button class="rbtn sub" id="dz-clear" ${r ? "" : "disabled"}>Clear<small>back to GO</small></button>
+      <button class="rbtn sub" id="dz-end" ${r ? "" : "disabled"}>${stop ? "Stop" : "Arrow"}<small>${stop
+        ? "turns around" : "keeps going"}</small></button>`;
+  } else if (t === "ball"){
+    sub = `<button class="rbtn sub ${DZ.mode === "pass" ? "on" : ""}" data-mode="pass">Pass<small>throw it</small></button>
+      <button class="rbtn sub ${DZ.mode === "carry" ? "on" : ""}" data-mode="carry">Run<small>hand it off</small></button>`;
+  }
+  rail.innerHTML = tool("move", "Move", "drag kids") + tool("route", "Route", "draw a job") +
+    tool("ball", "Ball", "who gets it") + (sub ? `<span class="rsep"></span>${sub}` : "") +
+    `<span class="rsep"></span><button class="rbtn ${DZ.preview ? "on" : ""}" id="dz-prev"
+       ${d.ball ? "" : "disabled"}>${DZ.preview ? "Stop" : "Preview"}<small>${DZ.preview
+       ? "back to drawing" : "run it"}</small></button>`;
+  rail.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => {
+    DZ.tool = b.dataset.tool; DZ.msg = ""; DZ.preview = false; DZ.armed = false; dzRefresh(); });
+  rail.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
+    DZ.mode = b.dataset.mode; DZ.msg = "";
+    if (d.ball){
+      // a pass to the thrower is not a play; a keeper that becomes a pass loses its carrier
+      if (DZ.mode === "pass" && d.ball.who === "QB") d.ball = null;
+      else d.ball.mode = DZ.mode;
+      DZ.dirty = true;
+    }
+    if (!keeper(d) && DZ.sel === "QB") DZ.sel = null;
+    dzRefresh();
+  });
+  const on = (id, act) => { const b = document.getElementById(id);
+    if (b) b.onclick = () => { act(); DZ.dirty = true; DZ.msg = ""; DZ.armed = false; dzRefresh(); }; };
+  on("dz-undo", () => { const r = d.routes[DZ.sel]; r.pts.pop(); if (!r.pts.length) delete d.routes[DZ.sel]; });
+  on("dz-clear", () => { delete d.routes[DZ.sel]; });
+  on("dz-end", () => { const r = d.routes[DZ.sel]; r.end = r.end === "bar" ? "arrow" : "bar"; });
+  document.getElementById("dz-prev").onclick = () => dzPreview(!DZ.preview);
+}
+
+/* The names and the filing, asked once at the end rather than up front: a
+   coach knows what he drew before he knows what to call it. The second place
+   in the app a coach types, so it goes through the same tidy-and-escape. */
+function openDesignSheet(){
+  closeRename();
+  const d = DZ.d, run = !!d.ball && d.ball.mode === "carry";
+  if (run && d.category === "NO-RUN ZONE") d.category = "CUSTOM";
+  const w = document.createElement("div");
+  w.className = "sheetwrap";
+  w.id = "dzsheet";
+  w.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dztitle">
+      <h2 id="dztitle">${DZ.id ? "Save changes" : "Save your play"} &middot; ${run ? "Run" : "Pass"}
+        &middot; ${esc(S.play.formation)}</h2>
+      <label class="nfield"><span>Real name</span>
+        <input id="dz-real" type="text" maxlength="${NAME_CAP}" value="${esc(d.coachName)}"
+          autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"></label>
+      <label class="nfield"><span>Fun name</span>
+        <input id="dz-fun" type="text" maxlength="${NAME_CAP}" value="${esc(d.kidName)}"
+          autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"></label>
+      <div class="nfield"><span>Situation</span>
+        <div class="seg wrap" id="dz-cat">${CAT_ORDER.map(k => `<button data-cat="${esc(k)}"
+          class="${d.category === k ? "on" : ""}" style="--cat:${CAT[k]}"
+          ${run && k === "NO-RUN ZONE" ? "disabled" : ""}>${esc(k)}</button>`).join("")}</div></div>
+      <div class="nfield"><span>How much it asks</span>
+        <div class="seg" id="dz-cx">${Object.keys(COMPLEXITY).map(k => `<button data-cx="${k}"
+          class="${d.complexity === k ? "on" : ""}">${k}</button>`).join("")}</div></div>
+      <label class="nfield"><span>One line for the tile</span>
+        <input id="dz-tag" class="plain" type="text" maxlength="${TAG_CAP}" value="${esc(d.tagline)}"
+          placeholder="Optional" autocomplete="off"></label>
+      <p class="sheetnote" id="dz-note">Kept on this tablet and through every update. Sync tablets
+        in Setup carries it to an assistant's.</p>
+      <div class="sheetbtns">
+        ${DZ.id ? `<button class="sbtn" id="dz-del">Delete</button>` : ""}
+        <button class="sbtn" id="dz-cancel">Cancel</button>
+        <button class="sbtn go" id="dz-ok">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(w);
+  const pickOne = (sel, key) => w.querySelectorAll(sel).forEach(b => b.onclick = () => {
+    w.querySelectorAll(sel).forEach(x => x.classList.toggle("on", x === b));
+    d[key] = b.dataset[key === "category" ? "cat" : "cx"];
+  });
+  pickOne("[data-cat]", "category");
+  pickOne("[data-cx]", "complexity");
+  const close = () => w.remove();
+  w.addEventListener("click", e => { if (e.target === w) close(); });
+  w.addEventListener("keydown", e => {
+    if (e.key === "Escape"){ e.stopPropagation(); close(); }
+    if (e.key === "Enter" && e.target.tagName === "INPUT") save();
+  });
+  const save = () => {
+    const real = tidyName(document.getElementById("dz-real").value);
+    if (!real){
+      document.getElementById("dz-note").innerHTML = "<b>Give it a real name first</b> &mdash; it is how you will find it.";
+      document.getElementById("dz-real").focus();
+      return;
+    }
+    d.coachName = real;
+    d.kidName = tidyName(document.getElementById("dz-fun").value);
+    d.tagline = tidyText(document.getElementById("dz-tag").value, TAG_CAP);
+    const fresh = !DZ.id;
+    if (fresh){ d.id = newPlayId(); d.created = Date.now(); }
+    // through the same door a file from another tablet comes through
+    const clean = saneDesign(d);
+    if (!clean) return;
+    designs[clean.id] = clean; saveDesigns(); refreshPlays();
+    // a coach drew it to use it, so a new play goes straight into the deck
+    if (fresh && !deck.includes(clean.id)){ deck.push(clean.id); saveDeck(); }
+    logEvent(fresh ? "play_designed" : "play_redesigned",
+             {play: clean.id, base: clean.base, name: clean.coachName});
+    close(); DZ = null; renderLibrary();
+  };
+  document.getElementById("dz-ok").onclick = save;
+  document.getElementById("dz-cancel").onclick = close;
+  if (DZ.id) confirmTap("dz-del", () => {
+    logEvent("play_deleted", {play: DZ.id});
+    deleteDesign(DZ.id); close(); DZ = null; renderLibrary();
+  });
+  const first = document.getElementById("dz-real");
+  first.focus(); first.select();
 }
 
 /* ------------------------------------------------------------ play ui */
@@ -2151,7 +3225,7 @@ function openPlay(id){
           <span class="kid">${esc(nameOf(p).big)}</span>
           ${nameOf(p).small ? `<span class="coach">${esc(nameOf(p).small)}</span>` : ""}
         </div>
-        <div class="barright">${clockHTML()}<span class="chip">${p.formation}</span></div>
+        <div class="barright">${clockHTML()}<span class="chip">${esc(p.formation)}</span></div>
       </div>
       <div class="stagewrap">
         <div class="fieldwrap">
@@ -2209,17 +3283,20 @@ function renderCalls(){
   const el = document.getElementById("calls");
   const p = S.play;
   if (S.solo){
-    el.innerHTML = `<div class="solo"><b style="color:${SIDE[sideOf(S.solo)]}">${sideName(S.solo)}</b>
-      <span>${mirrored() ? swapWords(p.assign[S.solo]) : p.assign[S.solo]}</span></div>
+    el.innerHTML = `<div class="solo"><b style="color:${SIDE[sideOf(S.solo)]}">${esc(sideName(S.solo))}</b>
+      <span>${esc(mirrored() ? swapWords(p.assign[S.solo]) : p.assign[S.solo])}</span></div>
       <button class="rbtn" style="flex:0 0 90px" id="unsolo">All<small>everyone</small></button>`;
     document.getElementById("unsolo").onclick = () => { S.solo = null; renderCalls(); };
     return;
   }
-  el.innerHTML = p.calls.map(([a0, b0]) => {
-    const a = mirrored() ? swapWords(a0) : a0, b = mirrored() ? swapWords(b0) : b0;
+  el.innerHTML = callsHTML(p.calls, mirrored());
+}
+function callsHTML(calls, flip){
+  return calls.map(([a0, b0]) => {
+    const a = flip ? swapWords(a0) : a0, b = flip ? swapWords(b0) : b0;
     const side = /BLUE/.test(a) ? "blue" : /ORANGE/.test(a) ? "orange" : "";
     const job = a !== "EVERYONE ELSE";
-    return `<div class="call ${side} ${job ? "job" : ""}"><b>${a}</b><span>${b}</span></div>`;
+    return `<div class="call ${side} ${job ? "job" : ""}"><b>${esc(a)}</b><span>${esc(b)}</span></div>`;
   }).join("");
 }
 
@@ -2367,6 +3444,7 @@ function buildScene(){
     g.appendChild(halo); g.appendChild(shape);
     g.appendChild(l1); g.appendChild(l2);
     g.addEventListener("click", () => {
+      if (S.screen === "designer") return;   // the designer reads its own taps
       S.hintSeen = true;
       S.solo = (S.solo === key) ? null : key;
       if (S.solo) logEvent("solo", {play: S.play.id, spot: key,
@@ -2392,7 +3470,8 @@ function buildScene(){
 function frame(now){
   requestAnimationFrame(frame);
   paintClock();
-  const onField = S.screen === "play" || (S.screen === "tour" && tourFieldOn);
+  const onField = S.screen === "play" || S.screen === "designer"
+               || (S.screen === "tour" && tourFieldOn);
   if (!onField || !SC) return;
 
   const k = REDUCED ? 1 : 0.085;
