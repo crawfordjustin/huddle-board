@@ -106,6 +106,19 @@ public sealed class TutorialChecks(AppFixture app)
         await page.ClickAsync("#tournext");
         await page.WaitForSelectorAsync(".lib .lrow");
         Assert.Equal("library", await page.EvaluateAsync<string>("S.screen"));
+
+        // and the library says what it is, all of it on screen, until he has read it
+        await page.WaitForSelectorAsync("#welsheet");
+        var fits = await page.EvaluateAsync<bool>("""
+            () => { const s = document.querySelector('#welsheet .sheet'), r = s.getBoundingClientRect();
+                    return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth
+                        && s.scrollHeight <= s.clientHeight + 1; }
+            """);
+        Assert.True(fits, $"{size}: the library's note does not fit on screen");
+        var ok = (await page.Locator("#wel-ok").BoundingBoxAsync())!;
+        Assert.True(ok.Height >= 44, $"{size}: Got it is only {ok.Height}px tall");
+        await page.ClickAsync("#wel-ok");
+        Assert.Equal(0, await page.Locator("#welsheet").CountAsync());
         await page.ClickAsync("#done");
         await page.WaitForSelectorAsync(".tile");
         Assert.Equal("1", await page.EvaluateAsync<string>("localStorage.getItem('hb.tour')"));
@@ -124,6 +137,7 @@ public sealed class TutorialChecks(AppFixture app)
         Assert.Equal("Skip tutorial", (await page.InnerTextAsync("#tourskip")).Trim(), ignoreCase: true);
         await page.ClickAsync("#tourskip");
         await page.WaitForSelectorAsync(".lib .lrow");   // skipping lands where a new coach chooses, too
+        await page.ClickAsync("#wel-ok");
 
         // the second START on this tablet goes straight to the deck, from storage and not memory
         await page.ReloadAsync();
@@ -132,6 +146,15 @@ public sealed class TutorialChecks(AppFixture app)
         await page.WaitForSelectorAsync(".tiles");
         Assert.Equal("deck", await page.EvaluateAsync<string>("S.screen"));
         Assert.Equal(0, await page.Locator(".tour").CountAsync());
+
+        // the library's note was for the first visit: from the menu it is just the library
+        await page.ClickAsync("#ham");
+        await page.ClickAsync("#edit");
+        await page.WaitForSelectorAsync(".lib .lrow");
+        await page.WaitForTimeoutAsync(200);
+        Assert.Equal(0, await page.Locator("#welsheet").CountAsync());
+        await page.ClickAsync("#done");
+        await page.WaitForSelectorAsync(".tiles");
         Assert.Equal(0, await page.Locator("#askfmt").CountAsync());
 
         // it is still one tap away, and from there the buttons say so
@@ -193,6 +216,8 @@ public sealed class TutorialChecks(AppFixture app)
 
         await page.ClickAsync("#tourskip");
         await page.WaitForSelectorAsync(".lib .lrow");
+        Assert.Contains("7 on 7", await page.InnerTextAsync("#welsheet"));
+        await page.ClickAsync("#wel-ok");
         Assert.Equal("7 ON 7", await page.InnerTextAsync("#lfmt"));
         Assert.StartsWith("s_", await page.GetAttributeAsync(".lrow", "data-id"));
         await page.ReloadAsync();

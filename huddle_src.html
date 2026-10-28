@@ -292,6 +292,13 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   text-transform:uppercase;margin-bottom:clamp(8px,1.4vh,14px)}
 .prevart .thumbsvg{margin:0 auto;border-radius:12px}
 
+/* the library's first-visit note: a few lines, each starting with the thing to tap */
+.welhead{font-size:clamp(13px,2vh,18px);color:#C9D2CB;line-height:1.4;margin:0 0 clamp(8px,1.4vh,14px)}
+.wellist{margin:0 0 clamp(12px,2vh,20px);padding-left:1.2em}
+.wellist li{font-size:clamp(12px,1.8vh,16px);color:#A3AFA6;line-height:1.4;
+  margin-bottom:clamp(4px,.8vh,8px)}
+.wellist b{color:#EDF0EC}
+
 /* the rename sheet — the only place in the app a coach types */
 .sheetwrap{position:fixed;inset:0;z-index:60;display:flex;align-items:center;
   justify-content:center;padding:clamp(14px,3vh,32px);background:rgba(9,13,11,.72)}
@@ -2471,7 +2478,7 @@ function renderTour(first, at = 0){
   const leave = how => {
     markTourSeen();
     logEvent("tour_done", {how, slide: i + 1, first});
-    if (first) renderLibrary(); else renderDeck();
+    if (first) renderLibrary(true); else renderDeck();
   };
   document.getElementById("tourskip").onclick = () => leave(first ? "skip" : "close");
   document.getElementById("tourback").onclick = () => renderTour(first, i - 1);
@@ -2880,7 +2887,7 @@ function libFilterHTML(){
    coach's, never turned around at the kids, so a stray tap here cannot rewrite
    a play name in the middle of a huddle. */
 function closeRename(){
-  for (const id of ["rensheet", "pnsheet", "fmsheet", "dzsheet", "prevsheet"]){
+  for (const id of ["rensheet", "pnsheet", "fmsheet", "dzsheet", "prevsheet", "welsheet"]){
     const w = document.getElementById(id);
     if (w) w.remove();
   }
@@ -3036,7 +3043,43 @@ function fitPreview(){
 }
 addEventListener("resize", fitPreview);
 
-function renderLibrary(){
+/* ------------------------------------------------------ library welcome
+   The first time a coach lands on the library — straight from the first
+   tutorial — it says in a few lines what this screen is and what to do on it,
+   because it is the first screen he is meant to act on rather than watch.
+   Only then: from the menu he has been here before. */
+function openLibraryWelcome(){
+  closeRename();
+  const n = DATA.plays.filter(p => !p.custom).length;
+  const w = document.createElement("div");
+  w.className = "sheetwrap";
+  w.id = "welsheet";
+  w.innerHTML = `
+    <div class="sheet welcome" role="dialog" aria-modal="true" aria-labelledby="weltitle">
+      <h2 id="weltitle">Your play library</h2>
+      <p class="welhead">Every ${esc(DATA.label)} play on this tablet &mdash; ${n} of them, filed by
+        situation. Pick the ones you will carry into a game.</p>
+      <ul class="wellist">
+        <li><b>Tap a play</b> to put it in your deck. Tap it again to take it out.</li>
+        <li><b>Tap its picture</b> to see the play large before you decide.</li>
+        <li><b>Week 1</b> along the top is a whole game deck, and it is what you start with.
+          Keep it, add to it, or build your own.</li>
+        <li><b>Done</b> takes you to your deck &mdash; the screen you call plays from.</li>
+      </ul>
+      <div class="sheetbtns"><button class="sbtn go" id="wel-ok">Got it</button></div>
+    </div>`;
+  document.body.appendChild(w);
+  logEvent("library_welcome");
+  w.addEventListener("click", e => { if (e.target === w) closeRename(); });
+  w.addEventListener("keydown", e => {
+    if (e.key === "Escape"){ e.stopPropagation(); closeRename(); }
+  });
+  const ok = document.getElementById("wel-ok");
+  ok.onclick = () => closeRename();
+  ok.focus();
+}
+
+function renderLibrary(welcome){
   S.screen = "library";
   libF = {q:"", kind:"all", cat:"all", deckOnly:false};
 
@@ -3237,6 +3280,7 @@ function renderLibrary(){
   document.getElementById("done").onclick = renderDeck;
   document.getElementById("lnew").onclick = () => pickFormation();
   drawFilters(); drawPacks(); drawRows();
+  if (welcome === true) openLibraryWelcome();
 }
 
 /* -------------------------------------------------------- play designer
