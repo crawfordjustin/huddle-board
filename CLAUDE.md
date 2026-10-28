@@ -387,7 +387,12 @@ coach to tell he was in a walkthrough rather than the app, or that he was
 allowed to leave it. Skip and the last slide's **Pick plays** both mark it seen, and
 both land on the **play library**, not the deck: a new coach's deck is the
 shipped Week 1 until he has chosen, and the library is where he chooses (its
-Done goes on to the deck). From the menu, Close and Done go back to the deck.
+Done goes on to the deck). That first visit opens with a short note
+(`openLibraryWelcome`) saying what the library is and what to tap — a play to
+add or remove it, its picture to see it large, Week 1, Done — because it is the
+first screen a new coach acts on rather than watches; it never shows when the
+library is opened from the menu. From the menu, Close and Done go back to the
+deck.
 The flag is kept under
 `localStorage` `hb.tour` — a coach who skipped has said he does not want it,
 and **Tutorial** in the hamburger brings it back whenever he does. The flag is
