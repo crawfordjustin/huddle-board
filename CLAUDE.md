@@ -143,6 +143,13 @@ it, including the survives-an-update part, against a real new build taken throug
 the service worker. Custom names are per tablet and do not reach the printed
 playbook, which is built from source.
 
+A library row's **thumbnail** opens the play large (`openPreview`): the same
+picture, with the play's chips, names and tagline, sized by `fitPreview` to
+whatever height the words leave so the whole card is on screen at every size.
+Only the thumbnail does this — the rest of the row still adds and removes the
+play — and the preview has nothing that touches the deck. `LibraryChecks`
+holds it at the five sizes.
+
 Setup is filed under four tabs (`SET_TABS`): **Game** (players on the field,
 play names), **Clock**, **Your own** (names, weeks, drawn plays) and **Tablet**
 (sync, the log, Start over). Only the open tab's rows are on the page, so its
