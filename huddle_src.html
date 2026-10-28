@@ -247,8 +247,11 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lcat{font-size:clamp(7px,1.1vh,9.5px);font-weight:700;letter-spacing:.1em;text-transform:uppercase;
   color:#fff;background:var(--cat);padding:4px 8px;border-radius:4px;white-space:nowrap;flex:none}
-.lthumb{flex:none;width:clamp(78px,8.6vw,126px);display:flex;align-items:center}
+.lthumb{flex:none;width:clamp(78px,8.6vw,126px);display:flex;align-items:center;
+  border-radius:8px;cursor:zoom-in}
 .lthumb .thumbsvg{width:100%}
+.lthumb:active{transform:scale(.96)}
+.lthumb:focus-visible{outline:3px solid #5FBF8F;outline-offset:2px}
 .lmeta{width:clamp(54px,6.2vw,78px);display:flex;flex-direction:column;align-items:center;
   gap:4px;flex:none}
 .lkind{font-family:var(--disp);font-size:clamp(11px,1.8vh,16px);font-weight:700;
@@ -276,6 +279,18 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .lren:active{transform:scale(.94)}
 .lrow.on .lren{color:#6F7C73;border-color:#C6D0C7}
 .lrow.on .lren.on{color:#9A6E12;border-color:#D9BE7A}
+
+/* the play preview: the library's thumbnail, large. fitPreview() sizes the
+   picture to what the screen leaves once the words are laid out, so the
+   whole card is on screen at once on a short landscape tablet too. */
+.sheet.prev{width:min(1000px,100%);display:flex;flex-direction:column;
+  border-left:6px solid var(--cat)}
+.prev .kind.run{color:#5FBF8F} .prev .kind.pass{color:var(--pass-lt)}
+.sheet h2.prevname{font-family:var(--disp);font-size:clamp(26px,4.6vh,46px);color:#EDF0EC;
+  letter-spacing:.01em;font-weight:400;line-height:1;margin:clamp(4px,.8vh,8px) 0 4px}
+.prevsub{font-size:clamp(10px,1.6vh,14px);color:#8E9A91;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;margin-bottom:clamp(8px,1.4vh,14px)}
+.prevart .thumbsvg{margin:0 auto;border-radius:12px}
 
 /* the rename sheet — the only place in the app a coach types */
 .sheetwrap{position:fixed;inset:0;z-index:60;display:flex;align-items:center;
@@ -2793,7 +2808,7 @@ function libFilterHTML(){
    coach's, never turned around at the kids, so a stray tap here cannot rewrite
    a play name in the middle of a huddle. */
 function closeRename(){
-  for (const id of ["rensheet", "pnsheet", "fmsheet", "dzsheet"]){
+  for (const id of ["rensheet", "pnsheet", "fmsheet", "dzsheet", "prevsheet"]){
     const w = document.getElementById(id);
     if (w) w.remove();
   }
@@ -2895,6 +2910,60 @@ function openRename(id, after){
   first.focus(); first.select();
 }
 
+/* ------------------------------------------------------- play preview
+   The library's thumbnail is sized for a glance down a list. Tapping it —
+   the picture and only the picture — opens the same card large, so a coach
+   can read the routes before he decides; the rest of the row still adds and
+   removes the play, as it always has. Looking changes nothing: the preview
+   has no button that touches the deck. */
+function openPreview(id){
+  closeRename();
+  const p = DATA.plays.find(x => x.id === id);
+  if (!p) return;
+  const nm = nameOf(p);
+  const w = document.createElement("div");
+  w.className = "sheetwrap";
+  w.id = "prevsheet";
+  w.innerHTML = `
+    <div class="sheet prev" role="dialog" aria-modal="true" aria-labelledby="prevtitle"
+         style="--cat:${CAT[p.category]}">
+      <div class="kindrow">
+        <span class="kind ${isRun(p) ? "run" : "pass"}">${isRun(p) ? "Run" : "Pass"}</span>
+        <span class="catchip situation">${p.category}</span>
+        ${complexityHTML(p)}${mineChip(p)}
+      </div>
+      <h2 class="prevname" id="prevtitle">${esc(nm.big)}</h2>
+      <p class="prevsub">${[esc(nm.small), esc(p.formation)].filter(Boolean).join(" &middot; ")}</p>
+      <div class="prevart">${thumbSVG(p)}</div>
+      ${p.tagline ? `<p class="sheetnote">${esc(p.tagline)}</p>` : ""}
+      <div class="sheetbtns"><button class="sbtn go" id="prev-close">Close</button></div>
+    </div>`;
+  document.body.appendChild(w);
+  fitPreview();
+  logEvent("play_preview", {play: id});
+  w.addEventListener("click", e => { if (e.target === w) closeRename(); });
+  w.addEventListener("keydown", e => {
+    if (e.key === "Escape"){ e.stopPropagation(); closeRename(); }
+  });
+  const close = document.getElementById("prev-close");
+  close.onclick = () => closeRename();
+  close.focus();
+}
+
+// The picture takes whatever height the words leave, measured rather than
+// guessed — the words wrap differently at every size and without the webfont
+function fitPreview(){
+  const w = document.getElementById("prevsheet");
+  if (!w) return;
+  const sheet = w.querySelector(".sheet"), svg = w.querySelector(".prevart .thumbsvg");
+  svg.style.width = "0px";
+  const pad = parseFloat(getComputedStyle(w).paddingTop) * 2;
+  const room = w.clientHeight - pad - sheet.offsetHeight;
+  const across = sheet.clientWidth - parseFloat(getComputedStyle(sheet).paddingLeft) * 2;
+  svg.style.width = Math.max(0, Math.min(across, room * TH.w / TH.h)) + "px";
+}
+addEventListener("resize", fitPreview);
+
 function renderLibrary(){
   S.screen = "library";
   libF = {q:"", kind:"all", cat:"all", deckOnly:false};
@@ -2905,7 +2974,8 @@ function renderLibrary(){
               style="--cat:${CAT[p.category]}">
       <span class="lnum ${p.custom ? "mine" : ""}">${p.custom ? "&#9733;" : p.num}</span>
       <span class="lname"><b>${esc(nm.big)}</b><i>${p.problems ? `<em class="lfix">Needs fixing</em> &middot; ` : ""}${nm.small ? esc(nm.small) + " &middot; " : ""}${esc(p.formation)}</i></span>
-      <span class="lthumb">${thumbSVG(p)}</span>
+      <span class="lthumb" data-prev="${p.id}" role="button" tabindex="0"
+        aria-label="Show ${esc(nm.big)} large" title="Show it large">${thumbSVG(p)}</span>
       <span class="lmeta">
         <span class="lkind ${isRun(p) ? "run" : "pass"}">${isRun(p) ? "Run" : "Pass"}</span>
         <span class="lcomplexity" style="--complex:${COMPLEXITY[p.complexity]}">${p.complexity}</span>
@@ -2955,8 +3025,16 @@ function renderLibrary(){
         if (ev.key === "Enter" || ev.key === " ") open(ev);
       });
     });
+    lib.querySelectorAll("[data-prev]").forEach(e => {
+      const open = ev => { ev.stopPropagation(); ev.preventDefault(); openPreview(e.dataset.prev); };
+      e.addEventListener("click", open);
+      e.addEventListener("keydown", ev => {
+        if (ev.key === "Enter" || ev.key === " ") open(ev);
+      });
+    });
     lib.querySelectorAll(".lrow").forEach(b => b.addEventListener("click", ev => {
       if (ev.target.closest("[data-ren]")) return;   // the pencil, not the row
+      if (ev.target.closest("[data-prev]")) return;  // the picture, not the row
       const id = b.dataset.id;
       if (deck.includes(id)) deck = deck.filter(x => x !== id);
       else deck.push(id);

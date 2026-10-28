@@ -116,4 +116,64 @@ public sealed class LibraryChecks(AppFixture app)
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
+
+    /// <summary>
+    /// The thumbnail on a library row opens the play large, and only the
+    /// thumbnail does: the preview is several times the size of the glance,
+    /// all of it on screen at every size, it changes nothing about the deck,
+    /// and it goes away on Close, on Escape and on a tap outside. The rest of
+    /// the row still adds and removes the play.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AppFixture.AllSizes), MemberType = typeof(AppFixture))]
+    public async Task TheThumbnailOpensTheCardLargeAndNothingElseDoes(string label, int width, int height)
+    {
+        var (page, errors) = await app.OpenAppAsync(new Viewport(label, width, height));
+        await page.ClickAsync("#ham");
+        await page.ClickAsync("#edit");
+        await page.WaitForSelectorAsync(".lrow");
+        await page.WaitForTimeoutAsync(300);
+
+        const string Row = ".lrow[data-id='p_01']";
+        const string Deck = "deck.join(',')";
+        var before = await page.EvaluateAsync<string>(Deck);
+        var small = (await page.Locator(Row + " .lthumb .thumbsvg").BoundingBoxAsync())!.Width;
+
+        await page.ClickAsync(Row + " .lthumb");
+        await page.WaitForSelectorAsync("#prevsheet");
+        Assert.Equal(before, await page.EvaluateAsync<string>(Deck));
+        Assert.Contains(await page.EvaluateAsync<string>("nameOf(DATA.plays.find(p => p.id === 'p_01')).big"),
+            await page.InnerTextAsync("#prevtitle"));
+
+        var big = (await page.Locator("#prevsheet .thumbsvg").BoundingBoxAsync())!;
+        Assert.True(big.Width >= small * 3, $"{label}: the preview is {big.Width:0}px wide against a {small:0}px thumbnail");
+        var fits = await page.EvaluateAsync<bool>("""
+            () => { const r = document.querySelector('#prevsheet .sheet').getBoundingClientRect();
+                    const s = document.querySelector('#prevsheet .sheet');
+                    return r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth
+                        && s.scrollHeight <= s.clientHeight + 1; }
+            """);
+        Assert.True(fits, $"{label}: the preview does not fit on screen");
+
+        await page.ClickAsync("#prev-close");
+        Assert.Equal(0, await page.Locator("#prevsheet").CountAsync());
+
+        await page.ClickAsync(Row + " .lthumb");
+        await page.Keyboard.PressAsync("Escape");
+        Assert.Equal(0, await page.Locator("#prevsheet").CountAsync());
+
+        await page.ClickAsync(Row + " .lthumb");
+        await page.Mouse.ClickAsync(4, 4);
+        Assert.Equal(0, await page.Locator("#prevsheet").CountAsync());
+        Assert.Equal(before, await page.EvaluateAsync<string>(Deck));
+
+        // the name, not the picture: still the row's own tap, which takes it out of the deck
+        await page.ClickAsync(Row + " .lname");
+        await page.WaitForTimeoutAsync(200);
+        Assert.False(await page.EvaluateAsync<bool>("deck.includes('p_01')"), "the row stopped toggling the deck");
+        Assert.Equal(0, await page.Locator("#prevsheet").CountAsync());
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors));
+    }
 }
