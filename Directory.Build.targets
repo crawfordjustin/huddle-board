@@ -1,0 +1,29 @@
+<Project>
+  <!--
+    SkiaSharp's native assets carry a library for every platform it supports —
+    seventeen of them, about 440 MB under runtimes/ in every bin folder. A build
+    with no runtime identifier only ever runs on the machine that built it, so
+    only that machine's native library is copied. `osx` is SkiaSharp's one
+    universal folder, so the bare OS part is kept too.
+
+    A build that names a runtime (the CI publish, `-r win-x86`) already gets
+    exactly that runtime's assets and is left alone.
+
+    The native .pdb beside the library is 86 MB on Windows and only matters to
+    someone stepping into Skia itself, so it goes too.
+  -->
+  <Target Name="KeepOnlyThisMachinesRuntime" AfterTargets="ResolvePackageAssets"
+          Condition="'$(RuntimeIdentifier)' == ''">
+    <PropertyGroup>
+      <_HbRid>$(NETCoreSdkPortableRuntimeIdentifier)</_HbRid>
+      <_HbRid Condition="'$(_HbRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</_HbRid>
+      <_HbOs>$(_HbRid.Split('-')[0])</_HbOs>
+    </PropertyGroup>
+    <ItemGroup>
+      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)"
+                                    Condition="'%(RuntimeTargetsCopyLocalItems.RuntimeIdentifier)' != '$(_HbRid)' and '%(RuntimeTargetsCopyLocalItems.RuntimeIdentifier)' != '$(_HbOs)'" />
+      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)"
+                                    Condition="'%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+</Project>
