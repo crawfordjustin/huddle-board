@@ -52,6 +52,9 @@ public static class Formats
         ProtoExporter.KidNames, ProtoExporter.Ball, ProtoExporter.Throwers,
         PlayPacks.All);
 
+    /// <summary>5-on-5: the SNAPPER, the THROWER and three more.</summary>
+    public static Format Five => FiveOnFive.Format;
+
     /// <summary>Every format, in the order Setup offers them.</summary>
-    public static IReadOnlyList<Format> All => [Six];
+    public static IReadOnlyList<Format> All => [Five, Six];
 }
