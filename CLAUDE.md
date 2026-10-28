@@ -384,7 +384,11 @@ row says TUTORIAL in the deck's own heading size, with "1 of 6" and the way
 out — **Skip tutorial**, or **Close** from the menu — in the top right where
 Settings keeps its Done; a small "How it works" up there was not enough for a
 coach to tell he was in a walkthrough rather than the app, or that he was
-allowed to leave it. Skip and the last slide's Go to deck both mark it seen, under
+allowed to leave it. Skip and the last slide's **Pick plays** both mark it seen, and
+both land on the **play library**, not the deck: a new coach's deck is the
+shipped Week 1 until he has chosen, and the library is where he chooses (its
+Done goes on to the deck). From the menu, Close and Done go back to the deck.
+The flag is kept under
 `localStorage` `hb.tour` — a coach who skipped has said he does not want it,
 and **Tutorial** in the hamburger brings it back whenever he does. The flag is
 per tablet and not in the sync file: the assistant's tablet is still his first

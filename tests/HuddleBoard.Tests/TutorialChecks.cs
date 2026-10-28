@@ -94,7 +94,7 @@ public sealed class TutorialChecks(AppFixture app)
             Assert.True(g.TextOverflow <= 2,
                 $"{size} slide {g.Slide}: the words need {g.TextOverflow}px more than they have");
 
-            if (g.NextLabel.Equals("Go to deck", StringComparison.OrdinalIgnoreCase))
+            if (g.NextLabel.Equals("Pick plays", StringComparison.OrdinalIgnoreCase))
                 break;
             Assert.Equal("Next", g.NextLabel, ignoreCase: true);
             await page.ClickAsync("#tournext");
@@ -102,9 +102,12 @@ public sealed class TutorialChecks(AppFixture app)
         }
         Assert.Equal(6, slides);
 
+        // the first time through, the way out is the play library — where a new coach chooses
         await page.ClickAsync("#tournext");
-        await page.WaitForSelectorAsync(".deck");
-        Assert.True(await page.Locator(".tile").CountAsync() > 0, "the last slide did not reach the deck");
+        await page.WaitForSelectorAsync(".lib .lrow");
+        Assert.Equal("library", await page.EvaluateAsync<string>("S.screen"));
+        await page.ClickAsync("#done");
+        await page.WaitForSelectorAsync(".tile");
         Assert.Equal("1", await page.EvaluateAsync<string>("localStorage.getItem('hb.tour')"));
 
         await page.CloseAsync();
@@ -120,13 +123,14 @@ public sealed class TutorialChecks(AppFixture app)
         // Skip is the coach saying no, and that counts as having seen it
         Assert.Equal("Skip tutorial", (await page.InnerTextAsync("#tourskip")).Trim(), ignoreCase: true);
         await page.ClickAsync("#tourskip");
-        await page.WaitForSelectorAsync(".deck");
+        await page.WaitForSelectorAsync(".lib .lrow");   // skipping lands where a new coach chooses, too
 
         // the second START on this tablet goes straight to the deck, from storage and not memory
         await page.ReloadAsync();
         await page.WaitForTimeoutAsync(500);
         await page.ClickAsync("#start");
-        await page.WaitForSelectorAsync(".deck");
+        await page.WaitForSelectorAsync(".tiles");
+        Assert.Equal("deck", await page.EvaluateAsync<string>("S.screen"));
         Assert.Equal(0, await page.Locator(".tour").CountAsync());
         Assert.Equal(0, await page.Locator("#askfmt").CountAsync());
 
@@ -145,7 +149,8 @@ public sealed class TutorialChecks(AppFixture app)
         await page.WaitForTimeoutAsync(150);
         Assert.Equal("1", await page.GetAttributeAsync(".tour", "data-slide"));
         await page.ClickAsync("#tourskip");
-        await page.WaitForSelectorAsync(".deck");
+        await page.WaitForSelectorAsync(".tiles");                        // from the menu, back to the deck
+        Assert.Equal("deck", await page.EvaluateAsync<string>("S.screen"));
 
         // Start over is the one thing that makes this somebody's first time again
         await page.ClickAsync("#ham");
@@ -187,8 +192,9 @@ public sealed class TutorialChecks(AppFixture app)
             "events.some(e => e.e === 'setting' && e.p.key === 'players' && e.p.first)"), "the answer was not logged");
 
         await page.ClickAsync("#tourskip");
-        await page.WaitForSelectorAsync(".deck");
-        Assert.Equal("7 ON 7", await page.InnerTextAsync("#fmt"));
+        await page.WaitForSelectorAsync(".lib .lrow");
+        Assert.Equal("7 ON 7", await page.InnerTextAsync("#lfmt"));
+        Assert.StartsWith("s_", await page.GetAttributeAsync(".lrow", "data-id"));
         await page.ReloadAsync();
         await page.WaitForSelectorAsync("#intro-message");
         Assert.Equal("Seven kids. One clear job each.", await page.InnerTextAsync("#intro-message"));
