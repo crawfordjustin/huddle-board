@@ -299,6 +299,32 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   margin-bottom:clamp(4px,.8vh,8px)}
 .wellist b{color:#EDF0EC}
 
+/* show and hide the shipped plays: a long list in a sheet that scrolls
+   inside itself, so Save and Cancel never leave the screen */
+.sheet.hidepick{width:min(760px,100%);display:flex;flex-direction:column}
+.hidebar{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-bottom:clamp(8px,1.4vh,12px)}
+.hidebar span{margin-right:auto;font-size:clamp(11px,1.7vh,15px);color:#A3AFA6;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase}
+.hlist{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  scrollbar-gutter:stable;margin-bottom:clamp(10px,1.6vh,16px)}
+.hrow{width:100%;display:flex;align-items:center;gap:12px;min-height:52px;text-align:left;
+  padding:6px 12px;margin-bottom:6px;border-radius:10px;background:#1A211D;
+  border:1.5px solid #39433C;border-left:5px solid var(--cat);color:#C9D2CB;cursor:pointer}
+.hname{flex:1;min-width:0}
+.hname b{display:block;font-family:var(--disp);font-size:clamp(15px,2.3vh,21px);font-weight:400;
+  text-transform:uppercase;line-height:1.05;color:#EDF0EC;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.hname i{display:block;font-style:normal;font-size:clamp(9px,1.4vh,12px);color:#8E9A91;
+  letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+.hname em{font-style:normal;color:var(--ball)}
+.hstate{flex:none;font-family:var(--disp);font-size:clamp(13px,2vh,18px);text-transform:uppercase;
+  letter-spacing:.06em;min-width:5.5em;text-align:center;padding:6px 10px;border-radius:8px;
+  background:var(--green);color:#fff}
+.hrow.off{opacity:.62;border-left-color:#39433C}
+.hrow.off .hstate{background:#2B332E;color:#A3AFA6}
+.hrow:active{transform:scale(.99)}
+
 /* the rename sheet — the only place in the app a coach types */
 .sheetwrap{position:fixed;inset:0;z-index:60;display:flex;align-items:center;
   justify-content:center;padding:clamp(14px,3vh,32px);background:rgba(9,13,11,.72)}
@@ -877,7 +903,7 @@ function storedDeck(n){
 function loadDeck(){ deck = storedDeck(DATA.players); }
 function saveDeck(){ try { localStorage.setItem(myKey("hb.deck"), JSON.stringify(deck)); } catch(e){} }
 const byNum = (a,b) => a.num - b.num;
-const inDeck = () => DATA.plays.filter(p => deck.includes(p.id)).sort(byNum);
+const inDeck = () => DATA.plays.filter(p => deck.includes(p.id) && !isHidden(p)).sort(byNum);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ------------------------------------------------------------ event log
@@ -1001,7 +1027,7 @@ function savePackSaves(){
   try { localStorage.setItem(myKey("hb.packs"), JSON.stringify({v:1, byId:packSaves})); } catch(e){}
 }
 const sameDeck = (a, b) => a.length === b.length && a.every(id => b.includes(id));
-const knownPlay = id => typeof id === "string" && DATA.plays.some(p => p.id === id);
+const knownPlay = id => typeof id === "string" && !hidden.has(id) && DATA.plays.some(p => p.id === id);
 /* A week's name is the coach's too — "Week 3" is the build's word for it, and
    by week three it is PLAYOFFS or SEAHAWKS or whatever the team calls that
    deck. Same discipline as play names: only a name that differs from the
@@ -1027,11 +1053,50 @@ function resetPackNames(id){
   if (id) delete packNames[id]; else packNames = {};
   savePackNames();
 }
+/* --------------------------------------------------- hidden shipped plays
+   Plenty of coaches use one or two of the shipped plays and draw the rest.
+   Hiding a shipped play takes it out of the library — its rows, its counts,
+   its search, its weeks — so the library is mostly his own. It is still a
+   play the tablet knows: a renamed play keeps its name while hidden, and a
+   sync file can still name it. Per format, like everything else a coach
+   chooses, under hb.hidden; only shipped plays can be hidden, because a
+   coach's own play he does not want he can delete.
+
+   The deck only ever holds plays he can see and change in the library, so
+   hiding a play takes it out of the deck and every saved week — and Setup
+   says how many before it does. */
+let hidden = new Set();
+function loadHidden(){
+  hidden = new Set();
+  try {
+    const saved = JSON.parse(localStorage.getItem(myKey("hb.hidden")) || "null");
+    if (saved && saved.v === 1 && Array.isArray(saved.ids))
+      for (const id of saved.ids) if (DATA.plays.some(p => p.id === id && !p.custom)) hidden.add(id);
+  } catch(e){}
+}
+function saveHidden(){
+  try { localStorage.setItem(myKey("hb.hidden"), JSON.stringify({v:1, ids:[...hidden]})); } catch(e){}
+}
+const isHidden = p => !p.custom && hidden.has(p.id);
+const shownPlays = () => DATA.plays.filter(p => !isHidden(p));
+const shippedCount = () => DATA.plays.filter(p => !p.custom).length;
+// shipped plays, in the order the library files them
+const shippedPlays = () => DATA.plays.filter(p => !p.custom).sort((a, b) =>
+  (CAT_ORDER.indexOf(a.category) - CAT_ORDER.indexOf(b.category)) || a.num - b.num);
+function setHidden(ids){
+  hidden = new Set(ids.filter(id => DATA.plays.some(p => p.id === id && !p.custom)));
+  saveHidden();
+  forgetPlays([...hidden]);
+}
+function resetHidden(){ hidden = new Set(); saveHidden(); }
+
 // the weeks as this tablet has them: shipped, with a coach's deck in any slot
-// he filled and his name on any week he renamed
+// he filled and his name on any week he renamed — less any play he has hidden,
+// so a week is what is left of it, and a week with nothing left is a slot
 const packsNow = () => DATA.packs.map(k => Object.assign({}, k, {
   name: packNameOf(k), named: isPackRenamed(k),
-  plays: packSaves[k.id] ? packSaves[k.id].slice() : k.plays, mine: !!packSaves[k.id]}));
+  plays: (packSaves[k.id] ? packSaves[k.id].slice() : k.plays).filter(id => !hidden.has(id)),
+  mine: !!packSaves[k.id]}));
 const savedPackCount = () => Object.keys(packSaves).length;
 // Only what differs is stored: saving the shipped deck back into its own slot
 // is not a change, and the mark on the chip should not claim otherwise.
@@ -1066,6 +1131,7 @@ function resetEverything(){
   for (const n of FORMAT_IDS){
     loadMode(n);
     resetNames();
+    resetHidden();
     resetPacks();
     deck = DATA.defaultDeck.slice(); saveDeck();
   }
@@ -1103,6 +1169,8 @@ function modeBlob(){
     packNames,
     // the plays drawn here, as drawings: the other tablet compiles them itself
     plays: Object.values(designs),
+    // the shipped plays this coach has hidden
+    hidden: [...hidden],
   };
 }
 function setupBlob(){
@@ -1153,7 +1221,8 @@ function readMode(o, n, s){
   const L = ALL.formats[n];
   // an empty deck in the file is a choice, the same as on the tablet; only a
   // deck that is not there at all is something the file failed to say
-  const m = {deck:[], hasDeck: Array.isArray(o.deck), names:{}, plays:{}, packs:{}, packNames:{}};
+  const m = {deck:[], hasDeck: Array.isArray(o.deck), names:{}, plays:{}, packs:{}, packNames:{},
+             hidden:[]};
   // the plays first, because the deck and the weeks may name them. Each one is
   // a drawing to compile, never a play to trust: it has to be the right shape,
   // and then it has to pass the same checker the designer holds a coach to.
@@ -1164,7 +1233,12 @@ function readMode(o, n, s){
     m.plays[d.id] = d;
   }
   const shipped = id => typeof id === "string" && L.plays.some(p => p.id === id && !p.custom);
-  const known = id => shipped(id) || (typeof id === "string" && !!m.plays[id]);
+  // hidden plays: shipped ones only, once each. A file that leaves this out
+  // hides nothing; a hidden play cannot be in the deck or a week it names
+  if (Array.isArray(o.hidden)) for (const id of o.hidden){
+    if (shipped(id) && !m.hidden.includes(id)) m.hidden.push(id); else s.dropped++;
+  }
+  const known = id => (shipped(id) && !m.hidden.includes(id)) || (typeof id === "string" && !!m.plays[id]);
   if (Array.isArray(o.deck)) for (const id of o.deck){
     if (known(id) && !m.deck.includes(id)) m.deck.push(id); else s.dropped++;
   }
@@ -1183,7 +1257,7 @@ function readMode(o, n, s){
     // a week that ships empty and is still empty is the file saying so, not a
     // mistake; an empty list for a week that ships full means nothing
     if (ok.length) m.packs[id] = ok;
-    else if (!list.length && !L.packs.find(k => k.id === id).plays.length) continue;
+    else if (!list.length && L.packs.find(k => k.id === id).plays.every(p => m.hidden.includes(p))) continue;
     else s.dropped++;
   }
   // week names: a slot the build knows, and text — tidied and compared on the way in
@@ -1199,10 +1273,11 @@ function applySetup(s){
   for (const n of FORMAT_IDS){
     loadMode(n);
     const m = s.modes[n] || {deck: DATA.defaultDeck.slice(), hasDeck: true, names:{}, plays:{},
-                             packs:{}, packNames:{}};
+                             packs:{}, packNames:{}, hidden:[]};
     // the plays land first, so the deck and the weeks below can resolve them
     designs = Object.assign({}, m.plays); strayDesigns = {};
     saveDesigns(); refreshPlays();
+    hidden = new Set(m.hidden); saveHidden();
     if (m.hasDeck){ deck = m.deck.slice(); saveDeck(); } else s.dropped++;
     names = {};
     for (const id of Object.keys(m.names)) setNames(id, m.names[id].coach, m.names[id].kid);
@@ -2011,7 +2086,7 @@ function clearDesigns(){
 function loadMode(n){
   DATA = ALL.formats[n] || ALL.formats[6];
   loadDeck(); loadNames(); loadPackSaves(); loadPackNames(); loadDesigns();
-  refreshPlays();
+  refreshPlays(); loadHidden();
 }
 loadMode(cfg.players);
 
@@ -2384,7 +2459,7 @@ function tourSettings(){
     `<div class="setrow"><div class="setlab"><b>${t}</b></div>${c}</div>`).join("")}</div>`;
 }
 function tourSlides(){
-  const p = inDeck()[0] || DATA.plays[0];
+  const p = inDeck()[0] || shownPlays()[0] || DATA.plays[0];
   return [
     {title: "Your deck", sub: "The plays you carry into this game", art: tourTile(p),
      text: `<p>Every tile is one play. The bar says <b>run</b> or <b>pass</b>; the chips say
@@ -2753,6 +2828,11 @@ function renderSettings(tab){
       tap Save deck and then the week to keep it in, or Rename and then the week to call it something else.
       Both are kept through an update; Reset all puts every shipped week back, deck and name.`,
      `<div class="seg"><button id="pkreset" ${savedPackCount() || renamedPackCount() ? "" : "disabled"}>Reset all</button></div>`],
+    ["yours", "Shipped plays", `${shippedCount() - hidden.size} of ${shippedCount()} ${here} plays that
+      came with the app are shown in the play library${hidden.size ? ` &mdash; ${hidden.size} hidden` : ""}.
+      Hide the ones you will never call and the library is mostly your own. A hidden play comes out of
+      your deck and your weeks; show it again any time.`,
+     `<div class="seg"><button id="hidepick">Choose</button></div>`],
     ["yours", "Your own plays", `${customCount()} play${customCount() === 1 ? "" : "s"} drawn on this tablet in ${here}. Draw
       one from Change plays &mdash; tap New play. They are kept through an update and through Start
       over, because nothing else on the tablet can draw them again; Clear all is the only thing that
@@ -2773,7 +2853,7 @@ function renderSettings(tab){
      `<div class="seg"><button id="logexp">Export</button>
       <button id="logclr">Clear</button></div>`],
     ["tablet", "Start over", `Puts this tablet back the way it came, in every format &mdash; the ${DATA.defaultDeck.length}-play
-      starting deck, every play's shipped name, every week's shipped deck and name, and every setting
+      starting deck, every play's shipped name, every hidden play shown, every week's shipped deck and name, and every setting
       except how many are on the field. The game log and the plays you drew are left alone; clear those with
       their own rows.`,
      `<div class="seg"><button id="allreset">Reset tablet</button></div>`],
@@ -2798,6 +2878,7 @@ function renderSettings(tab){
   // only the open tab's rows are on the page, so each button is wired if it is there
   const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
   on("logexp", e => exportLog(e.currentTarget));
+  on("hidepick", () => openHidePicker());
   on("syncexp", e => exportSetup(e.currentTarget));
   const pick = document.getElementById("syncfile");
   if (pick){
@@ -2860,11 +2941,11 @@ function libMatch(p, f){
 // count as if one facet were changed — so a chip shows what tapping it yields
 function libCount(over){
   const f = Object.assign({}, libF, over);
-  return DATA.plays.reduce((n, p) => n + (libMatch(p, f) ? 1 : 0), 0);
+  return shownPlays().reduce((n, p) => n + (libMatch(p, f) ? 1 : 0), 0);
 }
 
 function libFilterHTML(){
-  const cats = CAT_ORDER.filter(k => DATA.plays.some(p => p.category === k));
+  const cats = CAT_ORDER.filter(k => shownPlays().some(p => p.category === k));
   const chip = (on, attr, label, n, extra) =>
     `<button class="fchip ${on ? "on" : ""}" ${attr} ${extra || ""}>${label}` +
     (n === null ? "" : `<span class="n">${n}</span>`) + `</button>`;
@@ -2887,7 +2968,7 @@ function libFilterHTML(){
    coach's, never turned around at the kids, so a stray tap here cannot rewrite
    a play name in the middle of a huddle. */
 function closeRename(){
-  for (const id of ["rensheet", "pnsheet", "fmsheet", "dzsheet", "prevsheet", "welsheet"]){
+  for (const id of ["rensheet", "pnsheet", "fmsheet", "dzsheet", "prevsheet", "welsheet", "hidesheet"]){
     const w = document.getElementById(id);
     if (w) w.remove();
   }
@@ -3043,6 +3124,89 @@ function fitPreview(){
 }
 addEventListener("resize", fitPreview);
 
+/* ------------------------------------------------------ show and hide
+   Every shipped play in this format, one row each, filed the way the library
+   files them. Tapping a row flips it between shown and hidden in a working
+   copy; nothing changes until Save. Save is the one destructive tap: when the
+   change hides plays that are in the deck or a saved week, it arms first and
+   says how many will come out, and acts on the second tap — the same two-tap
+   rule as everything else in Setup — and the arming lapses on its own. */
+function openHidePicker(){
+  closeRename();
+  const want = new Set(hidden);
+  const all = shippedPlays();
+  const inWeek = id => Object.values(packSaves).some(list => list.includes(id));
+  const w = document.createElement("div");
+  w.className = "sheetwrap";
+  w.id = "hidesheet";
+  w.innerHTML = `
+    <div class="sheet hidepick" role="dialog" aria-modal="true" aria-labelledby="hidetitle">
+      <h2 id="hidetitle">Shipped ${esc(DATA.label)} plays</h2>
+      <div class="hidebar">
+        <span id="hidecount"></span>
+        <button class="fchip" id="hideall">Hide all</button>
+        <button class="fchip" id="showall">Show all</button>
+      </div>
+      <div class="hlist" id="hlist">${all.map(p => `
+        <button class="hrow" data-id="${p.id}" style="--cat:${CAT[p.category]}">
+          <span class="hname"><b>${esc(nameOf(p).big)}</b>
+            <i>${esc(p.formation)} &middot; ${esc(p.category)}${deck.includes(p.id) ? ` &middot; <em>in your deck</em>`
+              : inWeek(p.id) ? ` &middot; <em>in a saved week</em>` : ""}</i></span>
+          <span class="hstate"></span>
+        </button>`).join("")}</div>
+      <div class="sheetbtns">
+        <button class="sbtn" id="hide-cancel">Cancel</button>
+        <button class="sbtn go" id="hide-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(w);
+  const save = document.getElementById("hide-save");
+  let armed = 0;
+  const disarm = () => { clearTimeout(armed); armed = 0; save.textContent = "Save"; };
+  // what Save would take out of the deck and the saved weeks
+  const leaving = () => [...want].filter(id => !hidden.has(id) && (deck.includes(id) || inWeek(id)));
+  const draw = () => {
+    w.querySelectorAll(".hrow").forEach(r => {
+      const off = want.has(r.dataset.id);
+      r.classList.toggle("off", off);
+      r.setAttribute("aria-pressed", String(!off));
+      r.querySelector(".hstate").textContent = off ? "Hidden" : "Shown";
+    });
+    document.getElementById("hidecount").textContent = `${all.length - want.size} of ${all.length} shown`;
+    disarm();
+  };
+  w.querySelectorAll(".hrow").forEach(r => r.onclick = () => {
+    const id = r.dataset.id;
+    if (want.has(id)) want.delete(id); else want.add(id);
+    draw();
+  });
+  document.getElementById("hideall").onclick = () => { all.forEach(p => want.add(p.id)); draw(); };
+  document.getElementById("showall").onclick = () => { want.clear(); draw(); };
+  document.getElementById("hide-cancel").onclick = () => closeRename();
+  save.onclick = () => {
+    const out = leaving();
+    if (out.length && !armed){
+      const inDeckNow = out.filter(id => deck.includes(id)).length, weeksOnly = out.length - inDeckNow;
+      save.textContent = inDeckNow
+        ? `Sure? ${inDeckNow} leave${inDeckNow === 1 ? "s" : ""} your deck`
+        : `Sure? ${weeksOnly} leave${weeksOnly === 1 ? "s" : ""} a week`;
+      armed = setTimeout(disarm, 2500);
+      return;
+    }
+    const before = hidden.size;
+    setHidden([...want]);
+    logEvent("plays_hidden", {hidden: hidden.size, was: before, out: out});
+    closeRename();
+    renderSettings("yours");
+  };
+  w.addEventListener("click", e => { if (e.target === w) closeRename(); });
+  w.addEventListener("keydown", e => {
+    if (e.key === "Escape"){ e.stopPropagation(); closeRename(); }
+  });
+  draw();
+  save.focus();
+}
+
 /* ------------------------------------------------------ library welcome
    The first time a coach lands on the library — straight from the first
    tutorial — it says in a few lines what this screen is and what to do on it,
@@ -3050,7 +3214,7 @@ addEventListener("resize", fitPreview);
    Only then: from the menu he has been here before. */
 function openLibraryWelcome(){
   closeRename();
-  const n = DATA.plays.filter(p => !p.custom).length;
+  const n = shownPlays().filter(p => !p.custom).length;
   const w = document.createElement("div");
   w.className = "sheetwrap";
   w.id = "welsheet";
@@ -3105,21 +3269,31 @@ function renderLibrary(welcome){
   };
 
   const drawRows = () => {
-    const list = DATA.plays.filter(p => libMatch(p, libF)).sort(byCat);
+    const shown = shownPlays();
+    const list = shown.filter(p => libMatch(p, libF)).sort(byCat);
     const lib = document.getElementById("lib");
+    // nothing to show at all is not a filter that matched nothing: every
+    // shipped play is hidden and there is none of his own yet
     lib.innerHTML = list.length
       ? list.map(rowHTML).join("")
+      : !shown.length
+      ? `<div class="lempty" id="lnone">Every shipped play is hidden and you have not drawn one
+           of your own yet. <button class="fchip" id="lnonew">New play</button></div>`
       : `<div class="lempty">No plays match.
            <button class="fchip" id="lclear">Clear filters</button></div>`;
     lib.scrollTop = 0;
     document.getElementById("lcount").textContent = deck.length + " in your deck";
     const pack = packOf();
-    document.getElementById("lnote").innerHTML = list.length !== DATA.plays.length
-      ? `Showing ${list.length} of ${DATA.plays.length} plays.`
+    const away = hidden.size ? ` ${hidden.size} shipped play${hidden.size === 1 ? " is" : "s are"} hidden
+      &mdash; Setup &rarr; Your own shows ${hidden.size === 1 ? "it" : "them"} again.` : "";
+    document.getElementById("lnote").innerHTML = (list.length !== shown.length
+      ? `Showing ${list.length} of ${shown.length} plays.`
       : pack
       ? `<b>${esc(pack.name)}.</b> ${esc(blurbOf(pack))}`
       : `Tap to add or remove. Keep the deck small &mdash; four plays you can find
-         without looking beats ${DATA.plays.length} you have to hunt through.`;
+         without looking beats ${shown.length} you have to hunt through.`) + away;
+    const none = document.getElementById("lnonew");
+    if (none) none.onclick = () => pickFormation();
     // after layout settles — row width can still change as the list reflows
     fitNames();
     requestAnimationFrame(fitNames);
