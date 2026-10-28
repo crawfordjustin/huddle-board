@@ -899,6 +899,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
 
         await pageA.ClickAsync("#ham");
         await pageA.ClickAsync("#setup");
+        await AppFixture.SetupTabAsync(pageA, "tablet");
         await pageA.WaitForSelectorAsync("#syncfile", new PageWaitForSelectorOptions { State = WaitForSelectorState.Attached });
         var download = await pageA.RunAndWaitForDownloadAsync(() => pageA.ClickAsync("#syncexp"));
         var dir = Path.Combine(Path.GetTempPath(), "hb-design-" + Guid.NewGuid().ToString("N"));
@@ -935,6 +936,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         await pageB.EvaluateAsync(Seed, SlotIn("u_mineonly", "MY OWN"));
         await pageB.ClickAsync("#ham");
         await pageB.ClickAsync("#setup");
+        await AppFixture.SetupTabAsync(pageB, "tablet");
         await pageB.WaitForSelectorAsync("#syncfile", new PageWaitForSelectorOptions { State = WaitForSelectorState.Attached });
         await pageB.WaitForTimeoutAsync(300);
         Assert.Contains("including the 1 play drawn here", await pageB.InnerTextAsync(".setrows"));
@@ -1045,6 +1047,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
 
         await page.ClickAsync("#ham");
         await page.ClickAsync("#setup");
+        await AppFixture.SetupTabAsync(page, "tablet");
         await page.WaitForSelectorAsync("#allreset");
         await page.ClickAsync("#allreset");
         await page.ClickAsync("#allreset");
@@ -1052,7 +1055,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         Assert.Equal(1, await page.EvaluateAsync<int>("customCount()"));
 
         await page.EvaluateAsync("() => { deck = ['u_slotin01']; saveDeck(); " +
-                                 "setPack('week2', ['p_01', 'u_slotin01']); renderSettings(); }");
+                                 "setPack('week2', ['p_01', 'u_slotin01']); renderSettings('yours'); }");
         await page.WaitForTimeoutAsync(200);
         Assert.False(await page.Locator("#dzclear").IsDisabledAsync());
         await page.ClickAsync("#dzclear");

@@ -55,6 +55,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
     {
         await page.ClickAsync("#ham");
         await page.ClickAsync("#setup");
+        await AppFixture.SetupTabAsync(page, "tablet");
         // the picker is a hidden input behind the Import button, so wait for it to exist, not to show
         await page.WaitForSelectorAsync("#syncfile",
             new PageWaitForSelectorOptions { State = WaitForSelectorState.Attached });
@@ -168,7 +169,9 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         Assert.True(await pageB.EvaluateAsync<bool>("events.some(e => e.e === 'sync_import')"),
             "the import itself was not logged");
 
-        // the counts on Setup already tell the new story
+        // the answer is on the tab that asked, and the counts already tell the new story
+        Assert.Equal("tablet", await pageB.EvaluateAsync<string>("setTab"));
+        await AppFixture.SetupTabAsync(pageB, "yours");
         Assert.Contains("2 plays renamed", await pageB.InnerTextAsync(".setrows"));
 
         // and it reached storage, not just memory

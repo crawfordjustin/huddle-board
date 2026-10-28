@@ -134,6 +134,7 @@ public sealed class TutorialChecks(AppFixture app)
         // Start over is the one thing that makes this somebody's first time again
         await page.ClickAsync("#ham");
         await page.ClickAsync("#setup");
+        await AppFixture.SetupTabAsync(page, "tablet");
         await page.WaitForSelectorAsync("#allreset");
         await page.ClickAsync("#allreset");
         await page.WaitForTimeoutAsync(200);

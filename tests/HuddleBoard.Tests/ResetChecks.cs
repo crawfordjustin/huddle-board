@@ -70,6 +70,7 @@ public sealed class ResetChecks(AppFixture app) : IDisposable
         // one tap arms it, the second does it
         await page.ClickAsync("#ham");
         await page.ClickAsync("#setup");
+        await AppFixture.SetupTabAsync(page, "tablet");
         await page.WaitForSelectorAsync("#allreset");
         await page.WaitForTimeoutAsync(300);
 
