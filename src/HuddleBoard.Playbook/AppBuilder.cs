@@ -25,7 +25,7 @@ public static class AppBuilder
     /// </summary>
     private const string Licence = """
         <!--
-          Huddle Board — a sideline play tool for 8U flag football.
+          Huddle Board — a sideline play tool for 6U to 8U flag football.
           Copyright (c) 2026 Justin Crawford. MIT licence.
 
           Permission is hereby granted, free of charge, to any person obtaining a
@@ -182,7 +182,7 @@ public static class AppBuilder
         j.StartObject();
         j.Pair("name", "Huddle Board");
         j.Pair("short_name", "Huddle");
-        j.Pair("description", "Sideline play tool for 8U flag football.");
+        j.Pair("description", "Sideline play tool for 6U to 8U flag football: 5, 6 or 7 on the field.");
         j.Pair("start_url", "./");
         j.Pair("scope", "./");
         j.Pair("display", "fullscreen");

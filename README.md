@@ -2,8 +2,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A sideline play tool for 8U flag football — 6-on-6, no blocking, rusher seven
-yards back, run and no-run zones.
+A sideline play tool for 6U to 8U flag football, or any division where the coach
+is on the field with the kids — 5-on-5, 6-on-6 or 7-on-7, no blocking, rusher
+seven yards back, run and no-run zones. Each format has its own formations and
+its own library of plays; Setup picks one.
 
 The coach picks a play on a tablet, turns the screen around, and the kids watch
 it animate. Every job is one of nine shapes, sides are BLUE and ORANGE instead
