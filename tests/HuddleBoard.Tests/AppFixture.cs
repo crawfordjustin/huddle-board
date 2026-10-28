@@ -88,6 +88,17 @@ public sealed class AppFixture : IAsyncLifetime
     public static Task MarkTourSeenAsync(IPage page) => page.AddInitScriptAsync(SeenTour);
 
     /// <summary>
+    /// Opens one of Setup's tabs — game, clock, yours or tablet. Only the open
+    /// tab's rows are on the page, so a check reaching for a button opens its
+    /// tab first.
+    /// </summary>
+    public static async Task SetupTabAsync(IPage page, string tab)
+    {
+        await page.ClickAsync($".settab[data-tab=\"{tab}\"]");
+        await page.WaitForSelectorAsync($".settab.on[data-tab=\"{tab}\"]");
+    }
+
+    /// <summary>
     /// A tablet set to <paramref name="players"/> on the field before the app
     /// boots, the way Setup leaves it. Written only when nothing is there yet,
     /// so a check that switches format and reloads keeps what it switched to.

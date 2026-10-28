@@ -272,6 +272,7 @@ public sealed class PackChecks(AppFixture app)
         await page.ClickAsync("#done");
         await page.ClickAsync("#ham");
         await page.ClickAsync("#setup");
+        await AppFixture.SetupTabAsync(page, "yours");
         await page.WaitForSelectorAsync("#pkreset");
         Assert.Contains("1 is renamed", await page.InnerTextAsync(".setrows"));
         Assert.False(await page.Locator("#pkreset").IsDisabledAsync(), "Reset all is dead while a week is renamed");

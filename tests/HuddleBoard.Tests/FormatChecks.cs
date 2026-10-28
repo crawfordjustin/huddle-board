@@ -28,7 +28,7 @@ public sealed class FormatChecks(AppFixture app) : IDisposable
     {
         await page.ClickAsync("#ham");
         await page.ClickAsync("#setup");
-        await page.WaitForSelectorAsync(".setrows");
+        await AppFixture.SetupTabAsync(page, "game");
         await page.ClickAsync($".seg[data-key=\"players\"] button[data-v=\"{players}\"]");
         await page.WaitForTimeoutAsync(200);
         await page.ClickAsync("#sdone");

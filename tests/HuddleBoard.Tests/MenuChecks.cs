@@ -87,10 +87,11 @@ public sealed class MenuChecks(AppFixture app)
     }
 
     /// <summary>
-    /// Every row in Setup has to be reachable and thumb-sized on every tablet.
-    /// Eight rows do not fit 600px of landscape, so the screen scrolls — and a
+    /// Every row in Setup has to be reachable and thumb-sized on every tablet,
+    /// on every tab. A tab that outgrows 600px of landscape scrolls — and a
     /// scroller centred with justify-content puts its first row permanently
-    /// above the top, which is the failure this is really watching for.
+    /// above the top, which is the failure this is really watching for. The
+    /// tabs themselves are thumb-sized and all on screen.
     /// </summary>
     [Theory]
     [MemberData(nameof(AppFixture.AllSizes), MemberType = typeof(AppFixture))]
@@ -102,33 +103,48 @@ public sealed class MenuChecks(AppFixture app)
         await page.WaitForSelectorAsync(".setrows");
         await page.WaitForTimeoutAsync(300);
 
-        var rows = await page.Locator(".setrow").CountAsync();
-
-        var short_ = await page.EvalOnSelectorAllAsync<string[]>(".setrow", """
-            els => els.filter(e => e.getBoundingClientRect().height < 44)
-                      .map(e => e.querySelector('.setlab b').textContent.trim())
+        var tabs = await page.EvalOnSelectorAllAsync<string[]>(".settab", "b => b.map(x => x.dataset.tab)");
+        var tabsFit = await page.EvalOnSelectorAllAsync<bool>(".settab", """
+            els => els.every(e => { const r = e.getBoundingClientRect();
+              return r.height >= 44 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; })
             """);
+        Assert.Equal(["game", "clock", "yours", "tablet"], tabs);
+        Assert.True(tabsFit, $"{label}: a Setup tab is off screen or too small for a thumb");
 
-        var reachable = await page.EvaluateAsync<bool>("""
-            () => {
-              const g = document.querySelector('.setrows');
-              const rows = [...g.querySelectorAll('.setrow')];
-              g.scrollTop = g.scrollHeight;
-              const bottom = rows.at(-1).getBoundingClientRect().bottom
-                           <= g.getBoundingClientRect().bottom + 2;
-              g.scrollTop = 0;
-              const top = rows[0].getBoundingClientRect().top
-                        >= g.getBoundingClientRect().top - 2;
-              return top && bottom;
-            }
-            """);
+        var rows = 0;
+        foreach (var tab in tabs)
+        {
+            await AppFixture.SetupTabAsync(page, tab);
+            await page.WaitForTimeoutAsync(200);
+            var here = await page.Locator(".setrow").CountAsync();
+            Assert.True(here > 0, $"{label}: the {tab} tab is empty");
+            rows += here;
+
+            var short_ = await page.EvalOnSelectorAllAsync<string[]>(".setrow", """
+                els => els.filter(e => e.getBoundingClientRect().height < 44)
+                          .map(e => e.querySelector('.setlab b').textContent.trim())
+                """);
+            var reachable = await page.EvaluateAsync<bool>("""
+                () => {
+                  const g = document.querySelector('.setrows');
+                  const rows = [...g.querySelectorAll('.setrow')];
+                  g.scrollTop = g.scrollHeight;
+                  const bottom = rows.at(-1).getBoundingClientRect().bottom
+                               <= g.getBoundingClientRect().bottom + 2;
+                  g.scrollTop = 0;
+                  const top = rows[0].getBoundingClientRect().top
+                            >= g.getBoundingClientRect().top - 2;
+                  return top && bottom;
+                }
+                """);
+            Assert.True(short_.Length == 0, $"{label} {tab}: too small for a thumb: {string.Join(", ", short_)}");
+            Assert.True(reachable, $"{label} {tab}: a row in Setup cannot be scrolled to");
+        }
 
         await page.CloseAsync();
 
-        Assert.True(rows >= 8, $"{label}: only {rows} rows in Setup");
-        Assert.True(short_.Length == 0, $"{label}: too small for a thumb: {string.Join(", ", short_)}");
-        Assert.True(reachable, $"{label}: a row in Setup cannot be scrolled to");
-        Assert.True(errors.Count == 0, string.Join("\n", errors));
+        Assert.True(rows >= 12, $"{label}: only {rows} rows in Setup");
+        Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors));
     }
 
     [Fact]

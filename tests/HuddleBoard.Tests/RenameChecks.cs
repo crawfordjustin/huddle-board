@@ -128,6 +128,7 @@ public sealed class RenameChecks(AppFixture app) : IDisposable
         // reset all, from the one place that offers it, and only on the second tap
         await page.ClickAsync("#ham");
         await page.ClickAsync("#setup");
+        await AppFixture.SetupTabAsync(page, "yours");
         await page.WaitForSelectorAsync("#nmreset");
         await page.WaitForTimeoutAsync(300);
         Assert.False(await page.Locator("#nmreset").IsDisabledAsync(),

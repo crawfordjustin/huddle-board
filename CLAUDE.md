@@ -143,7 +143,15 @@ it, including the survives-an-update part, against a real new build taken throug
 the service worker. Custom names are per tablet and do not reach the printed
 playbook, which is built from source.
 
-Setup's last row, **Start over**, puts the whole tablet back: the starting deck,
+Setup is filed under four tabs (`SET_TABS`): **Game** (players on the field,
+play names), **Clock**, **Your own** (names, weeks, drawn plays) and **Tablet**
+(sync, the log, Start over). Only the open tab's rows are on the page, so its
+handlers wire whatever is there; which tab is open lives in memory (`setTab`)
+like the deck filter, and an import's answer opens on Tablet, the row that
+asked. `MenuChecks` walks every tab at every size; a check reaching for a
+Setup button opens its tab first (`AppFixture.SetupTabAsync`).
+
+The Tablet tab's last row, **Start over**, puts the whole tablet back: the starting deck,
 every shipped name, every setting, and which sideline is ours. It deliberately
 leaves the game log alone. A log is a recording rather than a preference — the
 one thing on the tablet that cannot be derived again — and it has its own Clear
@@ -684,8 +692,10 @@ whole sweep cannot pass vacuously.
 - **`justify-content: center` on a scroller hides its first row.** Setup grew
   past what 600px of landscape can hold, so `.setrows` scrolls — and centring it
   with `justify-content` puts the first row above the top of the scroll range,
-  permanently out of reach. Auto margins on the first and last child centre the
-  group while it fits and collapse to zero once it does not.
+  permanently out of reach. Setup is now tabbed and its rows start at the top,
+  under the tab that chose them; if they are ever centred again, use auto
+  margins on the first and last child, which collapse to zero once the group
+  does not fit.
 - **`.tilemain` is taller than the tile it sits in.** The card is
   `display:flex; align-items:center`, so its child is sized to its own content
   and cheerfully overflows the card — which means `.tilemain`'s own box never
