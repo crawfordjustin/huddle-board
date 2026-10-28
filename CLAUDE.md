@@ -164,7 +164,10 @@ leaves the game log alone. A log is a recording rather than a preference — the
 one thing on the tablet that cannot be derived again — and it has its own Clear
 one row up. Everything destructive in Setup arms on the first tap and acts on the
 second (`confirmTap`), and the arming lapses on its own, so a stray thumb on the
-way past costs nothing. `ResetChecks` holds all of that, including the log.
+way past costs nothing. The second tap lands on the **intro**, because a tablet
+put back the way it came starts the way it came: its START asks how many are on
+the field (the kept answer lit) and runs the tutorial. `ResetChecks` holds all
+of that, including the log.
 
 **7. The deck answers the same two questions the library does.** On the sideline
 the thought is "I need a goal line play", not "I need play 13", so the deck
@@ -357,7 +360,14 @@ across two tablets and feeds it markup.
 **12. The first START goes through the tutorial, once.** The app grew past
 what one sentence on the intro could carry — chips, mirror, tap-a-kid, packs,
 Setup, the menu — so a fresh tablet's first START lands on six slides
-(`renderTour`) on its way to the deck: the coach's own first tile, that play
+(`renderTour`) on its way to the deck, after one question:
+**how many players does your team put on the field?** (`renderAskPlayers`).
+It comes first because every screen after it, the tutorial's first tile
+included, belongs to the format the answer picks; three big answers, each with
+its format's base formation drawn, so the count is something a coach sees. It
+is asked whenever the tutorial is about to run for the first time — a fresh
+tablet, or one after Start over, with the kept answer lit — and never from the
+menu's Tutorial, because that coach has answered. The slides themselves are: the coach's own first tile, that play
 running, the marker shapes, a week of the pack strip, a slice of Setup, and
 the menu, each beside a few sentences. Every picture is the real thing drawn
 by the real code (`tourTile`, `tourField`, `tourMarkers`, `tourPacks`,

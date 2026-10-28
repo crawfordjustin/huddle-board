@@ -1053,6 +1053,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         await page.ClickAsync("#allreset");
         await page.WaitForTimeoutAsync(300);
         Assert.Equal(1, await page.EvaluateAsync<int>("customCount()"));
+        Assert.Equal("intro", await page.EvaluateAsync<string>("S.screen"));
 
         await page.EvaluateAsync("() => { deck = ['u_slotin01']; saveDeck(); " +
                                  "setPack('week2', ['p_01', 'u_slotin01']); renderSettings('yours'); }");

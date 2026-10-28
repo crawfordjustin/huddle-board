@@ -82,6 +82,9 @@ public sealed class ResetChecks(AppFixture app) : IDisposable
         await page.ClickAsync("#allreset");
         await page.WaitForTimeoutAsync(400);
         Assert.Equal(shipped, await page.EvaluateAsync<string>(StateProbe));
+        // and it starts the way a new tablet does: on the intro
+        Assert.Equal("intro", await page.EvaluateAsync<string>("S.screen"));
+        Assert.Equal(1, await page.Locator("#start").CountAsync());
 
         // the log is a recording, not a preference — Start over must not eat it
         Assert.True(await page.EvaluateAsync<int>("events.length") > loggedBefore,
