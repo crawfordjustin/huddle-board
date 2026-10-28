@@ -11,10 +11,10 @@ namespace HuddleBoard.Playbook.Print;
 /// </summary>
 internal static class FieldCards
 {
-    public static string Build()
+    public static string Build(Format f)
     {
         var cards = new List<string> { SpotsCard(), ShapesCard() };
-        cards.AddRange(PlayLibrary.All.Select(PlayCard));
+        cards.AddRange(f.Plays.Select(p => PlayCard(p, f)));
 
         var sheets = new StringBuilder();
         for (var i = 0; i < cards.Count; i += 2)
@@ -24,14 +24,14 @@ internal static class FieldCards
                 .Append("</section>");
         }
 
-        return "<!doctype html><html><head><meta charset=\"utf-8\"><title>Field Cards</title>"
+        return "<!doctype html><html><head><meta charset=\"utf-8\"><title>Field Cards — " + Esc(f.Label) + "</title>"
             + "<style>" + Css + "</style></head><body>" + sheets + "</body></html>";
     }
 
-    private static string PlayCard(Play play)
+    private static string PlayCard(Play play, Format f)
     {
         var colour = CategoryColours[play.Category];
-        var txt = PlayTexts.All[play.Num];
+        var txt = f.Texts[play.Num];
         var calls = string.Concat(txt.Calls.Select(c =>
             $"<li><b>{Esc(c.Label)}</b><span>{Esc(c.Job)}</span></li>"));
 

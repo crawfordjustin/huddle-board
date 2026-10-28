@@ -28,7 +28,8 @@ public sealed class RenameChecks(AppFixture app) : IDisposable
     private static readonly string ShippedKidName =
         System.Text.Json.JsonDocument.Parse(
                 File.ReadAllText(Path.Combine(Workspace.Dist, "proto_data.json")))
-            .RootElement.GetProperty("plays")[0].GetProperty("kidName").GetString()!;
+            .RootElement.GetProperty("formats").GetProperty("6").GetProperty("plays")[0]
+            .GetProperty("kidName").GetString()!;
 
     private readonly StaticSite _site = new(Workspace.Deploy);
 

@@ -36,6 +36,9 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .deckhead p,.decktop p{margin:0;font-size:clamp(11px,1.6vh,14px);color:#8A968C;letter-spacing:.13em;
   text-transform:uppercase;font-weight:600}
 .dh-right{display:flex;align-items:center;gap:clamp(10px,1.5vw,20px)}
+.fmt{font-family:var(--disp);font-size:clamp(11px,1.6vh,14px);letter-spacing:.12em;white-space:nowrap;
+  color:#8A968C;border:1.5px solid currentColor;border-radius:999px;padding:2px 9px;vertical-align:middle}
+.deckhead h1 .fmt{margin-left:12px;font-size:clamp(11px,1.8vh,15px)}
 /* The deck has no title row. It is the screen a coach picks plays from, so
    every line of chrome above the tiles is a row of plays he cannot see: the
    filter chips sit on the left of one bar and the clock, the count and the
@@ -600,7 +603,18 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 <div id="app"></div>
 
 <script>
-const DATA = __DATA__;
+/* Every format the build knows — 5, 6 and 7 on the field — each a whole
+   library with its own formations, plays and weeks. DATA is the one in use;
+   loadMode() swaps it, and everything that reads the library reads DATA. */
+const ALL = __DATA__;
+const FORMAT_IDS = Object.keys(ALL.formats).map(Number).sort((a, b) => a - b);
+let DATA = ALL.formats[6];
+/* A coach's own choices live per format, because a 5-on-5 deck is not a
+   6-on-6 deck. 6 on 6 keeps the keys it always had, so a tablet from before
+   there was a choice finds everything where it left it. */
+const keyIn = (k, n) => n === 6 ? k : k + "." + n;
+const myKey = k => keyIn(k, DATA.players);
+const OTHERS = {4: "four", 5: "five", 6: "six"};
 
 /* ------------------------------------------------------------ geometry */
 const SCALE = 31.25, VB_W = 1140, VB_H = 672, CX = 570, TOPY = 15;
@@ -803,12 +817,16 @@ const S = {screen:"deck", play:null, tl:null, stage:"lineup", solo:null,
 
 // An empty deck is a deck: a coach who cleared it to build his own should
 // find it still empty after a reload, not quietly refilled with Week 1.
-let deck = DATA.defaultDeck.slice();
-try {
-  const saved = JSON.parse(localStorage.getItem("hb.deck") || "null");
-  if (Array.isArray(saved)) deck = saved;
-} catch(e){}
-function saveDeck(){ try { localStorage.setItem("hb.deck", JSON.stringify(deck)); } catch(e){} }
+let deck = [];
+function storedDeck(n){
+  try {
+    const saved = JSON.parse(localStorage.getItem(keyIn("hb.deck", n)) || "null");
+    if (Array.isArray(saved)) return saved;
+  } catch(e){}
+  return ALL.formats[n].defaultDeck.slice();
+}
+function loadDeck(){ deck = storedDeck(DATA.players); }
+function saveDeck(){ try { localStorage.setItem(myKey("hb.deck"), JSON.stringify(deck)); } catch(e){} }
 const byNum = (a,b) => a.num - b.num;
 const inDeck = () => DATA.plays.filter(p => deck.includes(p.id)).sort(byNum);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -865,17 +883,20 @@ addEventListener("pagehide", flushLog);
 // Note the v stays 1 — bumping it would throw away every coach's saved
 // settings. Anyone who has already chosen keeps their choice; only a fresh
 // install picks up this default.
+// players is the division: how many are on the field, and so which library
+// the whole tablet reads. A tablet from before there was a choice is 6 on 6.
 const CFG_DEFAULTS = {v:1, clockSecs:40, warnAt:10, vibrate:true, showClock:true,
-                      funNames:false};
+                      funNames:false, players:6};
 // Every value a setting can take. Setup's buttons are drawn from this and a
 // setup file from another tablet is checked against it, so the two cannot drift.
 const CFG_CHOICES = {clockSecs:[25,30,40,45], warnAt:[5,10,15], vibrate:[true,false],
-                     showClock:[true,false], funNames:[true,false]};
+                     showClock:[true,false], funNames:[true,false], players:FORMAT_IDS};
 let cfg = Object.assign({}, CFG_DEFAULTS);
 try {
   const saved = JSON.parse(localStorage.getItem("hb.settings") || "null");
   if (saved && saved.v === 1) cfg = Object.assign({}, CFG_DEFAULTS, saved);
 } catch(e){}
+if (!ALL.formats[cfg.players]) cfg.players = 6;
 function saveCfg(){ try { localStorage.setItem("hb.settings", JSON.stringify(cfg)); } catch(e){} }
 
 /* -------------------------------------------------------- custom names
@@ -887,12 +908,17 @@ function saveCfg(){ try { localStorage.setItem("hb.settings", JSON.stringify(cfg
    coach can drop one half without losing the other. */
 const NAME_CAP = 22;
 let names = {};
-try {
-  const saved = JSON.parse(localStorage.getItem("hb.names") || "null");
-  if (saved && saved.v === 1 && saved.byId) names = saved.byId;
-} catch(e){}
+// the {v:1, byId} stores all read the same way, for any format
+function storedById(k, n){
+  try {
+    const saved = JSON.parse(localStorage.getItem(keyIn(k, n)) || "null");
+    if (saved && saved.v === 1 && saved.byId) return saved.byId;
+  } catch(e){}
+  return {};
+}
+function loadNames(){ names = storedById("hb.names", DATA.players); }
 function saveNames(){
-  try { localStorage.setItem("hb.names", JSON.stringify({v:1, byId:names})); } catch(e){}
+  try { localStorage.setItem(myKey("hb.names"), JSON.stringify({v:1, byId:names})); } catch(e){}
 }
 const tidyName = s => (s || "").replace(/\s+/g, " ").trim().slice(0, NAME_CAP);
 const coachNameOf = p => (names[p.id] && names[p.id].coach) || p.coachName;
@@ -921,12 +947,9 @@ function resetNames(id){
    carried in the sync file — where every slot is spelled out, so the tablet
    that imports ends up with exactly the weeks the file has, shipped or saved. */
 let packSaves = {};
-try {
-  const saved = JSON.parse(localStorage.getItem("hb.packs") || "null");
-  if (saved && saved.v === 1 && saved.byId) packSaves = saved.byId;
-} catch(e){}
+function loadPackSaves(){ packSaves = storedById("hb.packs", DATA.players); }
 function savePackSaves(){
-  try { localStorage.setItem("hb.packs", JSON.stringify({v:1, byId:packSaves})); } catch(e){}
+  try { localStorage.setItem(myKey("hb.packs"), JSON.stringify({v:1, byId:packSaves})); } catch(e){}
 }
 const sameDeck = (a, b) => a.length === b.length && a.every(id => b.includes(id));
 const knownPlay = id => typeof id === "string" && DATA.plays.some(p => p.id === id);
@@ -935,12 +958,9 @@ const knownPlay = id => typeof id === "string" && DATA.plays.some(p => p.id === 
    deck. Same discipline as play names: only a name that differs from the
    shipped one is stored, under hb.packnames, keyed by pack id. */
 let packNames = {};
-try {
-  const saved = JSON.parse(localStorage.getItem("hb.packnames") || "null");
-  if (saved && saved.v === 1 && saved.byId) packNames = saved.byId;
-} catch(e){}
+function loadPackNames(){ packNames = storedById("hb.packnames", DATA.players); }
 function savePackNames(){
-  try { localStorage.setItem("hb.packnames", JSON.stringify({v:1, byId:packNames})); } catch(e){}
+  try { localStorage.setItem(myKey("hb.packnames"), JSON.stringify({v:1, byId:packNames})); } catch(e){}
 }
 const packNameOf = k => packNames[k.id] || k.name;
 const isPackRenamed = k => !!packNames[k.id];
@@ -984,14 +1004,24 @@ function resetPacks(){ packSaves = {}; savePackSaves(); resetPackNames(); }
    starting deck, every play's shipped name, every setting above, and which
    sideline is ours. The game log is deliberately NOT part of this. A log is a
    recording, not a preference — it is the one thing here that cannot be
-   derived again — and it has its own Clear one row up. */
+   derived again — and it has its own Clear one row up.
+
+   Every format goes back, not just the one on screen: a tablet put back the
+   way it came has no 5-on-5 deck left over from before. The one setting it
+   keeps is how many are on the field, because the division a tablet plays in
+   is not something the coach customised — it is the league he is in. */
 function resetEverything(){
   logEvent("reset_all", {deck: deck.slice(), renamed: renamedCount(), savedWeeks: savedPackCount(),
-                         renamedWeeks: renamedPackCount()});
-  resetNames();
-  resetPacks();
-  deck = DATA.defaultDeck.slice(); saveDeck();
-  cfg = Object.assign({}, CFG_DEFAULTS); saveCfg();
+                         renamedWeeks: renamedPackCount(), players: DATA.players});
+  const keep = cfg.players;
+  for (const n of FORMAT_IDS){
+    loadMode(n);
+    resetNames();
+    resetPacks();
+    deck = DATA.defaultDeck.slice(); saveDeck();
+  }
+  cfg = Object.assign({}, CFG_DEFAULTS, {players: keep}); saveCfg();
+  loadMode(keep);
   setOurSide("blue");
   resetTour();
   S.hintSeen = false;
@@ -1013,96 +1043,134 @@ function resetEverything(){
    in the file is trusted: play ids are checked against the library, settings
    against CFG_CHOICES, names go through the same tidy-and-compare as typing. */
 const SETUP_FORMAT = "huddleboard.setup";
-function setupBlob(){
-  const settings = {};
-  for (const k of Object.keys(CFG_CHOICES)) settings[k] = cfg[k];
-  return JSON.stringify({
-    format: SETUP_FORMAT, v: 1, build: APP_BUILD, device: devId, exportedWall: Date.now(),
-    deck: deck.slice(), names, settings, ourSide,
+// what one format's section of the file holds, read straight from that
+// format's own keys — so the file carries every format, not just the one on screen
+function modeBlob(){
+  return {
+    deck: deck.slice(), names,
     // every week as this tablet has it, shipped or saved, so the file stands alone
     packs: Object.fromEntries(packsNow().map(k => [k.id, k.plays.slice()])),
     // and the coach's own names for them, like play names: only what differs
     packNames,
     // the plays drawn here, as drawings: the other tablet compiles them itself
     plays: Object.values(designs),
+  };
+}
+function setupBlob(){
+  const settings = {};
+  for (const k of Object.keys(CFG_CHOICES)) settings[k] = cfg[k];
+  const keep = DATA.players, modes = {};
+  for (const n of FORMAT_IDS){ loadMode(n); modes[n] = modeBlob(); }
+  loadMode(keep);
+  return JSON.stringify({
+    format: SETUP_FORMAT, v: 2, build: APP_BUILD, device: devId, exportedWall: Date.now(),
+    settings, ourSide, modes,
   });
 }
-// The file, read with suspicion. Returns what will be applied plus a count of
-// what was not recognised; throws when it is not a setup file at all.
+// drawn plays on this tablet in every format: Import replaces all of them
+function allCustomCount(){
+  let n = 0;
+  for (const f of FORMAT_IDS) n += Object.keys(storedById("hb.plays", f)).length;
+  return n;
+}
+/* The file, read with suspicion. Returns what will be applied plus a count of
+   what was not recognised; throws when it is not a setup file at all. Each
+   format's section is read against that format's library and nothing else, so
+   a 5-on-5 play id or drawing in the 7-on-7 section is not recognised.
+   A v1 file is from before there were formats: it is a 6-on-6 tablet's, and
+   it says nothing about the others, which go back to shipped. */
 function readSetup(text){
   let o = null;
   try { o = JSON.parse(text); } catch(e){}
-  if (!o || o.format !== SETUP_FORMAT || o.v !== 1) throw new Error("not a setup file");
+  if (!o || o.format !== SETUP_FORMAT || (o.v !== 1 && o.v !== 2)) throw new Error("not a setup file");
+  const s = {settings:{}, ourSide:null, dropped:0, modes:{}};
+  const sections = o.v === 1 ? {6: o} : o.modes && typeof o.modes === "object" ? o.modes : {};
+  for (const key of Object.keys(sections)){
+    const n = Number(key), sec = sections[key];
+    if (!ALL.formats[n] || !sec || typeof sec !== "object"){ s.dropped++; continue; }
+    s.modes[n] = readMode(sec, n, s);
+  }
+  const st = o.settings && typeof o.settings === "object" ? o.settings : {};
+  for (const k of Object.keys(CFG_CHOICES)){
+    // a v1 file never had a format to say; that is not something it got wrong
+    if (k === "players" && o.v === 1) continue;
+    if (CFG_CHOICES[k].includes(st[k])) s.settings[k] = st[k]; else s.dropped++;
+  }
+  if (o.ourSide === "blue" || o.ourSide === "orange") s.ourSide = o.ourSide; else s.dropped++;
+  return s;
+}
+// one format's section, against ALL.formats[n]. Misses are counted on s.
+function readMode(o, n, s){
+  const L = ALL.formats[n];
   // an empty deck in the file is a choice, the same as on the tablet; only a
   // deck that is not there at all is something the file failed to say
-  const s = {deck:[], hasDeck: Array.isArray(o.deck), names:{}, settings:{}, ourSide:null, dropped:0,
-             plays:{}};
+  const m = {deck:[], hasDeck: Array.isArray(o.deck), names:{}, plays:{}, packs:{}, packNames:{}};
   // the plays first, because the deck and the weeks may name them. Each one is
   // a drawing to compile, never a play to trust: it has to be the right shape,
   // and then it has to pass the same checker the designer holds a coach to.
   // This tablet's own plays are no help here — import replaces them.
   if (Array.isArray(o.plays)) for (const raw of o.plays){
-    const d = saneDesign(raw);
-    if (!d || s.plays[d.id] || errorsIn(compileDesign(d, 0)).length){ s.dropped++; continue; }
-    s.plays[d.id] = d;
+    const d = saneDesign(raw, n);
+    if (!d || m.plays[d.id] || errorsIn(compileDesign(d, 0)).length){ s.dropped++; continue; }
+    m.plays[d.id] = d;
   }
-  const shipped = id => typeof id === "string" && DATA.plays.some(p => p.id === id && !p.custom);
-  const known = id => shipped(id) || (typeof id === "string" && !!s.plays[id]);
-  const knownPlay = known;            // the weeks below are read against the file, too
+  const shipped = id => typeof id === "string" && L.plays.some(p => p.id === id && !p.custom);
+  const known = id => shipped(id) || (typeof id === "string" && !!m.plays[id]);
   if (Array.isArray(o.deck)) for (const id of o.deck){
-    if (known(id) && !s.deck.includes(id)) s.deck.push(id); else s.dropped++;
+    if (known(id) && !m.deck.includes(id)) m.deck.push(id); else s.dropped++;
   }
   if (o.names && typeof o.names === "object") for (const id of Object.keys(o.names)){
-    const n = o.names[id];
-    if (!shipped(id) || !n || typeof n !== "object"){ s.dropped++; continue; }
-    s.names[id] = {coach: typeof n.coach === "string" ? n.coach : "",
-                   kid:   typeof n.kid   === "string" ? n.kid   : ""};
+    const nm = o.names[id];
+    if (!shipped(id) || !nm || typeof nm !== "object"){ s.dropped++; continue; }
+    m.names[id] = {coach: typeof nm.coach === "string" ? nm.coach : "",
+                   kid:   typeof nm.kid   === "string" ? nm.kid   : ""};
   }
-  const st = o.settings && typeof o.settings === "object" ? o.settings : {};
-  for (const k of Object.keys(CFG_CHOICES)){
-    if (CFG_CHOICES[k].includes(st[k])) s.settings[k] = st[k]; else s.dropped++;
-  }
-  if (o.ourSide === "blue" || o.ourSide === "orange") s.ourSide = o.ourSide; else s.dropped++;
   // saved weeks: a slot the build knows, holding plays the library has, once each
-  s.packs = {};
   if (o.packs && typeof o.packs === "object") for (const id of Object.keys(o.packs)){
     const list = o.packs[id];
-    if (!DATA.packs.some(k => k.id === id) || !Array.isArray(list)){ s.dropped++; continue; }
+    if (!L.packs.some(k => k.id === id) || !Array.isArray(list)){ s.dropped++; continue; }
     const ok = [];
-    for (const p of list){ if (knownPlay(p) && !ok.includes(p)) ok.push(p); else s.dropped++; }
+    for (const p of list){ if (known(p) && !ok.includes(p)) ok.push(p); else s.dropped++; }
     // a week that ships empty and is still empty is the file saying so, not a
     // mistake; an empty list for a week that ships full means nothing
-    if (ok.length) s.packs[id] = ok;
-    else if (!list.length && !DATA.packs.find(k => k.id === id).plays.length) continue;
+    if (ok.length) m.packs[id] = ok;
+    else if (!list.length && !L.packs.find(k => k.id === id).plays.length) continue;
     else s.dropped++;
   }
   // week names: a slot the build knows, and text — tidied and compared on the way in
-  s.packNames = {};
   if (o.packNames && typeof o.packNames === "object") for (const id of Object.keys(o.packNames)){
-    const n = o.packNames[id];
-    if (!DATA.packs.some(k => k.id === id) || typeof n !== "string"){ s.dropped++; continue; }
-    s.packNames[id] = n;
+    const nm = o.packNames[id];
+    if (!L.packs.some(k => k.id === id) || typeof nm !== "string"){ s.dropped++; continue; }
+    m.packNames[id] = nm;
   }
-  return s;
+  return m;
 }
 function applySetup(s){
-  // the plays land first, so the deck and the weeks below can resolve them
-  designs = Object.assign({}, s.plays); strayDesigns = {};
-  saveDesigns(); refreshPlays();
-  if (s.hasDeck){ deck = s.deck.slice(); saveDeck(); } else s.dropped++;
-  names = {};
-  for (const id of Object.keys(s.names)) setNames(id, s.names[id].coach, s.names[id].kid);
-  saveNames();
-  // every week comes from the file: a slot it does not fill, or name, goes back to shipped
-  resetPacks();
-  for (const id of Object.keys(s.packs)) setPack(id, s.packs[id]);
-  for (const id of Object.keys(s.packNames)) setPackName(id, s.packNames[id]);
+  // every format comes from the file: one it does not carry goes back to shipped
+  for (const n of FORMAT_IDS){
+    loadMode(n);
+    const m = s.modes[n] || {deck: DATA.defaultDeck.slice(), hasDeck: true, names:{}, plays:{},
+                             packs:{}, packNames:{}};
+    // the plays land first, so the deck and the weeks below can resolve them
+    designs = Object.assign({}, m.plays); strayDesigns = {};
+    saveDesigns(); refreshPlays();
+    if (m.hasDeck){ deck = m.deck.slice(); saveDeck(); } else s.dropped++;
+    names = {};
+    for (const id of Object.keys(m.names)) setNames(id, m.names[id].coach, m.names[id].kid);
+    saveNames();
+    // every week comes from the file: a slot it does not fill, or name, goes back to shipped
+    resetPacks();
+    for (const id of Object.keys(m.packs)) setPack(id, m.packs[id]);
+    for (const id of Object.keys(m.packNames)) setPackName(id, m.packNames[id]);
+  }
   cfg = Object.assign({}, CFG_DEFAULTS, s.settings); saveCfg();
+  loadMode(cfg.players);
   if (s.ourSide) setOurSide(s.ourSide);
   S.hintSeen = false;
   stopClock();
   clk = {at:0, running:false, warned:false, expired:false};
-  logEvent("sync_import", {deck: deck.slice(), renamed: renamedCount(), dropped: s.dropped});
+  logEvent("sync_import", {deck: deck.slice(), renamed: renamedCount(), dropped: s.dropped,
+                           players: DATA.players});
   flushLog();
 }
 let syncMsg = "";                 // shown once on the Sync row, then gone
@@ -1335,7 +1403,8 @@ function checkPlay(p){
   for (const key of keysOf){
     if (seen.has(key)) continue;
     if (key === "QB" && throws) continue;     // the thrower throws
-    err("SAFE/no-job", `${nm(key)} has no path — he will stand still while five kids run`, [key]);
+    err("SAFE/no-job", `${nm(key)} has no path — he will stand still while ${
+      OTHERS[keysOf.length - 1] || keysOf.length - 1} kids run`, [key]);
   }
   for (const [key, paths] of seen){
     if (!spots[key]){ err("LEGAL/ghost", `${key} is not in this formation`); continue; }
@@ -1503,11 +1572,18 @@ const errorsIn = p => checkPlay(p).filter(f => f.level === "error");
 const DESIGN_V = 1;
 const ROUTE_CAP = 10;                    // points per route; a real one needs four
 const TAG_CAP = 80;
-// where everybody lines up, read off the shipped plays before any of ours join them
-const FORMATIONS = {};
-for (const p of DATA.plays)
-  if (!FORMATIONS[p.formation]) FORMATIONS[p.formation] = JSON.parse(JSON.stringify(p.spots));
+// where everybody lines up, read off the shipped plays before any of ours join
+// them — every format's, because formation names are unique across formats and
+// a design names its formation and nothing else
+const FORMATIONS = {}, FORMATION_PLAYERS = {};
+for (const n of FORMAT_IDS) for (const p of ALL.formats[n].plays)
+  if (!FORMATIONS[p.formation]){
+    FORMATIONS[p.formation] = JSON.parse(JSON.stringify(p.spots));
+    FORMATION_PLAYERS[p.formation] = n;
+  }
 const FORMATION_ORDER = Object.keys(FORMATIONS);
+// the ones a coach can draw from: this format's
+const formationsHere = () => FORMATION_ORDER.filter(f => FORMATION_PLAYERS[f] === DATA.players);
 const SHAPE_TEACH = {
   GO: "Sprint straight downfield as fast as you can. Do not stop.",
   OUT: "Run to the number, plant, and break toward the sideline.",
@@ -1528,12 +1604,13 @@ const tidyText = (s, cap) => (typeof s === "string" ? s : "").replace(/\s+/g, " 
 
 /* A design, read with suspicion — from storage or from somebody else's file.
    Returns a clean copy or null. Shape only: whether the play is any GOOD is
-   the checker's question, asked of what this returns. */
-function saneDesign(o){
+   the checker's question, asked of what this returns. A design belongs to the
+   format its formation does, and is read as nothing else. */
+function saneDesign(o, n = DATA.players){
   if (!o || typeof o !== "object") return null;
   if (typeof o.id !== "string" || !/^u_[a-z0-9]{4,16}$/.test(o.id)) return null;
   const base = FORMATIONS[o.base];
-  if (!base) return null;
+  if (!base || FORMATION_PLAYERS[o.base] !== n) return null;
   const d = {id: o.id, v: DESIGN_V, base: o.base, spots: {}, routes: {}, ball: null,
              coachName: tidyName(o.coachName) || "MY PLAY", kidName: tidyName(o.kidName),
              tagline: tidyText(o.tagline, TAG_CAP),
@@ -1834,16 +1911,17 @@ function compileDesign(d, num){
 }
 
 let designs = {}, strayDesigns = {};
-try {
-  const saved = JSON.parse(localStorage.getItem("hb.plays") || "null");
-  if (saved && saved.v === 1 && saved.byId) for (const id of Object.keys(saved.byId)){
-    const d = saneDesign(saved.byId[id]);
+function loadDesigns(){
+  designs = {}; strayDesigns = {};
+  const byId = storedById("hb.plays", DATA.players);
+  for (const id of Object.keys(byId)){
+    const d = saneDesign(byId[id]);
     // one this build cannot read is still somebody's work: carried, never shown
-    if (d && d.id === id) designs[id] = d; else strayDesigns[id] = saved.byId[id];
+    if (d && d.id === id) designs[id] = d; else strayDesigns[id] = byId[id];
   }
-} catch(e){}
+}
 function saveDesigns(){
-  try { localStorage.setItem("hb.plays",
+  try { localStorage.setItem(myKey("hb.plays"),
           JSON.stringify({v:1, byId: Object.assign({}, strayDesigns, designs)})); } catch(e){}
 }
 const customCount = () => Object.keys(designs).length;
@@ -1875,7 +1953,18 @@ function clearDesigns(){
   const ids = Object.keys(designs);
   designs = {}; strayDesigns = {}; saveDesigns(); refreshPlays(); forgetPlays(ids);
 }
-refreshPlays();
+
+/* ------------------------------------------------------------- formats
+   One format at a time: DATA is its library, and the deck, names, weeks and
+   drawn plays in memory are its own, read from its own keys. Boot and the
+   Setup switch both come through here, so a switch is exactly a fresh start
+   in the other format — nothing in memory carries across. */
+function loadMode(n){
+  DATA = ALL.formats[n] || ALL.formats[6];
+  loadDeck(); loadNames(); loadPackSaves(); loadPackNames(); loadDesigns();
+  refreshPlays();
+}
+loadMode(cfg.players);
 
 /* ---------------------------------------------------- play thumbnail */
 /* same proportions and the same surround / field logic as the full-size
@@ -2078,6 +2167,7 @@ addEventListener("orientationchange", refit);
    a perspective that was never coherent. Art is art; the checker cannot help
    here and neither can more code. */
 const INTRO_ART = "__INTRO_ART__";
+const KIDS = {5: "Five", 6: "Six", 7: "Seven"};
 
 /* ------------------------------------------------------------ intro ui */
 function renderIntro(){
@@ -2092,7 +2182,7 @@ function renderIntro(){
       <div class="introsay">
         <h1>Huddle&nbsp;Board</h1>
         <p class="sub" id="intro-audience">6U–8U flag football</p>
-        <p id="intro-message">Six kids. One clear job each.</p>
+        <p id="intro-message">${KIDS[DATA.players] || DATA.players} kids. One clear job each.</p>
         <button class="start" id="start">Start<small>browse plays</small></button>
         <p class="sub">${deck.length} play${deck.length === 1 ? "" : "s"} in your deck</p>
         ${updateReady ? `<button class="edit upd" id="upd">Update ready</button>` : ""}
@@ -2239,7 +2329,7 @@ function tourSlides(){
        start it; the &times; beside it stops it.</p>
        <p>The menu is where all of that lives &mdash; <b>Change plays</b>, <b>Setup</b>, and
        <b>Tutorial</b> to bring this back &mdash; because none of it is something you do
-       with six kids waiting.</p>`},
+       with ${(KIDS[DATA.players] || DATA.players + "").toLowerCase()} kids waiting.</p>`},
   ];
 }
 /* Puts the real play-screen field into the tour and starts the real
@@ -2400,6 +2490,7 @@ function renderDeck(){
           ${(!isImmersive() && canFullscreen())
               ? `<button class="edit" id="fs">Full screen</button>` : ""}
           ${clockHTML()}
+          <span class="fmt" id="fmt">${esc(DATA.label.toUpperCase())}</span>
           <p>${list.length === all.length
               ? `${all.length} play${all.length === 1 ? "" : "s"}`
               : `${list.length} of ${all.length}`}</p>
@@ -2531,7 +2622,12 @@ function renderSettings(){
   S.screen = "settings";
   const msg = syncMsg; syncMsg = "";        // shown once, on the render right after
   const secs = k => CFG_CHOICES[k].map(s => [s, s + "s"]);
+  const here = DATA.label;
   const rows = [
+    ["Players on the field", `Whatever your division plays. Each is its own library &mdash; its own
+      formations, plays and Week 1 &mdash; with its own deck, weeks, names and drawn plays. Switching
+      keeps everything you set up in the others.`,
+     seg("players", FORMAT_IDS.map(n => [n, esc(ALL.formats[n].label)]))],
     ["Clock length", "How long the referee gives you after the whistle. Check your league — 25 and 30 are both common.",
      seg("clockSecs", secs("clockSecs"))],
     ["Warn me at", "When the clock turns amber and buzzes once.",
@@ -2541,15 +2637,15 @@ function renderSettings(){
     ["Play names", "BULLDOZER or 22 DIVE. Fun names stick with the kids; real names are what you say to another coach.",
      seg("funNames", [[true,"Fun"],[false,"Real"]])],
     ["Your own names", `${renamedCount()} play${renamedCount() === 1 ? "" : "s"} renamed on this
-      tablet. Rename any play from Change plays in the menu &mdash; tap the pencil on its row. Your names
+      tablet in ${here}. Rename any play from Change plays in the menu &mdash; tap the pencil on its row. Your names
       are kept through an update; Reset all puts every shipped name back.`,
      `<div class="seg"><button id="nmreset" ${renamedCount() ? "" : "disabled"}>Reset all</button></div>`],
-    ["Your own weeks", `${savedPackCount()} of ${DATA.packs.length} weeks hold a deck saved on this
+    ["Your own weeks", `In ${here}, ${savedPackCount()} of ${DATA.packs.length} weeks hold a deck saved on this
       tablet and ${renamedPackCount()} ${renamedPackCount() === 1 ? "is" : "are"} renamed. From Change plays,
       tap Save deck and then the week to keep it in, or Rename and then the week to call it something else.
       Both are kept through an update; Reset all puts every shipped week back, deck and name.`,
      `<div class="seg"><button id="pkreset" ${savedPackCount() || renamedPackCount() ? "" : "disabled"}>Reset all</button></div>`],
-    ["Your own plays", `${customCount()} play${customCount() === 1 ? "" : "s"} drawn on this tablet. Draw
+    ["Your own plays", `${customCount()} play${customCount() === 1 ? "" : "s"} drawn on this tablet in ${here}. Draw
       one from Change plays &mdash; tap New play. They are kept through an update and through Start
       over, because nothing else on the tablet can draw them again; Clear all is the only thing that
       removes them.`,
@@ -2560,8 +2656,8 @@ function renderSettings(){
       coaches' tablets do not talk to each other, so carry your choices across as one file: the
       deck, your own names, decks and plays, every setting above, and which sideline is ours. Export shares the
       file &mdash; Quick Share reaches the next tablet with no network. Import on the other
-      tablet replaces its choices with yours${customCount()
-        ? ` &mdash; <strong>including the ${customCount()} play${customCount() === 1 ? "" : "s"} drawn here</strong>,
+      tablet replaces its choices with yours, in every format${allCustomCount()
+        ? ` &mdash; <strong>including the ${allCustomCount()} play${allCustomCount() === 1 ? "" : "s"} drawn here</strong>,
            so export them first if they are only on this tablet` : ""}. The game log stays put.`,
      `<div class="seg"><button id="syncexp">Export</button>
       <button id="syncimp">Import</button>
@@ -2570,9 +2666,10 @@ function renderSettings(){
       Every play shown, every clock start, stamped to the millisecond.`,
      `<div class="seg"><button id="logexp">Export</button>
       <button id="logclr">Clear</button></div>`],
-    ["Start over", `Puts this tablet back the way it came &mdash; the ${DATA.defaultDeck.length}-play
-      starting deck, every play's shipped name, every week's shipped deck and name, and every setting above. The game log
-      and the plays you drew are left alone; clear those with their own rows.`,
+    ["Start over", `Puts this tablet back the way it came, in every format &mdash; the ${DATA.defaultDeck.length}-play
+      starting deck, every play's shipped name, every week's shipped deck and name, and every setting above
+      except how many are on the field. The game log and the plays you drew are left alone; clear those with
+      their own rows.`,
      `<div class="seg"><button id="allreset">Reset tablet</button></div>`],
   ];
   app.innerHTML = `
@@ -2593,7 +2690,7 @@ function renderSettings(){
   const pick = document.getElementById("syncfile");
   // Import replaces, and a play drawn on this tablet exists nowhere else, so
   // with any here it is two taps like every other button that throws work away
-  if (customCount()) confirmTap("syncimp", () => pick.click());
+  if (allCustomCount()) confirmTap("syncimp", () => pick.click());
   else document.getElementById("syncimp").onclick = () => pick.click();
   pick.onchange = () => { if (pick.files[0]) importSetup(pick.files[0]); };
   confirmTap("dzclear", () => {
@@ -2610,6 +2707,14 @@ function renderSettings(){
     if (!key || raw === undefined) return;      // Export / Clear / Reset all: not a setting
     cfg[key] = raw === "true" ? true : raw === "false" ? false : Number(raw);
     saveCfg(); logEvent("setting", {key, value: cfg[key]});
+    // another format is another library: its own deck, weeks, names and plays,
+    // and filters set against this one's mean nothing there
+    if (key === "players" && cfg.players !== DATA.players){
+      loadMode(cfg.players);
+      deckF = {kind:"all", cat:"all"};
+      libF = {q:"", kind:"all", cat:"all", deckOnly:false};
+      S.hintSeen = false;
+    }
     stopClock(); clk.warned = clk.expired = false;
     renderSettings();
   }));
@@ -2945,7 +3050,7 @@ function renderLibrary(){
   app.innerHTML = `
     <div class="deck">
       <div class="deckhead">
-        <h1>Play Library</h1>
+        <h1>Play Library<span class="fmt" id="lfmt">${esc(DATA.label.toUpperCase())}</span></h1>
         <div class="dh-right">
           <p id="lcount"></p>
           <button class="edit" id="lnew">New play</button>
@@ -2986,7 +3091,7 @@ function pickFormation(){
   w.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="fmtitle">
       <h2 id="fmtitle">New play &middot; start from</h2>
-      <div class="fmpick">${FORMATION_ORDER.map(f => `
+      <div class="fmpick">${formationsHere().map(f => `
         <button class="fmbtn" data-fm="${esc(f)}">
           ${thumbSVG({spots: FORMATIONS[f], paths: [], jobs: [], primary: "", ball: {mode: "carry"}})}
           <b>${esc(f)}</b></button>`).join("")}</div>

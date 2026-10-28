@@ -299,11 +299,24 @@ public static class PlayChecker
 
     private static string F(double v) => v.ToString("0.0", CultureInfo.InvariantCulture);
 
-    private static void CheckPlay(Play p, Report rep)
+    /// <summary>How many other kids are running, said the way a coach says it.</summary>
+    private static string Others(int players) => (players - 1) switch
+    {
+        4 => "four",
+        5 => "five",
+        6 => "six",
+        var n => n.ToString(CultureInfo.InvariantCulture),
+    };
+
+    private static void CheckPlay(Play p, Format f, Report rep)
     {
         var num = p.Num;
         var fm = p.Formation;
-        var spots = Formations.All[fm];
+        if (!f.Formations.TryGetValue(fm, out var spots))
+        {
+            rep.Err(num, "LEGAL/formation", $"{fm} is not a {f.Label} formation");
+            return;
+        }
 
         // ---- every spot on the field has exactly one job, and it starts where
         // he stands
@@ -326,7 +339,7 @@ public static class PlayChecker
                 continue;
 
             rep.Err(num, "SAFE/no-job",
-                $"{key} has no path — he will stand still while five kids run");
+                $"{key} has no path — he will stand still while {Others(f.Players)} kids run");
         }
 
         foreach (var (key, paths) in seen)
@@ -499,7 +512,7 @@ public static class PlayChecker
         }
 
         // ---- the vocabulary: every job must be one of the nine shapes
-        if (!PlayTexts.All.TryGetValue(num, out var txt))
+        if (!f.Texts.TryGetValue(num, out var txt))
         {
             rep.Err(num, "TEACHABLE/text", "no spot-language text — the app has nothing to say");
             return;
@@ -524,7 +537,7 @@ public static class PlayChecker
         }
 
         // ---- the call strip must name real spots in this formation
-        var names = spots.Keys.Select(k => Spots.Map[fm][k].Name).ToHashSet();
+        var names = spots.Keys.Select(k => f.SpotMap[fm][k].Name).ToHashSet();
         foreach (var (label, _) in txt.Calls)
         {
             if (label is "EVERYONE ELSE" or "BOTH WIDES")
@@ -549,8 +562,11 @@ public static class PlayChecker
     }
 
     /// <summary>Check every play and return what was found.</summary>
-    public static IReadOnlyList<Finding> Check(IReadOnlyList<Play> plays)
+    /// <param name="plays">The plays, all from one format.</param>
+    /// <param name="format">Which format they belong to; 6-on-6 when not said.</param>
+    public static IReadOnlyList<Finding> Check(IReadOnlyList<Play> plays, Format? format = null)
     {
+        var f = format ?? Formats.Six;
         var rep = new Report();
 
         var dupes = plays.GroupBy(p => p.Num).Where(g => g.Count() > 1)
@@ -562,7 +578,7 @@ public static class PlayChecker
             rep.Err(0, "TEACHABLE/dupe", $"two plays are both called {name}");
 
         foreach (var p in plays.OrderBy(q => q.Num))
-            CheckPlay(p, rep);
+            CheckPlay(p, f, rep);
 
         return rep.Rows;
     }
@@ -577,22 +593,37 @@ public static class PlayChecker
     public static int Run(bool quiet = false, TextWriter? output = null)
     {
         var o = output ?? Console.Out;
-        var plays = PlayLibrary.All;
+        var failed = false;
 
-        // the packs ride along here rather than in Check(): Check() is also run
-        // on the original fourteen alone, and every pack past week one reaches
-        // beyond them
-        var rows = Check(plays).Concat(PlayPacks.Check(plays)).ToList();
-        var errors = rows.Count(r => r.Level == Severity.Error);
-        var show = !quiet || errors > 0;
-
-        if (show)
+        // formation names are how the tablet and a stored design find a
+        // formation, so two formats sharing one would be two pictures for a name
+        foreach (var name in Formats.All.SelectMany(f => f.Formations.Keys)
+                     .GroupBy(n => n).Where(g => g.Count() > 1).Select(g => g.Key))
         {
+            o.WriteLine("ERROR LEGAL/formation   two formats both have a formation called {0}", name);
+            failed = true;
+        }
+
+        foreach (var f in Formats.All)
+        {
+            var plays = f.Plays;
+
+            // the packs ride along here rather than in Check(): Check() is also run
+            // on the original fourteen alone, and every pack past week one reaches
+            // beyond them
+            var rows = Check(plays, f).Concat(PlayPacks.Check(f)).ToList();
+            var errors = rows.Count(r => r.Level == Severity.Error);
+            var show = !quiet || errors > 0;
+            failed |= errors > 0;
+
+            if (!show)
+                continue;
+
             var title = plays.ToDictionary(p => p.Num, p => p.Name);
             foreach (var group in rows.GroupBy(r => r.Num).OrderBy(g => g.Key))
             {
                 o.WriteLine();
-                o.WriteLine("{0,-3} {1}", group.Key,
+                o.WriteLine("{0} {1,-3} {2}", f.Label, group.Key,
                     title.TryGetValue(group.Key, out var t) ? t : "");
                 foreach (var row in group)
                 {
@@ -602,10 +633,10 @@ public static class PlayChecker
             }
 
             o.WriteLine();
-            o.WriteLine("{0} plays checked — {1} errors, {2} warnings",
-                plays.Count, errors, rows.Count - errors);
+            o.WriteLine("{0}: {1} plays checked — {2} errors, {3} warnings",
+                f.Label, plays.Count, errors, rows.Count - errors);
         }
 
-        return errors > 0 ? 1 : 0;
+        return failed ? 1 : 0;
     }
 }

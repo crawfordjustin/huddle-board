@@ -6,7 +6,8 @@ namespace HuddleBoard.Tests;
 /// <remarks>
 /// A kid knows he is WIDE BLUE, not W. Markers carry shape, colour and the
 /// spoken name — this was tested at a real practice and the letters did not
-/// land. Every play, both mirror states, both stages, five viewports.
+/// land. Every play in every format, both mirror states, both stages, five
+/// viewports.
 /// </remarks>
 [Collection(AppCollection.Name)]
 public sealed class LabelChecks(AppFixture app)
@@ -40,32 +41,36 @@ public sealed class LabelChecks(AppFixture app)
         var (page, errors) = await app.OpenAppAsync(new Viewport(label, width, height), settle: 350);
         var bad = new List<string>();
 
-        var ids = await page.EvaluateAsync<string[]>("DATA.plays.map(p=>p.id)");
-        Assert.Equal(HuddleBoard.Playbook.PlayLibrary.All.Count, ids.Length);
-
-        foreach (var id in ids)
+        foreach (var format in HuddleBoard.Playbook.Formats.All)
         {
-            await page.EvaluateAsync($"openPlay('{id}')");
-            await page.WaitForTimeoutAsync(90);
+            await page.EvaluateAsync($"loadMode({format.Players})");
+            var ids = await page.EvaluateAsync<string[]>("DATA.plays.map(p=>p.id)");
+            Assert.Equal(format.Plays.Count, ids.Length);
 
-            // guards against this whole sweep passing because it looked at nothing
-            Assert.Equal(6, await page.EvaluateAsync<int>("Object.keys(SC.players).length"));
-
-            foreach (var mirrored in new[] { false, true })
+            foreach (var id in ids)
             {
-                if (mirrored)
-                    await page.EvaluateAsync("mTarget=1;mAnim=1");
+                await page.EvaluateAsync($"openPlay('{id}')");
+                await page.WaitForTimeoutAsync(90);
 
-                foreach (var stage in new[] { "lineup", "run" })
+                // guards against this whole sweep passing because it looked at nothing
+                Assert.Equal(format.Players, await page.EvaluateAsync<int>("Object.keys(SC.players).length"));
+
+                foreach (var mirrored in new[] { false, true })
                 {
-                    await page.EvaluateAsync($"S.stage='{stage}'; S.t0=performance.now()-S.tl.tEnd*0.5");
-                    await page.WaitForTimeoutAsync(60);
-                    var found = await page.EvaluateAsync<string[]>(Check);
-                    bad.AddRange(found.Select(x =>
-                        $"{id} {stage} {(mirrored ? "mirrored" : "")} {x}"));
-                }
+                    if (mirrored)
+                        await page.EvaluateAsync("mTarget=1;mAnim=1");
 
-                await page.EvaluateAsync("mTarget=0;mAnim=0");
+                    foreach (var stage in new[] { "lineup", "run" })
+                    {
+                        await page.EvaluateAsync($"S.stage='{stage}'; S.t0=performance.now()-S.tl.tEnd*0.5");
+                        await page.WaitForTimeoutAsync(60);
+                        var found = await page.EvaluateAsync<string[]>(Check);
+                        bad.AddRange(found.Select(x =>
+                            $"{id} {stage} {(mirrored ? "mirrored" : "")} {x}"));
+                    }
+
+                    await page.EvaluateAsync("mTarget=0;mAnim=0");
+                }
             }
         }
 

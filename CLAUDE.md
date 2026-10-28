@@ -1,8 +1,10 @@
 # Huddle Board
 
-A sideline play tool for 8U (6-on-6) flag football. One HTML file, no runtime
-dependencies, works with the radio off. A coach picks a play on an 11" rugged
-Android tablet, turns it around, and shows six seven-year-olds what to do.
+A sideline play tool for 6U to 8U flag football, or any division where the
+coach is allowed on the field with the kids — 5-on-5, 6-on-6 or 7-on-7. One HTML
+file, no runtime dependencies, works with the radio off. A coach picks a play on
+an 11" rugged Android tablet, turns it around, and shows a handful of
+seven-year-olds what to do.
 
 The audience is a coach who **knows football well** but needs help explaining it
 to children. Do not simplify the football. Simplify the explaining.
@@ -79,7 +81,8 @@ inside that vocabulary at zero teaching cost. A tenth shape costs every kid on
 the team, so adding one is a product decision, not a convenience. `PlayChecker`
 warns when a call strip uses a word that is not one of the nine. Play 11
 currently violates this ("CROSS deep") and is a known, deliberate exception —
-`PlayLibraryChecks.TheVocabularyHasNotGrown` pins that to exactly play 11.
+`PlayLibraryChecks.TheVocabularyHasNotGrown` pins that to exactly 6-on-6 play
+11, and holds the 5-on-5 and 7-on-7 libraries to no exceptions at all.
 
 **2. Colour, never left/right.** Sides are BLUE and ORANGE, because 8U players
 confuse left and right and because left/right inverts depending on whether the
@@ -259,8 +262,8 @@ depends on the file alone. `SyncChecks` holds all of it across two browser
 contexts, which is what gives two tablets two separate stores.
 
 **11. A coach starts from Week 1, and builds the rest.** The shipped play
-packs (`PlayPacks.cs`) are six week slots on a strip on the Change plays
-screen. **Week 1** is a complete game deck — a run, a quick pass, a third
+packs (`PlayPacks.cs`, and each new format's own `Authoring.Weeks`) are six
+week slots on a strip on the Change plays screen, per format. **Week 1** is a complete game deck — a run, a quick pass, a third
 down and a goal line call, four plays — because a deck is what a coach
 carries into one game, and four he can find without looking beats fourteen
 he has to hunt through. **Weeks 2 to 6 ship empty.** They used to be five
@@ -472,6 +475,43 @@ the file through `saneDesign` and then the checker, and counts what fails.
 `DesignerChecks` holds the parity, drawing, moving, the handoff, the save
 gate, the fit across the five sizes, the update, the sync and the storage.
 
+**14. Three formats, one tool.** 5-on-5, 6-on-6 and 7-on-7 are each a
+`Format` (`Format.cs`): the SNAPPER, the THROWER and three, four or five more,
+with their own four formations, their own library and their own Week 1. They
+are distinct on purpose — not 6-on-6 with a kid taken away or added — so a coach
+picking a play is never looking at somebody else's division. **Setup's first
+row, Players on the field**, picks one (`cfg.players`, default 6), and the whole
+tablet reads that format: `DATA` is `ALL.formats[n]`, and `loadMode(n)` is both
+the boot path and the switch, so a switch is exactly a fresh start in the other
+format. The deck's top bar and the library header wear the format as a badge,
+and the intro says how many kids.
+
+A coach's own choices are kept **per format**: the deck, play names, saved
+weeks, week names and drawn plays live under `keyIn(k, n)` — 6-on-6 keeps the
+keys it always had (`hb.deck`), the others add `.5` or `.7` — so a tablet from
+before there was a choice is untouched, and switching back finds everything as
+it was left. Shared across formats: settings, our sideline, the tutorial flag
+and the log.
+
+**Formation names are unique across every format**, because the tablet and a
+stored design find a formation by name alone. `FORMATIONS` is the union of all
+formats', `FORMATION_PLAYERS` says whose each is, the designer offers only the
+current format's (`formationsHere`), and `saneDesign` refuses a design whose
+formation belongs to another format. `PlayChecker.Run` fails `check` if two
+formats share a formation name. Play ids are prefixed per format — `f_` (5),
+`p_` (6), `s_` (7) — so no two formats ever name the same play. `QB` and `C` are
+the THROWER's and SNAPPER's keys in all three; 7-on-7's fifth non-ball spot is
+`F`, which is never shown — the kid still hears his spot's name.
+
+Start over puts **every** format back but keeps `players`, because the division
+a tablet plays in is the league, not a customisation. The sync file is **v2**:
+settings, our side, and a `modes` section per format, each read against that
+format's library alone (a 5-on-5 id in the 7-on-7 section is not recognised).
+Import replaces every format; one the file does not carry goes back to shipped.
+A v1 file is from before formats and is read as the 6-on-6 section. Print emits
+a playbook, cards and rotation sheet per format, named `-5v5`, `-6v6`, `-7v7`.
+`FormatChecks` holds the switch and the isolation.
+
 ## Source layout
 
 ```
@@ -489,6 +529,10 @@ src/HuddleBoard.Playbook/
   PlaysMore.cs                  plays 15-27
   Spots.cs                      spot names, the 9 shapes, the default rule
   PlayPacks.cs                  the saved decks a coach starts from, by week
+  Format.cs                     one division's library; Formats.Five/Six/Seven
+  Authoring.cs                  one row per play, for the formats after the first
+  FiveOnFive.cs, SevenOnSeven.cs  those two formats, whole: formations, spots,
+                                plays, texts, kid names, ball, weeks, script
   PlayTexts.cs                  what the tablet says, plays 1-14
   PlayTextsMore.cs              the same for 15-27
   Library.cs                    joins the two halves of each pair
@@ -514,9 +558,15 @@ tests/HuddleBoard.Tests/        the verification suite
 
 Yards. `x` = left/right of the snapper (negative = offense's left = BLUE),
 `y` = downfield from the line of scrimmage (negative = backfield). The sideline
-is at `|x| = 15.7`, the goal line at `y = 15`.
+is at `|x| = 15.7`, the goal line at `y = 15`, in every format.
 
 ### Adding a play
+
+To 5-on-5 or 7-on-7, append one `Authored` row to `FiveOnFive.cs` or
+`SevenOnSeven.cs` — geometry, text, kid name, ball and thrower all live in the
+row — and, if it belongs in the game script, a line in that format's script.
+Then `check` until clean. The steps below are for 6-on-6, whose library is
+still four parallel tables:
 
 1. Append to `Recent` in `PlaysMore.cs` — geometry, tagline, notes, mistake.
 2. Add matching text in `PlayTextsMore.cs` — the call strip and the per-spot
@@ -597,16 +647,18 @@ The app opens on an intro screen — art and one START button — so
 `AppFixture.OpenAppAsync` taps through it and hands every other check the deck.
 Pass `intro: true` to stay on it; `IntroChecks` is the only thing that does.
 
-`RenameChecks`, `ResetChecks`, `SyncChecks` and `PwaChecks` run against the hosted
+`RenameChecks`, `ResetChecks`, `SyncChecks`, `FormatChecks` and `PwaChecks` run against the hosted
 build over a local `StaticSite` rather than the standalone file, because all of
 them are about storage and service workers and a `file://` origin has neither.
 `SyncChecks` opens each tablet in its own browser context: headless Chromium has
 no share sheet, so Export falls through to a download that the check captures
 and feeds to the other tablet's hidden file input.
 
-`LabelChecks` sweeps 27 plays × 2 mirror states × 2 stages × 5 viewports = 540
-states. Several checks pad the library out to 100 plays
-(`AppFixture.InjectPlaysAsync`) to judge the UI at a size it has not reached yet.
+`LabelChecks` sweeps all 75 plays of the three formats × 2 mirror states × 2
+stages × 5 viewports = 1,500 states. Several checks pad the library out to 100
+plays (`AppFixture.InjectPlaysAsync`, ids `x_` so they never collide with a
+format's) to judge the UI at a size it has not reached yet. `OpenAppAsync`'s
+`players:` opens a tablet already set to 5 or 7 on the field.
 
 Everything shares one browser and one build and runs in sequence — two checks
 racing over the same `dist/` is not a real signal. The first run downloads
@@ -794,6 +846,8 @@ classic route into quirks mode) and writes `LICENSE.txt` into `dist/deploy/`.
 
 ## Out of scope (decided, not forgotten)
 
+- **Sharing a drawn play between formats.** A 6-on-6 drawing is not a 5-on-5
+  one with a kid missing; there is no conversion, by design.
 - **Coach-authored plays in the shipped library.** The designer (rule 13)
   draws plays that live on one tablet and its sync partners; the library
   itself still grows by editing `PlaysMore.cs`. Not yet in the designer, and

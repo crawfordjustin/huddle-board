@@ -10,7 +10,7 @@ namespace HuddleBoard.Playbook;
 public static class ProtoExporter
 {
     /// <summary>What the kids call each play.</summary>
-    private static readonly IReadOnlyDictionary<int, string> KidNames = new Dictionary<int, string>
+    internal static readonly IReadOnlyDictionary<int, string> KidNames = new Dictionary<int, string>
     {
         [1] = "BULLDOZER", [2] = "ROCKET", [3] = "BOOMERANG", [4] = "RACECAR", [5] = "LIGHTNING",
         [6] = "HAMMER", [7] = "ZIPPER", [8] = "NINJA", [9] = "WATERFALL", [10] = "MOONSHOT",
@@ -26,7 +26,7 @@ public static class ProtoExporter
     /// no judgement calls. On a reverse that is the second runner; the exchanges
     /// on the way come from the handoff segments and are checked against him.
     /// </summary>
-    private static readonly IReadOnlyDictionary<int, (string Mode, string Who)> Ball =
+    internal static readonly IReadOnlyDictionary<int, (string Mode, string Who)> Ball =
         new Dictionary<int, (string, string)>
         {
             [1] = ("carry", "H"), [2] = ("carry", "Y"), [3] = ("carry", "QB"),
@@ -49,15 +49,10 @@ public static class ProtoExporter
     /// carry. He then throws from wherever his run ends, which has to be behind
     /// the line — a forward pass from past it is a flag.
     /// </summary>
-    private static readonly IReadOnlyDictionary<int, string> Throwers = new Dictionary<int, string>
+    internal static readonly IReadOnlyDictionary<int, string> Throwers = new Dictionary<int, string>
     {
         [27] = "Y",
     };
-
-    /// <summary>The deck a new team starts with: the first play pack, which is
-    /// the playbook's "start here" page. One definition, so Start over and
-    /// Week 1 cannot disagree.</summary>
-    private static IReadOnlyList<int> DefaultDeck => PlayPacks.Starting;
 
     /// <summary>Full spot name -> the marker tag, which side it is on, and what
     /// the coach says out loud.</summary>
@@ -119,13 +114,13 @@ public static class ProtoExporter
     /// rather than hand-listing it is what stops the call strip and the
     /// highlighted routes from drifting apart.
     /// </summary>
-    private static IEnumerable<string> KeysForLabel(string label, string formation)
+    private static IEnumerable<string> KeysForLabel(string label, string formation, Format f)
     {
         if (label == "EVERYONE ELSE")
             return [];
 
-        var spots = Formations.All[formation].Keys
-            .ToDictionary(k => k, k => Spots.Map[formation][k].Name);
+        var spots = f.Formations[formation].Keys
+            .ToDictionary(k => k, k => f.SpotMap[formation][k].Name);
 
         if (label == "BOTH WIDES")
             return spots.Where(e => e.Value.StartsWith("WIDE", StringComparison.Ordinal))
@@ -212,24 +207,66 @@ public static class ProtoExporter
         return -1;
     }
 
-    /// <summary>Builds the JSON document for the whole library.</summary>
-    public static string Serialise(IReadOnlyList<Play> plays)
+    /// <summary>The version of the document the tablet reads. 4 is the first
+    /// with more than one format in it.</summary>
+    private const int SchemaVersion = 4;
+
+    /// <summary>
+    /// Builds the document the tablet reads: every format, keyed by its id,
+    /// each one a whole library on its own. The tablet shows one at a time and
+    /// keeps a coach's choices for each apart.
+    /// </summary>
+    public static string Serialise()
     {
         var j = new JsonWriter();
         j.StartObject();
-        j.Pair("schemaVersion", 3);
-        j.Pair("defaultDeck", DefaultDeck.Select(n => $"p_{n:00}"));
+        j.Pair("schemaVersion", SchemaVersion);
+        j.Key("formats").StartObject();
+        foreach (var f in Formats.All)
+        {
+            j.Key(f.Id).StartObject();
+            WriteFormat(j, f.Plays, f);
+            j.EndObject();
+        }
+
+        j.EndObject();
+        j.EndObject();
+        return j.ToString();
+    }
+
+    /// <summary>One format's library as a document of its own.</summary>
+    /// <param name="plays">The plays to write, all from one format.</param>
+    /// <param name="format">Which format; 6-on-6 when not said.</param>
+    public static string Serialise(IReadOnlyList<Play> plays, Format? format = null)
+    {
+        var j = new JsonWriter();
+        j.StartObject();
+        j.Pair("schemaVersion", SchemaVersion);
+        WriteFormat(j, plays, format ?? Formats.Six);
+        j.EndObject();
+        return j.ToString();
+    }
+
+    private static void WriteFormat(JsonWriter j, IReadOnlyList<Play> plays, Format f)
+    {
+        j.Pair("label", f.Label);
+        j.Pair("players", f.Players);
+
+        // the deck a new team starts with is the first play pack, which is the
+        // playbook's "start here" page — one definition, so Start over and
+        // Week 1 cannot disagree
+        j.Pair("defaultDeck", f.Starting.Select(f.PlayId));
 
         // the saved decks a coach can start from, by play id so the tablet can
         // resolve them against the library it actually has
         j.Key("packs").StartArray();
-        foreach (var pack in PlayPacks.All)
+        foreach (var pack in f.Packs)
         {
             j.StartObject();
             j.Pair("id", pack.Id);
             j.Pair("name", pack.Name);
             j.Pair("blurb", pack.Blurb);
-            j.Pair("plays", pack.Plays.Select(n => $"p_{n:00}"));
+            j.Pair("plays", pack.Plays.Select(f.PlayId));
             j.EndObject();
         }
 
@@ -240,10 +277,10 @@ public static class ProtoExporter
         {
             var fm = p.Formation;
             var num = p.Num;
-            var formation = Formations.All[fm];
-            var txt = PlayTexts.All[num];
-            var (mode, who) = Ball[num];
-            var thrower = Throwers.GetValueOrDefault(num, "QB");
+            var formation = f.Formations[fm];
+            var txt = f.Texts[num];
+            var (mode, who) = f.Ball[num];
+            var thrower = f.Throwers.GetValueOrDefault(num, "QB");
 
             if (!formation.ContainsKey(who))
                 throw new InvalidOperationException($"play {num}: ball target {who} not in {fm}");
@@ -276,16 +313,17 @@ public static class ProtoExporter
             }
 
             var jobs = txt.Calls
-                .SelectMany(c => KeysForLabel(c.Label, fm))
+                .SelectMany(c => KeysForLabel(c.Label, fm, f))
                 .Distinct()
                 .Order(StringComparer.Ordinal)
                 .ToList();
 
             j.StartObject();
-            j.Pair("id", $"p_{num:00}");
+            j.Pair("id", f.PlayId(num));
             j.Pair("num", num);
+            j.Pair("players", f.Players);
             j.Pair("coachName", p.Name);
-            j.Pair("kidName", KidNames[num]);
+            j.Pair("kidName", f.KidNames[num]);
             j.Pair("category", p.Category);
             j.Pair("complexity", p.Complexity.ToString().ToLowerInvariant());
             j.Pair("formation", fm);
@@ -294,7 +332,7 @@ public static class ProtoExporter
             j.Key("spots").StartObject();
             foreach (var (key, at) in formation)
             {
-                var (tag, side, spoken) = NameMap[Spots.Map[fm][key].Name];
+                var (tag, side, spoken) = NameMap[f.SpotMap[fm][key].Name];
                 j.Key(key).StartObject();
                 j.Pair("tag", tag);
                 j.Pair("side", side);
@@ -347,7 +385,7 @@ public static class ProtoExporter
             j.Key("assign").StartObject();
             foreach (var key in formation.Keys)
             {
-                var full = Spots.Map[fm][key].Name;
+                var full = f.SpotMap[fm][key].Name;
                 var line = txt.Assign
                     .FirstOrDefault(a => a.Who.Contains(full, StringComparison.Ordinal))?.Text
                     ?? DefaultJob;
@@ -386,8 +424,6 @@ public static class ProtoExporter
         }
 
         j.EndArray();
-        j.EndObject();
-        return j.ToString();
     }
 
     /// <summary>
@@ -405,19 +441,23 @@ public static class ProtoExporter
             return 1;
         }
 
-        var plays = PlayLibrary.All;
-        var json = Serialise(plays);
+        var json = Serialise();
         var path = Path.Combine(Workspace.Ensure(Workspace.Dist), "proto_data.json");
         Workspace.WriteText(path, json);
 
-        o.WriteLine("wrote proto_data.json — {0} plays, {1} KB", plays.Count,
+        o.WriteLine("wrote proto_data.json — {0} plays in {1} formats, {2} KB",
+            Formats.All.Sum(f => f.Plays.Count), Formats.All.Count,
             (json.Length / 1024.0).ToString("0.0", CultureInfo.InvariantCulture));
-        foreach (var p in plays)
+        foreach (var f in Formats.All)
         {
-            var txt = PlayTexts.All[p.Num];
-            var jobs = txt.Calls.SelectMany(c => KeysForLabel(c.Label, p.Formation)).Distinct().Count();
-            o.WriteLine("  {0,-2} {1,-12} {2,-15} ball->{3,-3} jobs:{4}",
-                p.Num, KidNames[p.Num], p.Name, Ball[p.Num].Who, jobs);
+            o.WriteLine(f.Label);
+            foreach (var p in f.Plays)
+            {
+                var txt = f.Texts[p.Num];
+                var jobs = txt.Calls.SelectMany(c => KeysForLabel(c.Label, p.Formation, f)).Distinct().Count();
+                o.WriteLine("  {0,-2} {1,-14} {2,-16} ball->{3,-3} jobs:{4}",
+                    p.Num, f.KidNames[p.Num], p.Name, f.Ball[p.Num].Who, jobs);
+            }
         }
 
         return 0;

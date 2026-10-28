@@ -1,8 +1,9 @@
 # Huddle Board: working instructions
 
-Huddle Board is a sideline play tool for 8U (6-on-6) flag football. A coach
-uses it on an 11-inch rugged Android tablet, turns it around, and shows six
-seven-year-olds what to do. The coach knows football; the product simplifies
+Huddle Board is a sideline play tool for 6U to 8U flag football, or any
+division where the coach is on the field — 5-on-5, 6-on-6 or 7-on-7. A coach
+uses it on an 11-inch rugged Android tablet, turns it around, and shows the
+kids what to do. The coach knows football; the product simplifies
 the explaining, not the football.
 
 `CLAUDE.md` is the long form of this file and carries the reasoning behind
@@ -127,6 +128,14 @@ dotnet test                                           # build, then full suite
     can be reopened from the menu. Skip marks it seen; Start over clears it.
     Its visuals must be drawn by the actual app code so they cannot drift from
     the product.
+
+13. **Three formats, kept apart.** 5/6/7-on-7 are each a `Format` with
+    their own formations, plays and Week 1; Setup's first row picks one, and
+    `loadMode(n)` is both boot and switch. Coach state is stored per format
+    (`keyIn(k, n)`: 6-on-6 keeps its old keys, others add `.5`/`.7`).
+    Formation names are unique across formats; play ids are `f_`/`p_`/`s_`.
+    Start over resets every format but keeps the player count. Sync is v2
+    with a section per format; v1 files read as 6-on-6. See CLAUDE.md rule 14.
 
 ## Source and data rules
 

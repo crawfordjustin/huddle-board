@@ -56,20 +56,25 @@ public static class PlayPacks
     /// same id or name, and so is an empty first pack, because that is the deck
     /// a new tablet arrives with.
     /// </summary>
-    public static IReadOnlyList<Finding> Check(IReadOnlyList<Play> plays)
+    public static IReadOnlyList<Finding> Check(IReadOnlyList<Play> plays) => Check(plays, All);
+
+    /// <summary>The same, for one format's packs against its own library.</summary>
+    public static IReadOnlyList<Finding> Check(Format format) => Check(format.Plays, format.Packs);
+
+    private static IReadOnlyList<Finding> Check(IReadOnlyList<Play> plays, IReadOnlyList<PlayPack> all)
     {
         var known = plays.Select(p => p.Num).ToHashSet();
         var rows = new List<Finding>();
 
-        if (All.Select(k => k.Id).Distinct().Count() != All.Count)
+        if (all.Select(k => k.Id).Distinct().Count() != all.Count)
             rows.Add(new(Severity.Error, 0, "PACK", "two packs share an id"));
-        if (All.Select(k => k.Name).Distinct().Count() != All.Count)
+        if (all.Select(k => k.Name).Distinct().Count() != all.Count)
             rows.Add(new(Severity.Error, 0, "PACK", "two packs share a name"));
 
-        if (All.Count == 0 || All[0].Plays.Count == 0)
+        if (all.Count == 0 || all[0].Plays.Count == 0)
             rows.Add(new(Severity.Error, 0, "PACK", "the first pack is the starting deck and has no plays"));
 
-        foreach (var pack in All)
+        foreach (var pack in all)
         {
 
             foreach (var dup in pack.Plays.GroupBy(n => n).Where(g => g.Count() > 1))

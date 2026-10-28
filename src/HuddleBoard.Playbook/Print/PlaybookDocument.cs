@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 using static HuddleBoard.Playbook.Print.FieldDiagram;
@@ -11,23 +12,49 @@ namespace HuddleBoard.Playbook.Print;
 /// </summary>
 internal static class PlaybookDocument
 {
-    public static string Build()
+    /// <summary>What each play in Week 1 is for, in the order the week holds them.</summary>
+    private static readonly string[] StartRoles = ["Your run", "Your quick pass", "Your third down", "Your goal line"];
+
+    public static string Build(Format f)
     {
         var body = new StringBuilder();
-        body.Append(Cover()).Append(SystemPages()).Append(BasicsPage()).Append(FormationsPage());
-        foreach (var p in PlayLibrary.All)
-            body.Append(PlayPage(p));
-        body.Append(CallSheet());
+        body.Append(Cover(f)).Append(SystemPages(f)).Append(BasicsPage(f)).Append(FormationsPage(f));
+        foreach (var p in f.Plays)
+            body.Append(PlayPage(p, f));
+        body.Append(CallSheet(f));
 
         return "<!doctype html><html><head><meta charset=\"utf-8\">"
-            + "<title>8U Flag Football Playbook</title><style>" + Css + "</style></head>"
+            + $"<title>Flag Football Playbook — {Esc(f.Label)}</title><style>" + Css + "</style></head>"
             + "<body>" + body + "</body></html>";
     }
 
-    private static string PlayPage(Play play)
+    private static string Words(int n) => n switch
+    {
+        3 => "three",
+        4 => "four",
+        5 => "five",
+        6 => "six",
+        7 => "seven",
+        _ => n.ToString(CultureInfo.InvariantCulture),
+    };
+
+    /// <summary>22 DIVE as a sentence says it: 22 Dive.</summary>
+    private static string Spoken(string name) =>
+        CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name.ToLowerInvariant());
+
+    private static string Footer(Format f) => $"Flag Football Playbook &middot; {Esc(f.Label)}";
+
+    /// <summary>A roster that makes two units with a couple to spare.</summary>
+    private static string Roster(Format f) => $"{(2 * f.Players) - 1}&ndash;{(2 * f.Players) + 2}";
+
+    private static IEnumerable<(Play Play, string Role)> Week1(Format f) =>
+        f.Starting.Select((n, i) => (f.Plays.Single(p => p.Num == n),
+            i < StartRoles.Length ? StartRoles[i] : "Your next call"));
+
+    private static string PlayPage(Play play, Format f)
     {
         var colour = CategoryColours[play.Category];
-        var txt = PlayTexts.All[play.Num];
+        var txt = f.Texts[play.Num];
         var rows = string.Concat(txt.Assign.Select(a => $"<li><b>{Esc(a.Who)}</b>{Esc(a.Text)}</li>"));
         var notes = string.Concat(txt.Notes.Select(n => $"<li>{Esc(n)}</li>"));
         var callrow = string.Concat(txt.Calls.Select(c => $"<span><b>{Esc(c.Label)}</b>{Esc(c.Job)}</span>"));
@@ -62,15 +89,15 @@ internal static class PlaybookDocument
               <div class="mistake" style="--accent:{colour}">
                 <b>Watch for</b><span>{Esc(txt.Mistake)}</span>
               </div>
-              <footer class="pf">8U Flag Football Playbook &middot; 6-on-6 &middot; Play {play.Num} of {PlayLibrary.All.Count}</footer>
+              <footer class="pf">{Footer(f)} &middot; Play {play.Num} of {f.Plays.Count}</footer>
             </section>
             """;
     }
 
-    private static string Cover()
+    private static string Cover(Format f)
     {
         var blocks = new StringBuilder();
-        foreach (var group in PlayLibrary.All.GroupBy(p => p.Category))
+        foreach (var group in f.Plays.GroupBy(p => p.Category))
         {
             var lis = string.Concat(group.Select(p =>
                 $"<li><b>{p.Num}</b> {Esc(p.Name)}<span>{Esc(p.Formation)}</span></li>"));
@@ -78,39 +105,38 @@ internal static class PlaybookDocument
                 .Append($"{Esc(group.Key)}</h4><ul>{lis}</ul></div>");
         }
 
+        var start = string.Concat(Week1(f).Select(w =>
+            $"<div><span class=\"sn\">{w.Play.Num}</span><b>{Esc(Spoken(w.Play.Name))}</b><i>{w.Role}</i></div>"));
+
         return $"""
 
             <section class="page cover">
               <div class="coverhero">
-                <p class="kicker">6-ON-6 &middot; AGES 8 &amp; UNDER</p>
+                <p class="kicker">{Esc(f.Label.ToUpperInvariant())} &middot; 6U TO 8U &middot; COACH ON THE FIELD</p>
                 <h1>Flag Football<br>Playbook</h1>
-                <p class="sub">14 plays &middot; 4 formations &middot; every job named by a spot on the field,
-                so any six kids can run any play and everybody gets their snaps</p>
+                <p class="sub">{f.Plays.Count} plays &middot; {f.Formations.Count} formations &middot; every job named by a spot on the field,
+                so any {Words(f.Players)} kids can run any play and everybody gets their snaps</p>
               </div>
               <div class="coverrules">
                 <h3>Built around these league rules</h3>
                 <div class="rulegrid">
-                  <div><b>6 on 6, and everybody rotates</b><span>Nobody is X or Y. Jobs belong to spots &mdash;
+                  <div><b>{f.Players} on {f.Players}, and everybody rotates</b><span>Nobody is X or Y. Jobs belong to spots &mdash;
                   SNAPPER, THROWER, WIDE, SLOT, TIGHT, BACK &mdash; and you fill them from whoever is in the
                   game.</span></div>
                   <div><b>Rusher starts 7 yards back</b><span>You have roughly two to three seconds of clean
                   pocket. Quick-game plays get the ball out before the rusher arrives.</span></div>
                   <div><b>No blocking or screening</b><span>Nobody blocks and nobody sets a pick. Receivers
                   create space by <i>running away</i> from each other, never into each other.</span></div>
-                  <div><b>Run and no-run zones</b><span>Plays 1&ndash;4 are run-zone calls. Plays 12&ndash;14 are
-                  designed for no-run zones and the goal line, where you must throw it.</span></div>
+                  <div><b>Run and no-run zones</b><span>Every play is filed under the situation it is for
+                  &mdash; run zone, quick game, shot play, no-run zone or goal line &mdash; so the ones you are
+                  allowed to call are always together.</span></div>
                 </div>
               </div>
               <div class="starthere">
                 <h3>Start here &mdash; four plays for game one</h3>
-                <div class="startgrid">
-                  <div><span class="sn">1</span><b>22 Dive</b><i>Your run</i></div>
-                  <div><span class="sn">5</span><b>Double Slant</b><i>Your quick pass</i></div>
-                  <div><span class="sn">7</span><b>Stick</b><i>Your third down</i></div>
-                  <div><span class="sn">13</span><b>Pylon Fade</b><i>Your goal line</i></div>
-                </div>
+                <div class="startgrid">{start}</div>
                 <p>Master these four before you add anything else. A team that runs four plays well beats a team
-                that runs fourteen plays badly &mdash; and at 8U it is not close. Two companion sheets go with
+                that runs {f.Plays.Count} plays badly &mdash; and at this age it is not close. Two companion sheets go with
                 this book: a deck of field cards to hold up in the huddle, and a rotation sheet so playing time
                 is decided before kickoff instead of during a close game.</p>
               </div>
@@ -120,7 +146,7 @@ internal static class PlaybookDocument
             """;
     }
 
-    private static string SystemPages()
+    private static string SystemPages(Format f)
     {
         var glos = string.Concat(Spots.Glossary.Select(s =>
             $"<tr><td class=\"tagcell\">{Esc(s.Tag)}</td><td class=\"spotname\">{Esc(s.Name)}</td>"
@@ -134,20 +160,20 @@ internal static class PlaybookDocument
             <section class="page">
               <header class="secthead"><h2>How this playbook works</h2>
                 <p>Nobody in here is a &ldquo;receiver&rdquo; or a &ldquo;running back.&rdquo; Every job belongs
-                to a <b>spot on the field</b>, and you put whichever six kids are in the game into those spots.
+                to a <b>spot on the field</b>, and you put whichever {Words(f.Players)} kids are in the game into those spots.
                 That is what lets you rotate freely without re-teaching anything.</p></header>
 
               <h3>The spots</h3>
               <div class="spotwrap">
                 <div class="spotdiag">{SpotsSvg()}
-                  <p class="cap">All nine spots shown at once. Only six are on the field at a time &mdash; each
-                  formation uses the SNAPPER, the THROWER, and four of the rest.</p></div>
+                  <p class="cap">All nine spots shown at once. Only {Words(f.Players)} are on the field at a time &mdash; each
+                  formation uses the SNAPPER, the THROWER, and {Words(f.Players - 2)} of the rest.</p></div>
                 <table class="glos">{glos}</table>
               </div>
 
               <h3>The shapes &mdash; this is the whole route tree</h3>
               <div class="shapegrid">{shapes}</div>
-              <p class="body">Every one of the 14 plays is just these shapes handed out to spots. A shape with a
+              <p class="body">Every one of the {f.Plays.Count} plays is just these shapes handed out to spots. A shape with a
               number after it means the depth: <b>OUT at 5</b> means run 5 yards, then break to the sideline.</p>
 
               <div class="defaultbox">
@@ -156,12 +182,12 @@ internal static class PlaybookDocument
                 <i>This is the one that saves you. It means you only have to tell the one or two kids who
                 actually matter on that play &mdash; everybody else already knows what to do.</i>
               </div>
-              <footer class="pf">8U Flag Football Playbook &middot; 6-on-6</footer>
+              <footer class="pf">{Footer(f)}</footer>
             </section>
 
             <section class="page">
               <header class="secthead"><h2>Calling a play on the field</h2>
-                <p>You are allowed out there with them &mdash; use it. The goal is to get six rotating kids
+                <p>You are allowed out there with them &mdash; use it. The goal is to get {Words(f.Players)} rotating kids
                 lined up and moving in under fifteen seconds, without anybody having to remember what letter
                 they are.</p></header>
               <div class="two">
@@ -172,7 +198,7 @@ internal static class PlaybookDocument
                       (&ldquo;Twelve &mdash; Spacing&rdquo;) and show them the picture. At this age the picture
                       teaches faster than any words you will say.</li>
                     <li><b>Point each kid to a spot.</b> Tap a shoulder, say the spot: &ldquo;Wide left.&rdquo;
-                      &ldquo;Slot right.&rdquo; &ldquo;You're snapping.&rdquo; Two words each, six kids,
+                      &ldquo;Slot right.&rdquo; &ldquo;You're snapping.&rdquo; Two words each, {Words(f.Players)} kids,
                       five seconds.</li>
                     <li><b>Give jobs only to the kids who have one.</b> On most plays that is one or two of
                       them. Everybody else falls under the default rule and runs GO.</li>
@@ -187,7 +213,7 @@ internal static class PlaybookDocument
                 </div>
                 <div>
                   <h3>Why not wristbands?</h3>
-                  <p class="body">Wristbands work at 12U and up, but at 8U they add a reading step under
+                  <p class="body">Wristbands work at 12U and up, but from 6U to 8U they add a reading step under
                   pressure and they still do not tell a kid where to stand. A picture card in your hand does
                   both jobs at once and never gets lost in a sleeve.</p>
                   <h3>Put the newest kids in the safest spots</h3>
@@ -212,8 +238,8 @@ internal static class PlaybookDocument
               <div class="sayingbox">
                 <h3>Five things worth saying out loud</h3>
                 <div class="sayings">
-                  <div><b>&ldquo;Find your spot, not your friend.&rdquo;</b><span>The single most common 8U
-                    alignment error is copying the kid next to you.</span></div>
+                  <div><b>&ldquo;Find your spot, not your friend.&rdquo;</b><span>The single most common
+                    alignment error at this age is copying the kid next to you.</span></div>
                   <div><b>&ldquo;You don't have a job &mdash; so GO.&rdquo;</b><span>Reinforces the default rule
                     every single time it comes up.</span></div>
                   <div><b>&ldquo;Run to the number.&rdquo;</b><span>Depth is the thing that breaks first when a
@@ -224,19 +250,28 @@ internal static class PlaybookDocument
                     how you keep nine kids running hard for a ball that goes to one of them.</span></div>
                 </div>
               </div>
-              <footer class="pf">8U Flag Football Playbook &middot; 6-on-6</footer>
+              <footer class="pf">{Footer(f)}</footer>
             </section>
             """;
     }
 
-    private static string BasicsPage() => """
+    private static string BasicsPage(Format f)
+    {
+        var four = Week1(f).ToList();
+        var firstGame = string.Join(", ", four.Take(four.Count - 1)
+            .Select(w => $"one {w.Role[5..]} (<b>{Esc(Spoken(w.Play.Name))}</b>)"))
+            + $", and one {four[^1].Role[5..]} call (<b>{Esc(Spoken(four[^1].Play.Name))}</b>)";
+        var script = string.Concat(f.Script.Select(r =>
+            $"<tr><td>{Esc(r.Situation)}</td><td>{Esc(r.Call)}</td></tr>"));
+
+        return $"""
 
         <section class="page">
           <header class="secthead"><h2>Before the first play</h2></header>
           <div class="two">
             <div>
               <h3>Rotating without losing the plot</h3>
-              <p class="body">With 11&ndash;14 kids you are subbing roughly half the field every series.
+              <p class="body">With {Roster(f)} kids you are subbing roughly half the field every series.
               Two things make that painless: <b>rotate by series, not by play</b> (a kid who changes spots
               mid-drive is a kid who lines up wrong), and <b>fill the sheet in before kickoff</b> so you are
               never making fairness decisions while losing.</p>
@@ -266,25 +301,12 @@ internal static class PlaybookDocument
             </div>
             <div>
               <h3>How to call a game</h3>
-              <p class="body">Do not try to use all fourteen plays. Pick four for the first game: one run
-              (<b>22 Dive</b>), one quick pass (<b>Double Slant</b>), one out (<b>Stick</b>), and one goal-line
-              call (<b>Pylon Fade</b>). Add a play a week once those four are automatic.</p>
+              <p class="body">Do not try to use all {f.Plays.Count} plays. Pick four for the first game:
+              {firstGame}. That is Week 1 on the tablet. Add a play a week once those four are automatic.</p>
               <h3>A simple script that works</h3>
               <table class="script">
                 <tr><th>Situation</th><th>Call</th></tr>
-                <tr><td>1st down, run zone</td><td>22 Dive (1) or Jet Sweep (2)</td></tr>
-                <tr><td>2nd and short</td><td>Stick (7) or Pitch Right (4)</td></tr>
-                <tr><td>2nd and long</td><td>Flood (9)</td></tr>
-                <tr><td>3rd and short</td><td>Stick (7) &mdash; set the break past the sticks</td></tr>
-                <tr><td>3rd and long</td><td>Spacing (12) or Smash (6)</td></tr>
-                <tr><td>Rusher is winning</td><td>Double Slant (5)</td></tr>
-                <tr><td>Defense chases motion</td><td>Counter Keep (3)</td></tr>
-                <tr><td>Defense crowds the middle</td><td>Pitch Right (4) or Post / Wheel (10)</td></tr>
-                <tr><td>Run has been working</td><td>Play-Action Cross (11)</td></tr>
-                <tr><td>No-run zone</td><td>Spacing (12)</td></tr>
-                <tr><td>Inside the 5</td><td>Pylon Fade (13)</td></tr>
-                <tr><td>Extra point</td><td>Triple Out (14)</td></tr>
-                <tr><td>Need a change-up</td><td>Snapper Delay (8) &mdash; once per game</td></tr>
+                {script}
               </table>
               <h3>Practice this, not that</h3>
               <p class="body">Fifteen minutes of snap-and-catch beats an hour of new plays. The three drills
@@ -296,41 +318,42 @@ internal static class PlaybookDocument
               plays here have notes about exactly that.</p>
             </div>
           </div>
-          <footer class="pf">8U Flag Football Playbook &middot; 6-on-6</footer>
+          <footer class="pf">{Footer(f)}</footer>
         </section>
         """;
+    }
 
-    private static string FormationsPage()
+    private static string FormationsPage(Format f)
     {
-        string[] order = ["QB", "C", "X", "Y", "Z", "H"];
+        string[] order = ["QB", "C", "X", "F", "Y", "Z", "H"];
         var cards = new StringBuilder();
-        foreach (var name in Formations.All.Keys)
+        foreach (var name in f.Formations.Keys)
         {
             var chips = string.Concat(order
-                .Where(k => Formations.All[name].ContainsKey(k))
-                .Select(k => $"<i>{Esc(Spots.Map[name][k].Name)}</i>"));
+                .Where(k => f.Formations[name].ContainsKey(k))
+                .Select(k => $"<i>{Esc(f.SpotMap[name][k].Name)}</i>"));
             cards.Append($"<div class=\"fcard\"><h4>{Esc(name)}</h4>{FormationSvg(name)}")
                 .Append($"<div class=\"chips\">{chips}</div>")
-                .Append($"<p>{Esc(Formations.Notes[name])}</p></div>");
+                .Append($"<p>{Esc(f.FormationNotes[name])}</p></div>");
         }
 
         return $"""
 
             <section class="page">
-              <header class="secthead"><h2>The four formations</h2>
-                <p>Everything in this playbook comes out of these four looks. Each one uses the SNAPPER, the
-                THROWER, and four of the other spots &mdash; the spots each formation needs are listed under
+              <header class="secthead"><h2>The {Words(f.Formations.Count)} formations</h2>
+                <p>Everything in this playbook comes out of these {Words(f.Formations.Count)} looks. Each one uses the SNAPPER, the
+                THROWER, and {Words(f.Players - 2)} of the other spots &mdash; the spots each formation needs are listed under
                 its picture. Teach the formations first: kids who line up correctly are already halfway to
                 running the play right.</p></header>
               <div class="fgrid">{cards}</div>
               <div class="two mirrorbox">
                 <div>
                   <h3>Every formation flips</h3>
-                  <p class="body">Each of these four looks has a mirror image, and so does every play in this book.
-                  Call &ldquo;Trips <b>Right</b> &mdash; Flood&rdquo; and the whole thing runs to the other side of
-                  the field. That turns 14 plays into 28 without teaching anything new.</p>
+                  <p class="body">Each of these looks has a mirror image, and so does every play in this book.
+                  Call it to the other side and the whole thing runs to the other side of the field. That turns
+                  {f.Plays.Count} plays into {2 * f.Plays.Count} without teaching anything new.</p>
                   <p class="body">Flip toward the wide side of the field, or away from the defense's best player.
-                  At 8U, one kid is usually the entire defense &mdash; find him and run away from him.</p>
+                  At this age one kid is usually the entire defense &mdash; find him and run away from him.</p>
                 </div>
                 <div>
                   <h3>Getting lined up</h3>
@@ -345,14 +368,14 @@ internal static class PlaybookDocument
                   </ul>
                 </div>
               </div>
-              <footer class="pf">8U Flag Football Playbook &middot; 6-on-6</footer>
+              <footer class="pf">{Footer(f)}</footer>
             </section>
             """;
     }
 
-    private static string CallSheet()
+    private static string CallSheet(Format f)
     {
-        var rows = string.Concat(PlayLibrary.All.Select(p =>
+        var rows = string.Concat(f.Plays.Select(p =>
             $"<tr><td class=\"n\" style=\"--accent:{CategoryColours[p.Category]}\">{p.Num}</td>"
             + $"<td class=\"nm\">{Esc(p.Name)}</td>"
             + $"<td>{Esc(p.Formation)}</td>"
@@ -371,7 +394,7 @@ internal static class PlaybookDocument
                 {rows}
               </table>
               <div class="notesbox"><h4>Game notes</h4><div class="lines"></div></div>
-              <footer class="pf">8U Flag Football Playbook &middot; 6-on-6</footer>
+              <footer class="pf">{Footer(f)}</footer>
             </section>
             """;
     }
