@@ -110,19 +110,25 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         {
             var root = doc.RootElement;
             Assert.Equal("huddleboard.setup", root.GetProperty("format").GetString());
-            Assert.Equal(1, root.GetProperty("v").GetInt32());
-            Assert.Equal(11, root.GetProperty("deck").GetArrayLength());
+            Assert.Equal(2, root.GetProperty("v").GetInt32());
             Assert.Equal("orange", root.GetProperty("ourSide").GetString());
             Assert.Equal(25, root.GetProperty("settings").GetProperty("clockSecs").GetInt32());
+            Assert.Equal(6, root.GetProperty("settings").GetProperty("players").GetInt32());
+            // a section per format, each a whole set of choices; the others are as shipped
+            var modes = root.GetProperty("modes");
+            Assert.Equal(Formats.All.Select(f => f.Id), modes.EnumerateObject().Select(m => m.Name));
+            Assert.Equal(Formats.Five.Starting.Count, modes.GetProperty("5").GetProperty("deck").GetArrayLength());
+            var six = modes.GetProperty("6");
+            Assert.Equal(11, six.GetProperty("deck").GetArrayLength());
             Assert.Equal("STAMPEDE",
-                root.GetProperty("names").GetProperty("p_01").GetProperty("kid").GetString());
+                six.GetProperty("names").GetProperty("p_01").GetProperty("kid").GetString());
             // every week is spelled out, shipped or saved, so the file stands alone
-            var packs = root.GetProperty("packs");
+            var packs = six.GetProperty("packs");
             Assert.Equal(PlayPacks.All.Count, packs.EnumerateObject().Count());
             Assert.Equal(5, packs.GetProperty("week2").GetArrayLength());
             Assert.Equal(4, packs.GetProperty("week1").GetArrayLength());
             // a week's name travels like a play's: only the one that differs
-            var packNames = root.GetProperty("packNames");
+            var packNames = six.GetProperty("packNames");
             Assert.Single(packNames.EnumerateObject());
             Assert.Equal("PLAYOFFS", packNames.GetProperty("week2").GetString());
             // the file carries choices, never the recording

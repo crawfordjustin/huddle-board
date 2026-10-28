@@ -115,9 +115,10 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         await page.WaitForTimeoutAsync(80);
     }
 
-    private async Task<(IPage Page, List<string> Errors)> OpenDesignerAsync(Viewport size, string formation)
+    private async Task<(IPage Page, List<string> Errors)> OpenDesignerAsync(
+        Viewport size, string formation, int players = 6)
     {
-        var (page, errors) = await app.OpenAppAsync(size);
+        var (page, errors) = await app.OpenAppAsync(size, players: players);
         await page.ClickAsync("#ham");
         await page.ClickAsync("#edit");
         await page.ClickAsync("#lnew");
@@ -136,28 +137,32 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
 
     /// <summary>
     /// Two copies of one rulebook are only safe while something proves they
-    /// agree. Every finding PlayChecker makes on the shipped library, the
-    /// tablet's checker makes too — no more, no fewer.
+    /// agree. Every finding PlayChecker makes on every format's shipped
+    /// library, the tablet's checker makes too — no more, no fewer.
     /// </summary>
     [Fact]
     public async Task TheTabletsCheckerFindsWhatPlayCheckerFinds()
     {
         static string Level(Severity s) => s == Severity.Error ? "error" : "warning";
-        var wanted = PlayChecker.Check(PlayLibrary.All)
-            .Where(f => f.Num > 0 && f.Rule != "TEACHABLE/text")
-            .Select(f => $"{f.Num}|{Level(f.Level)}|{f.Rule}")
-            .Order(StringComparer.Ordinal)
-            .ToList();
-
         var (page, errors) = await app.OpenAppAsync(Desk);
-        var found = (await page.EvaluateAsync<string[]>("""
-            DATA.plays.filter(p => !p.custom)
-              .flatMap(p => checkPlay(p).map(f => p.num + "|" + f.level + "|" + f.rule))
-            """)).Order(StringComparer.Ordinal).ToList();
 
-        // the shipped library has warnings, so an agreement on nothing cannot pass
-        Assert.NotEmpty(wanted);
-        Assert.Equal(wanted, found);
+        foreach (var format in Formats.All)
+        {
+            var wanted = PlayChecker.Check(format.Plays, format)
+                .Where(f => f.Num > 0 && f.Rule != "TEACHABLE/text")
+                .Select(f => $"{f.Num}|{Level(f.Level)}|{f.Rule}")
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            var found = (await page.EvaluateAsync<string[]>($$"""
+                ALL.formats[{{format.Players}}].plays.filter(p => !p.custom)
+                  .flatMap(p => checkPlay(p).map(f => p.num + "|" + f.level + "|" + f.rule))
+                """)).Order(StringComparer.Ordinal).ToList();
+
+            // every shipped library has warnings, so an agreement on nothing cannot pass
+            Assert.NotEmpty(wanted);
+            Assert.Equal(wanted, found);
+        }
 
         // and it is not agreeing by finding nothing: a real collision is caught
         var collide = await page.EvaluateAsync<string[]>("""
@@ -226,6 +231,63 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
 
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
+    /// The designer is the format's: it offers that format's four formations
+    /// and nobody else's, a drawn play has that format's roster, and it is
+    /// stored with that format's plays — so it is not in the other formats.
+    /// </summary>
+    [Theory]
+    [InlineData(5, "EMPTY", 5.0, "H", "SLOT ORANGE")]
+    [InlineData(7, "FIVE WIDE", -7.5, "F", "SLOT BLUE")]
+    public async Task ACoachDrawsAPlayInEachFormat(int players, string formation, double x, string key, string name)
+    {
+        var format = Formats.All.Single(f => f.Players == players);
+        var (page, errors) = await app.OpenAppAsync(Desk, players: players);
+        await page.ClickAsync("#ham");
+        await page.ClickAsync("#edit");
+        await page.ClickAsync("#lnew");
+        await page.WaitForSelectorAsync(".fmbtn");
+        var offered = await page.EvalOnSelectorAllAsync<string[]>(".fmbtn", "b => b.map(x => x.dataset.fm)");
+        Assert.Equal(format.Formations.Keys, offered);
+        await page.ClickAsync($".fmbtn[data-fm=\"{formation}\"]");
+        await page.WaitForSelectorAsync(".designer #field");
+        await page.WaitForTimeoutAsync(300);
+
+        // the slot runs five and breaks inside, and he gets the ball
+        var inside = x > 0 ? x - 4 : x + 4;
+        await RouteAsync(page, (x, 0), (x, 5), (inside, 5));
+        Assert.Contains("IN at 5", await CallsAsync(page));
+        await ToolAsync(page, "ball");
+        await TapAsync(page, x, 0);
+        Assert.Equal(0, await ErrorCountAsync(page));
+        Assert.Equal(key, await page.EvaluateAsync<string>("S.play.primary"));
+        Assert.Equal(players, await page.EvaluateAsync<int>("Object.keys(S.play.spots).length"));
+
+        await page.ClickAsync("#dz-save");
+        await page.WaitForSelectorAsync("#dzsheet");
+        await page.FillAsync("#dz-real", "Slot In");
+        await page.ClickAsync("#dz-ok");
+        await page.WaitForSelectorAsync(".lib");
+        await page.WaitForTimeoutAsync(300);
+
+        var id = await page.EvaluateAsync<string>("Object.keys(designs)[0]");
+        Assert.True(await page.EvaluateAsync<bool>($"deck.includes('{id}')"), "a new play did not go into the deck");
+        Assert.Contains(name, await page.EvaluateAsync<string>(
+            $"DATA.plays.find(p => p.id === '{id}').calls.flat().join(' ')"));
+
+        // stored with this format's plays, and in no other format
+        Assert.True(await page.EvaluateAsync<bool>(
+            $"!!JSON.parse(localStorage.getItem('hb.plays.{players}')).byId['{id}']"));
+        await page.EvaluateAsync("loadMode(6)");
+        Assert.Equal(0, await page.EvaluateAsync<int>("customCount()"));
+        Assert.False(await page.EvaluateAsync<bool>($"DATA.plays.some(p => p.id === '{id}')"));
+        await page.EvaluateAsync($"loadMode({players})");
+        Assert.Equal(1, await page.EvaluateAsync<int>("customCount()"));
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors));
     }
 
     /// <summary>
@@ -848,7 +910,8 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
 
         // the file carries the drawing, not a compiled play
         var file = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
-        var plays = file["plays"]!.AsArray();
+        // a drawn play travels in its own format's section of the file
+        var plays = file["modes"]!["6"]!["plays"]!.AsArray();
         Assert.Single(plays);
         Assert.Equal("SPREAD", plays[0]!["base"]!.GetValue<string>());
         Assert.Null(plays[0]!["calls"]);
@@ -862,8 +925,8 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         markup["id"] = "u_markup01";
         markup["coachName"] = "<b>X</b> & CO";
         plays.Add(markup);
-        file["deck"]!.AsArray().Add("u_markup01");
-        file["deck"]!.AsArray().Add("u_badone01");
+        file["modes"]!["6"]!["deck"]!.AsArray().Add("u_markup01");
+        file["modes"]!["6"]!["deck"]!.AsArray().Add("u_badone01");
         var tampered = Path.Combine(dir, "tampered.json");
         await File.WriteAllTextAsync(tampered, file.ToJsonString());
 

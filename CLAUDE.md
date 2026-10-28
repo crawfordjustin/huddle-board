@@ -647,16 +647,18 @@ The app opens on an intro screen — art and one START button — so
 `AppFixture.OpenAppAsync` taps through it and hands every other check the deck.
 Pass `intro: true` to stay on it; `IntroChecks` is the only thing that does.
 
-`RenameChecks`, `ResetChecks`, `SyncChecks` and `PwaChecks` run against the hosted
+`RenameChecks`, `ResetChecks`, `SyncChecks`, `FormatChecks` and `PwaChecks` run against the hosted
 build over a local `StaticSite` rather than the standalone file, because all of
 them are about storage and service workers and a `file://` origin has neither.
 `SyncChecks` opens each tablet in its own browser context: headless Chromium has
 no share sheet, so Export falls through to a download that the check captures
 and feeds to the other tablet's hidden file input.
 
-`LabelChecks` sweeps 27 plays × 2 mirror states × 2 stages × 5 viewports = 540
-states. Several checks pad the library out to 100 plays
-(`AppFixture.InjectPlaysAsync`) to judge the UI at a size it has not reached yet.
+`LabelChecks` sweeps all 75 plays of the three formats × 2 mirror states × 2
+stages × 5 viewports = 1,500 states. Several checks pad the library out to 100
+plays (`AppFixture.InjectPlaysAsync`, ids `x_` so they never collide with a
+format's) to judge the UI at a size it has not reached yet. `OpenAppAsync`'s
+`players:` opens a tablet already set to 5 or 7 on the field.
 
 Everything shares one browser and one build and runs in sequence — two checks
 racing over the same `dist/` is not a real signal. The first run downloads

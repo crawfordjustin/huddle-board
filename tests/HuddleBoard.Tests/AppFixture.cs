@@ -88,6 +88,15 @@ public sealed class AppFixture : IAsyncLifetime
     public static Task MarkTourSeenAsync(IPage page) => page.AddInitScriptAsync(SeenTour);
 
     /// <summary>
+    /// A tablet set to <paramref name="players"/> on the field before the app
+    /// boots, the way Setup leaves it. Written only when nothing is there yet,
+    /// so a check that switches format and reloads keeps what it switched to.
+    /// </summary>
+    public static string Players(int players) =>
+        "try { if (!localStorage.getItem(\"hb.settings\")) localStorage.setItem(\"hb.settings\", "
+        + $"JSON.stringify({{v:1, players:{players}}})); }} catch(e){{}}";
+
+    /// <summary>
     /// A new page with the app loaded and the intro dismissed, sitting on the
     /// deck — which is where a coach is within one tap of launching, and where
     /// every check below this one expects to start.
@@ -101,8 +110,9 @@ public sealed class AppFixture : IAsyncLifetime
     /// <paramref name="intro"/> left false, START then lands on the slides
     /// rather than the deck, so this waits for the tour instead.
     /// </param>
+    /// <param name="players">The format the tablet is set to: 5, 6 or 7.</param>
     public async Task<(IPage Page, List<string> Errors)> OpenAppAsync(
-        Viewport size, int settle = 400, bool intro = false, bool fresh = false)
+        Viewport size, int settle = 400, bool intro = false, bool fresh = false, int players = 6)
     {
         var page = await Browser.NewPageAsync(new BrowserNewPageOptions
         {
@@ -110,6 +120,8 @@ public sealed class AppFixture : IAsyncLifetime
         });
         if (!fresh)
             await MarkTourSeenAsync(page);
+        if (players != 6)
+            await page.AddInitScriptAsync(Players(players));
 
         var errors = new List<string>();
         page.PageError += (_, e) => errors.Add(e);
@@ -139,7 +151,7 @@ public sealed class AppFixture : IAsyncLifetime
           const out = [];
           for (let i = 0; i < n; i++){
             const b = JSON.parse(JSON.stringify(base[i % base.length]));
-            b.id = "s_" + i; b.num = i + 1;
+            b.id = "x_" + i; b.num = i + 1;
             const suffix = " " + (Math.floor(i / base.length) + 1);
             b.coachName += suffix; b.kidName += suffix;
             out.push(b);

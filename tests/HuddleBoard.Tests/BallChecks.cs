@@ -30,6 +30,13 @@ public sealed class BallChecks(AppFixture app)
         [property: JsonPropertyName("throwDy")] double ThrowDy);
 
     /// <summary>Jump the animation to just before it loops, so the ball has arrived.</summary>
+    /// <summary>Opens a play from any format: its id says which.</summary>
+    private static Task OpenAsync(Microsoft.Playwright.IPage page, string play)
+    {
+        var players = play[0] switch { 'f' => 5, 's' => 7, _ => 6 };
+        return page.EvaluateAsync($"loadMode({players}); openPlay('{play}')");
+    }
+
     private const string Settle = """
         () => { S.stage = 'run'; S.t0 = performance.now() - (S.tl.tEnd - 600); syncRail(); }
         """;
@@ -205,11 +212,13 @@ public sealed class BallChecks(AppFixture app)
     [InlineData("p_22", "H", "Y")]
     [InlineData("p_25", "Y", "H")]
     [InlineData("p_26", "H", "Z")]
+    [InlineData("f_20", "H", "Z")]
+    [InlineData("s_20", "H", "Z")]
     public async Task OnAReverseTheBallChangesHandsWhereTheSecondArrowSaysItDoes(
         string play, string giver, string taker)
     {
         var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], settle: 350);
-        await page.EvaluateAsync($"openPlay('{play}')");
+        await OpenAsync(page, play);
         await page.WaitForTimeoutAsync(400);
 
         var g = JsonSerializer.Deserialize<Hands>(
@@ -289,19 +298,22 @@ public sealed class BallChecks(AppFixture app)
     /// could have was the kid under centre, so a handoff that turned into a
     /// pass had no honest picture.
     /// </summary>
-    [Fact]
-    public async Task OnAJetPassTheBallRidesTheSweepAndLeavesFromWhereTheRunnerStops()
+    [Theory]
+    [InlineData("p_27", "Y")]
+    [InlineData("f_09", "H")]
+    [InlineData("s_14", "F")]
+    public async Task OnAJetPassTheBallRidesTheSweepAndLeavesFromWhereTheRunnerStops(string play, string runner)
     {
         var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], settle: 350);
-        await page.EvaluateAsync("openPlay('p_27')");
+        await OpenAsync(page, play);
         await page.WaitForTimeoutAsync(400);
 
         var g = JsonSerializer.Deserialize<Sweep>(
             await page.EvaluateAsync<string>(SweepThenThrow))!;
 
         Assert.Equal(1, g.Legs);
-        Assert.Equal("Y", g.Runner);
-        Assert.Equal("Y", g.Thrower);
+        Assert.Equal(runner, g.Runner);
+        Assert.Equal(runner, g.Thrower);
 
         // halfway through the sweep the ball is in the runner's hands, and
         // nowhere near the THROWER or the receiver
@@ -324,11 +336,14 @@ public sealed class BallChecks(AppFixture app)
     /// it ends. TRIPLE OUT used to throw from the spot he had already left,
     /// with his roll line drawing out empty-handed beside the ball.
     /// </summary>
-    [Fact]
-    public async Task OnARolloutTheBallRidesTheThrowerAndLeavesFromWhereHeStops()
+    [Theory]
+    [InlineData("p_14")]
+    [InlineData("f_13")]
+    [InlineData("s_07")]
+    public async Task OnARolloutTheBallRidesTheThrowerAndLeavesFromWhereHeStops(string play)
     {
         var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], settle: 350);
-        await page.EvaluateAsync("openPlay('p_14')");
+        await OpenAsync(page, play);
         await page.WaitForTimeoutAsync(400);
 
         var g = JsonSerializer.Deserialize<Sweep>(

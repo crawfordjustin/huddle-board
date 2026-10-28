@@ -2636,16 +2636,16 @@ function renderSettings(){
      seg("vibrate", [[true,"On"],[false,"Off"]])],
     ["Play names", "BULLDOZER or 22 DIVE. Fun names stick with the kids; real names are what you say to another coach.",
      seg("funNames", [[true,"Fun"],[false,"Real"]])],
-    ["Your own names", `${renamedCount()} ${here} play${renamedCount() === 1 ? "" : "s"} renamed on this
-      tablet. Rename any play from Change plays in the menu &mdash; tap the pencil on its row. Your names
+    ["Your own names", `${renamedCount()} play${renamedCount() === 1 ? "" : "s"} renamed on this
+      tablet in ${here}. Rename any play from Change plays in the menu &mdash; tap the pencil on its row. Your names
       are kept through an update; Reset all puts every shipped name back.`,
      `<div class="seg"><button id="nmreset" ${renamedCount() ? "" : "disabled"}>Reset all</button></div>`],
-    ["Your own weeks", `${savedPackCount()} of ${DATA.packs.length} ${here} weeks hold a deck saved on this
+    ["Your own weeks", `In ${here}, ${savedPackCount()} of ${DATA.packs.length} weeks hold a deck saved on this
       tablet and ${renamedPackCount()} ${renamedPackCount() === 1 ? "is" : "are"} renamed. From Change plays,
       tap Save deck and then the week to keep it in, or Rename and then the week to call it something else.
       Both are kept through an update; Reset all puts every shipped week back, deck and name.`,
      `<div class="seg"><button id="pkreset" ${savedPackCount() || renamedPackCount() ? "" : "disabled"}>Reset all</button></div>`],
-    ["Your own plays", `${customCount()} ${here} play${customCount() === 1 ? "" : "s"} drawn on this tablet. Draw
+    ["Your own plays", `${customCount()} play${customCount() === 1 ? "" : "s"} drawn on this tablet in ${here}. Draw
       one from Change plays &mdash; tap New play. They are kept through an update and through Start
       over, because nothing else on the tablet can draw them again; Clear all is the only thing that
       removes them.`,
