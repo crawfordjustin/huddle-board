@@ -207,15 +207,50 @@ public static class ProtoExporter
         return -1;
     }
 
-    /// <summary>Builds the JSON document for the whole library.</summary>
+    /// <summary>The version of the document the tablet reads. 4 is the first
+    /// with more than one format in it.</summary>
+    private const int SchemaVersion = 4;
+
+    /// <summary>
+    /// Builds the document the tablet reads: every format, keyed by its id,
+    /// each one a whole library on its own. The tablet shows one at a time and
+    /// keeps a coach's choices for each apart.
+    /// </summary>
+    public static string Serialise()
+    {
+        var j = new JsonWriter();
+        j.StartObject();
+        j.Pair("schemaVersion", SchemaVersion);
+        j.Key("formats").StartObject();
+        foreach (var f in Formats.All)
+        {
+            j.Key(f.Id).StartObject();
+            WriteFormat(j, f.Plays, f);
+            j.EndObject();
+        }
+
+        j.EndObject();
+        j.EndObject();
+        return j.ToString();
+    }
+
+    /// <summary>One format's library as a document of its own.</summary>
     /// <param name="plays">The plays to write, all from one format.</param>
     /// <param name="format">Which format; 6-on-6 when not said.</param>
     public static string Serialise(IReadOnlyList<Play> plays, Format? format = null)
     {
-        var f = format ?? Formats.Six;
         var j = new JsonWriter();
         j.StartObject();
-        j.Pair("schemaVersion", 3);
+        j.Pair("schemaVersion", SchemaVersion);
+        WriteFormat(j, plays, format ?? Formats.Six);
+        j.EndObject();
+        return j.ToString();
+    }
+
+    private static void WriteFormat(JsonWriter j, IReadOnlyList<Play> plays, Format f)
+    {
+        j.Pair("label", f.Label);
+        j.Pair("players", f.Players);
 
         // the deck a new team starts with is the first play pack, which is the
         // playbook's "start here" page — one definition, so Start over and
@@ -286,6 +321,7 @@ public static class ProtoExporter
             j.StartObject();
             j.Pair("id", f.PlayId(num));
             j.Pair("num", num);
+            j.Pair("players", f.Players);
             j.Pair("coachName", p.Name);
             j.Pair("kidName", f.KidNames[num]);
             j.Pair("category", p.Category);
@@ -388,8 +424,6 @@ public static class ProtoExporter
         }
 
         j.EndArray();
-        j.EndObject();
-        return j.ToString();
     }
 
     /// <summary>
@@ -407,20 +441,23 @@ public static class ProtoExporter
             return 1;
         }
 
-        var f = Formats.Six;
-        var plays = f.Plays;
-        var json = Serialise(plays, f);
+        var json = Serialise();
         var path = Path.Combine(Workspace.Ensure(Workspace.Dist), "proto_data.json");
         Workspace.WriteText(path, json);
 
-        o.WriteLine("wrote proto_data.json — {0} plays, {1} KB", plays.Count,
+        o.WriteLine("wrote proto_data.json — {0} plays in {1} formats, {2} KB",
+            Formats.All.Sum(f => f.Plays.Count), Formats.All.Count,
             (json.Length / 1024.0).ToString("0.0", CultureInfo.InvariantCulture));
-        foreach (var p in plays)
+        foreach (var f in Formats.All)
         {
-            var txt = f.Texts[p.Num];
-            var jobs = txt.Calls.SelectMany(c => KeysForLabel(c.Label, p.Formation, f)).Distinct().Count();
-            o.WriteLine("  {0,-2} {1,-12} {2,-15} ball->{3,-3} jobs:{4}",
-                p.Num, f.KidNames[p.Num], p.Name, f.Ball[p.Num].Who, jobs);
+            o.WriteLine(f.Label);
+            foreach (var p in f.Plays)
+            {
+                var txt = f.Texts[p.Num];
+                var jobs = txt.Calls.SelectMany(c => KeysForLabel(c.Label, p.Formation, f)).Distinct().Count();
+                o.WriteLine("  {0,-2} {1,-14} {2,-16} ball->{3,-3} jobs:{4}",
+                    p.Num, f.KidNames[p.Num], p.Name, f.Ball[p.Num].Who, jobs);
+            }
         }
 
         return 0;

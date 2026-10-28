@@ -56,5 +56,8 @@ public static class Formats
     public static Format Five => FiveOnFive.Format;
 
     /// <summary>Every format, in the order Setup offers them.</summary>
-    public static IReadOnlyList<Format> All => [Five, Six];
+    public static IReadOnlyList<Format> All => [Five, Six, Seven];
+
+    /// <summary>7-on-7: the SNAPPER, the THROWER and five more.</summary>
+    public static Format Seven => SevenOnSeven.Format;
 }
