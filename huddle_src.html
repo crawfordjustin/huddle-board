@@ -2459,15 +2459,19 @@ function renderTour(first, at = 0){
         <div class="dots">${slides.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("")}</div>
         <div class="tourbtns">
           <button class="sbtn" id="tourback" ${i ? "" : "disabled"}>Back</button>
-          <button class="sbtn go" id="tournext">${last ? (first ? "Go to deck" : "Done") : "Next"}</button>
+          <button class="sbtn go" id="tournext">${last ? (first ? "Pick plays" : "Done") : "Next"}</button>
         </div>
       </div>
     </div>`;
   if (s.field) startTourField(s.field);
+  // The first time through, the way out is the play library, not the deck: a
+  // new coach's deck is somebody else's Week 1 until he has chosen, and the
+  // library is where he chooses. From the menu he already has a deck to go
+  // back to, and that is where he goes.
   const leave = how => {
     markTourSeen();
     logEvent("tour_done", {how, slide: i + 1, first});
-    renderDeck();
+    if (first) renderLibrary(); else renderDeck();
   };
   document.getElementById("tourskip").onclick = () => leave(first ? "skip" : "close");
   document.getElementById("tourback").onclick = () => renderTour(first, i - 1);
