@@ -61,7 +61,19 @@ public sealed class TutorialChecks(AppFixture app)
         var size = new Viewport(label, w, h);
         var (page, errors) = await app.OpenAppAsync(size, fresh: true);
 
+        // the question comes first, every answer on screen and big enough for a thumb
         Assert.Equal(0, await page.Locator(".deck").CountAsync());
+        var answers = await page.EvalOnSelectorAllAsync<string[]>("#askfmt [data-players]", """
+            els => els.filter(e => { const r = e.getBoundingClientRect();
+                return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth
+                    && r.height >= 44; }).map(e => e.dataset.players)
+            """);
+        Assert.Equal(["5", "6", "7"], answers);
+        Assert.Equal("6", await page.GetAttributeAsync("#askfmt .askbtn.on", "data-players"));
+        Assert.False(await page.EvaluateAsync<bool>(
+            "document.documentElement.scrollHeight > innerHeight + 1"), $"{size}: the question scrolls the page");
+        await AppFixture.AnswerPlayersAsync(page);
+
         var slides = 0;
         while (true)
         {
@@ -103,6 +115,7 @@ public sealed class TutorialChecks(AppFixture app)
     public async Task ItShowsOnceAndComesBackFromTheMenu()
     {
         var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], fresh: true);
+        await AppFixture.AnswerPlayersAsync(page);
 
         // Skip is the coach saying no, and that counts as having seen it
         Assert.Equal("Skip tutorial", (await page.InnerTextAsync("#tourskip")).Trim(), ignoreCase: true);
@@ -115,11 +128,14 @@ public sealed class TutorialChecks(AppFixture app)
         await page.ClickAsync("#start");
         await page.WaitForSelectorAsync(".deck");
         Assert.Equal(0, await page.Locator(".tour").CountAsync());
+        Assert.Equal(0, await page.Locator("#askfmt").CountAsync());
 
         // it is still one tap away, and from there the buttons say so
+        // the menu's tutorial does not ask again: this coach has answered
         await page.ClickAsync("#ham");
         await page.ClickAsync("#tour");
-        await page.WaitForSelectorAsync(".tour");
+        await page.WaitForSelectorAsync(".tour[data-slide]");
+        Assert.Equal(0, await page.Locator("#askfmt").CountAsync());
         Assert.Equal("Close", (await page.InnerTextAsync("#tourskip")).Trim(), ignoreCase: true);
         Assert.True(await page.Locator("#tourback").IsDisabledAsync(), "Back is live on the first slide");
         await page.ClickAsync("#tournext");
@@ -145,10 +161,43 @@ public sealed class TutorialChecks(AppFixture app)
         await page.ClickAsync("#ham");
         await page.ClickAsync("#exit");
         await page.WaitForSelectorAsync("#start");
+        // ...and so it asks again, with the answer the tablet kept already lit
         await page.ClickAsync("#start");
-        await page.WaitForSelectorAsync(".tour");
+        await page.WaitForSelectorAsync("#askfmt");
+        Assert.Equal("6", await page.GetAttributeAsync("#askfmt .askbtn.on", "data-players"));
+        await AppFixture.AnswerPlayersAsync(page);
 
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
+    /// The answer is the format, from the first slide on: pick 7 and the
+    /// tutorial's tile is a 7-on-7 play, Setup says 7, and the next open of
+    /// the app counts seven kids — from storage, not memory.
+    /// </summary>
+    [Fact]
+    public async Task TheFirstAnswerIsTheFormatFromTheFirstSlideOn()
+    {
+        var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], fresh: true);
+        await AppFixture.AnswerPlayersAsync(page, 7);
+
+        Assert.Equal(7, await page.EvaluateAsync<int>("cfg.players"));
+        Assert.Equal(7, await page.EvaluateAsync<int>("DATA.players"));
+        Assert.Contains(await page.EvaluateAsync<string>("inDeck()[0].coachName"),
+            await page.InnerTextAsync(".tourart"));
+        Assert.StartsWith("s_", await page.EvaluateAsync<string>("inDeck()[0].id"));
+        Assert.True(await page.EvaluateAsync<bool>(
+            "events.some(e => e.e === 'setting' && e.p.key === 'players' && e.p.first)"), "the answer was not logged");
+
+        await page.ClickAsync("#tourskip");
+        await page.WaitForSelectorAsync(".deck");
+        Assert.Equal("7 ON 7", await page.InnerTextAsync("#fmt"));
+        await page.ReloadAsync();
+        await page.WaitForSelectorAsync("#intro-message");
+        Assert.Equal("Seven kids. One clear job each.", await page.InnerTextAsync("#intro-message"));
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors));
     }
 }

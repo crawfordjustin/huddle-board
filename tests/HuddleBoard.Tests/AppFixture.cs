@@ -88,6 +88,17 @@ public sealed class AppFixture : IAsyncLifetime
     public static Task MarkTourSeenAsync(IPage page) => page.AddInitScriptAsync(SeenTour);
 
     /// <summary>
+    /// Answers the first START's question — how many on the field — and waits
+    /// for the tutorial it leads to.
+    /// </summary>
+    public static async Task AnswerPlayersAsync(IPage page, int players = 6)
+    {
+        await page.ClickAsync($"#askfmt [data-players=\"{players}\"]");
+        await page.WaitForSelectorAsync(".tour[data-slide]");
+        await page.WaitForTimeoutAsync(200);
+    }
+
+    /// <summary>
     /// Opens one of Setup's tabs — game, clock, yours or tablet. Only the open
     /// tab's rows are on the page, so a check reaching for a button opens its
     /// tab first.
@@ -118,8 +129,9 @@ public sealed class AppFixture : IAsyncLifetime
     /// </param>
     /// <param name="fresh">
     /// A tablet on its first open, which has not seen the tutorial. With
-    /// <paramref name="intro"/> left false, START then lands on the slides
-    /// rather than the deck, so this waits for the tour instead.
+    /// <paramref name="intro"/> left false, START then asks how many are on the
+    /// field before the slides, so this waits for that question instead of the
+    /// deck; <see cref="AnswerPlayersAsync"/> answers it.
     /// </param>
     /// <param name="players">The format the tablet is set to: 5, 6 or 7.</param>
     public async Task<(IPage Page, List<string> Errors)> OpenAppAsync(
@@ -142,7 +154,7 @@ public sealed class AppFixture : IAsyncLifetime
         if (!intro)
         {
             await page.ClickAsync("#start");
-            await page.WaitForSelectorAsync(fresh ? ".tour" : ".deck");
+            await page.WaitForSelectorAsync(fresh ? "#askfmt" : ".deck");
             await page.WaitForTimeoutAsync(settle);
         }
 

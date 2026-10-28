@@ -514,6 +514,30 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .tourhead p b{color:#C9D2CB;font-weight:600}
 .tourhead .edit{flex:none}
 .tourbody{flex:1;min-height:0;display:flex;align-items:center;gap:clamp(16px,3vw,46px)}
+/* the one question before the tutorial: how many on the field. The tour's own
+   frame and heading, three big answers, each with its format's base formation
+   drawn so the count is something a coach sees, not reads. Centred with auto
+   margins rather than justify-content, so a short screen scrolls instead of
+   cutting the question off the top. */
+.askbody{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;
+  gap:clamp(12px,2.4vh,28px);overflow-y:auto;padding:4px}
+.askbody>:first-child{margin-top:auto}
+.askbody>:last-child{margin-bottom:auto}
+.askbody h2{font-family:var(--disp);font-size:clamp(22px,4.4vh,44px);text-transform:uppercase;
+  color:#F2F4F1;text-align:center;line-height:1.05;margin:0}
+.askpick{width:min(100%,1100px);display:grid;grid-template-columns:repeat(3,1fr);
+  gap:clamp(10px,1.6vw,24px)}
+.askbtn{display:flex;flex-direction:column;align-items:stretch;gap:clamp(6px,1vh,10px);
+  padding:clamp(8px,1.4vh,14px);border-radius:14px;background:#1A211D;
+  border:2px solid #39433C;color:#C9D2CB;text-align:center;cursor:pointer}
+.askbtn .thumbsvg{width:100%;max-height:clamp(90px,24vh,240px)}
+.askbtn b{font-family:var(--disp);font-size:clamp(22px,4vh,40px);text-transform:uppercase;
+  line-height:1;color:#F2F4F1}
+.askbtn span{font-size:clamp(10px,1.6vh,14px);color:#8E9A91;line-height:1.3}
+.askbtn.on{border-color:var(--green-2);background:#1E3328}
+.askbtn:active{transform:scale(.97)}
+.askbtn:focus-visible{outline:3px solid #5FBF8F;outline-offset:2px}
+.asknote{font-size:clamp(11px,1.7vh,15px);color:#8E9A91;text-align:center;margin:0}
 .tourart{flex:1 1 56%;min-width:0;min-height:0;height:100%;display:flex;align-items:center;
   justify-content:center;pointer-events:none}
 .tourart>*{max-width:100%;max-height:100%}
@@ -2210,13 +2234,55 @@ function renderIntro(){
   // deck; every one after lands on the deck, and the menu has the slides
   document.getElementById("start").onclick = () => {
     logEvent("intro_start", {tour: !tourSeen});
-    if (tourSeen) renderDeck(); else renderTour(true);
+    if (tourSeen) renderDeck(); else renderAskPlayers();
   };
   // The same offer the deck makes. The intro is where a coach lands when he
   // opens the app before a game, which is the one moment an update costs
   // nothing — no play is live and nobody is waiting on the tablet.
   const up = document.getElementById("upd");
   if (up) up.onclick = () => { up.textContent = "Updating"; applyUpdate(); };
+}
+
+/* ------------------------------------------------- how many on the field
+   The first START on a tablet asks one question before the tutorial: how
+   many kids the team puts on the field. Every screen after this one — the
+   tutorial's first tile included — is that format's, so it is asked before
+   anything is shown rather than discovered in Setup a week later. It is asked
+   whenever the tutorial is about to run for the first time, which is a fresh
+   tablet and a tablet after Start over; the answer it already has is lit. The
+   tutorial from the menu does not ask: that coach has already answered. */
+const PLAYERS_SAY = {5: "The snapper, the thrower and three more",
+                     6: "The snapper, the thrower and four more",
+                     7: "The snapper, the thrower and five more"};
+function renderAskPlayers(){
+  S.screen = "ask";
+  tourFieldOn = false;
+  app.innerHTML = `
+    <div class="tour askfmt" id="askfmt">
+      <div class="tourhead">
+        <div>
+          <h1>Before we start</h1>
+          <p>One question, then a quick look at how the app works.</p>
+        </div>
+      </div>
+      <div class="askbody">
+        <h2>How many players does your team put on the field?</h2>
+        <div class="askpick">${FORMAT_IDS.map(n => {
+          const f = FORMATION_ORDER.find(x => FORMATION_PLAYERS[x] === n);
+          return `<button class="askbtn ${n === cfg.players ? "on" : ""}" data-players="${n}">
+            ${thumbSVG({spots: FORMATIONS[f], paths: [], jobs: [], primary: "", ball: {mode: "carry"}})}
+            <b>${esc(ALL.formats[n].label)}</b><span>${PLAYERS_SAY[n] || ""}</span></button>`;
+        }).join("")}</div>
+        <p class="asknote">Each one has its own plays. You can change it any time in Setup &rarr; Game.</p>
+      </div>
+    </div>`;
+  app.querySelectorAll("[data-players]").forEach(b => b.onclick = () => {
+    const n = Number(b.dataset.players);
+    cfg.players = n; saveCfg();
+    logEvent("setting", {key: "players", value: n, first: true});
+    if (n !== DATA.players) loadMode(n);
+    renderTour(true);
+  });
 }
 
 /* -------------------------------------------------------------- tutorial

@@ -357,7 +357,14 @@ across two tablets and feeds it markup.
 **12. The first START goes through the tutorial, once.** The app grew past
 what one sentence on the intro could carry — chips, mirror, tap-a-kid, packs,
 Setup, the menu — so a fresh tablet's first START lands on six slides
-(`renderTour`) on its way to the deck: the coach's own first tile, that play
+(`renderTour`) on its way to the deck, after one question:
+**how many players does your team put on the field?** (`renderAskPlayers`).
+It comes first because every screen after it, the tutorial's first tile
+included, belongs to the format the answer picks; three big answers, each with
+its format's base formation drawn, so the count is something a coach sees. It
+is asked whenever the tutorial is about to run for the first time — a fresh
+tablet, or one after Start over, with the kept answer lit — and never from the
+menu's Tutorial, because that coach has answered. The slides themselves are: the coach's own first tile, that play
 running, the marker shapes, a week of the pack strip, a slice of Setup, and
 the menu, each beside a few sentences. Every picture is the real thing drawn
 by the real code (`tourTile`, `tourField`, `tourMarkers`, `tourPacks`,
