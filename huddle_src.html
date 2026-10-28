@@ -2803,7 +2803,9 @@ function renderSettings(tab){
     resetNames(); logEvent("play_rename_reset", {play: "all"}); renderSettings(); });
   confirmTap("pkreset", () => {
     resetPacks(); logEvent("pack_reset", {pack: "all"}); renderSettings(); });
-  confirmTap("allreset", () => { resetEverything(); renderSettings(); });
+  // a tablet put back the way it came starts the way it came: on the intro,
+  // where START asks how many are on the field and runs the tutorial again
+  confirmTap("allreset", () => { resetEverything(); renderIntro(); });
   app.querySelectorAll(".seg").forEach(g => g.addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
     const key = g.dataset.key, raw = b.dataset.v;

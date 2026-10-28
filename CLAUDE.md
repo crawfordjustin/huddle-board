@@ -164,7 +164,10 @@ leaves the game log alone. A log is a recording rather than a preference — the
 one thing on the tablet that cannot be derived again — and it has its own Clear
 one row up. Everything destructive in Setup arms on the first tap and acts on the
 second (`confirmTap`), and the arming lapses on its own, so a stray thumb on the
-way past costs nothing. `ResetChecks` holds all of that, including the log.
+way past costs nothing. The second tap lands on the **intro**, because a tablet
+put back the way it came starts the way it came: its START asks how many are on
+the field (the kept answer lit) and runs the tutorial. `ResetChecks` holds all
+of that, including the log.
 
 **7. The deck answers the same two questions the library does.** On the sideline
 the thought is "I need a goal line play", not "I need play 13", so the deck

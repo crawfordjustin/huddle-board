@@ -157,11 +157,7 @@ public sealed class TutorialChecks(AppFixture app)
         await page.ClickAsync("#allreset");
         await page.WaitForTimeoutAsync(400);
         Assert.Null(await page.EvaluateAsync<string?>("localStorage.getItem('hb.tour')"));
-        await page.ClickAsync("#sdone");
-        await page.ClickAsync("#ham");
-        await page.ClickAsync("#exit");
-        await page.WaitForSelectorAsync("#start");
-        // ...and so it asks again, with the answer the tablet kept already lit
+        // ...lands on the intro, and its START asks again, with the kept answer lit
         await page.ClickAsync("#start");
         await page.WaitForSelectorAsync("#askfmt");
         Assert.Equal("6", await page.GetAttributeAsync("#askfmt .askbtn.on", "data-players"));
