@@ -356,7 +356,7 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   position:relative;display:flex;align-items:center;gap:clamp(10px,1.4vw,20px);
   background:var(--card);border:1px solid rgba(20,26,22,.08);border-radius:14px;
   box-shadow:0 6px 18px rgba(0,0,0,.28),0 1px 2px rgba(0,0,0,.2);
-  padding:clamp(12px,2vh,22px) clamp(14px,1.6vw,22px) clamp(12px,2vh,22px) clamp(26px,3vw,40px);
+  padding:clamp(8px,1.4vh,16px) clamp(10px,1.2vw,16px) clamp(8px,1.4vh,16px) clamp(22px,2.6vw,34px);
   text-align:left;transition:transform .12s ease,box-shadow .12s ease;overflow:hidden}
 .tilemain{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;
   justify-content:center}
@@ -365,10 +365,17 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 @supports (container-type:inline-size){
   .tile .kid{font-size:min(60px, 12.5cqi)}
   .thumb{width:52cqi}
-  .tiles.compact .thumb{width:49cqi}
   .lrow{container-type:inline-size}
   .lname b{font-size:min(27px, 9cqi)}
 }
+/* the picture is what a coach reads; the words are the caption. layoutTiles()
+   sizes the thumb from the card's real height, so it is never a strip floating
+   in whitespace, and a card taller than it is wide puts the picture on top */
+.tiles .thumb{width:var(--thumbw,52%)}
+.tiles.stack .tile{flex-direction:column;align-items:stretch;justify-content:center}
+.tiles.stack .thumb{order:-1;width:auto;flex:0 1 auto;min-height:0;justify-content:center}
+.tiles.stack .tilemain{flex:none}
+.tiles.stack .tag{display:none}
 .thumbsvg{width:100%;height:auto;max-height:100%;display:block}
 /* the bar answers the only question that matters in three seconds */
 .tile.run::before{background:var(--run)}
@@ -2222,6 +2229,31 @@ function tileSpills(t){
   });
 }
 
+/* The thumb used to be a fixed half of the card's width, whatever the card's
+   height, so a big card was a short strip of field with whitespace above and
+   below it, and the words got as much room as the play. Now the picture takes
+   the bigger of two shapes: beside the words, as tall as the card allows and
+   up to THUMB_SIDE of its width; or on top, full width, over a name and a
+   formation line. One shape for the whole grid, like one name size. */
+const THUMB_SIDE = 0.68;
+function layoutTiles(grid, tiles){
+  grid.classList.remove("stack");
+  grid.style.removeProperty("--thumbw");
+  const t = tiles[0], cs = getComputedStyle(t);
+  const w = t.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const h = t.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const gap = parseFloat(cs.columnGap) || 0, aspect = TH.w / TH.h;
+  const side = Math.max(0, Math.min(h * aspect, THUMB_SIDE * (w - gap)));
+
+  grid.classList.add("stack");
+  fitNames();
+  const words = Math.max(...tiles.map(e => e.querySelector(".tilemain").offsetHeight));
+  const stacked = Math.min(w, (h - words - gap) * aspect);
+  if (stacked > side * 1.1) return;
+  grid.classList.remove("stack");
+  grid.style.setProperty("--thumbw", Math.floor(side) + "px");
+}
+
 function fitDeck(){
   const tiles = [...document.querySelectorAll(".tiles .tile")];
   if (!tiles.length) return;
@@ -2229,6 +2261,7 @@ function fitDeck(){
   tags.forEach(g => { g.style.display = ""; });
   const grid = tiles[0].closest(".tiles");
   grid.classList.remove("tight");
+  layoutTiles(grid, tiles);
 
   fitNames();                                   // the horizontal fit, as before
   if (!tiles.some(tileSpills)) return;
@@ -2648,7 +2681,10 @@ function renderDeck(){
   // columns follow the room available, not just how many plays there are —
   // four columns on a narrow tablet leaves tiles too small to read
   const roomFor = Math.max(1, Math.min(4, Math.floor(innerWidth / 340)));
-  const want = list.length <= 4 ? 2 : list.length <= 9 ? 3 : 4;
+  // A short deck in portrait is one column: two-up there makes cards taller
+  // than wide, and a field is wider than tall, so half of every card was blank.
+  const tall = innerHeight > innerWidth;
+  const want = list.length <= 4 ? (tall ? 1 : 2) : list.length <= 9 ? 3 : 4;
   const cols = Math.min(want, roomFor);
   const compact = cols > 2;
   app.innerHTML = `
