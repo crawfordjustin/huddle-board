@@ -150,6 +150,26 @@ Only the thumbnail does this — the rest of the row still adds and removes the
 play — and the preview has nothing that touches the deck. `LibraryChecks`
 holds it at the five sizes.
 
+**Shipped plays can be hidden.** Plenty of coaches use one or two of the
+shipped plays and draw the rest, so Setup's Your own tab has a **Shipped
+plays** row that opens a picker (`openHidePicker`): every shipped play in this
+format, a tap to flip each between shown and hidden, and Hide all / Show all.
+A hidden play is out of the library — its rows, counts, search and filters —
+and out of every week (`packsNow` drops it, so a week is what is left of it,
+and a week with nothing left is an empty slot). It is still a play the tablet
+knows, so a rename survives being hidden and a sync file can name it. The deck
+only ever holds plays a coach can see and change in the library, so hiding a
+play takes it out of the deck and every saved week (`forgetPlays`) — and
+because that throws a choice away, Save arms first and says how many will
+leave ("Sure? 2 leave your deck"), acting on the second tap. Only shipped
+plays can be hidden; a coach's own play he does not want, he deletes. Hidden
+is per format under `hb.hidden`, travels in each format's sync section
+(`readSetup` accepts only shipped ids, once each, and refuses a hidden play in
+the deck or a week), and Start over shows everything again. With everything
+hidden and nothing of his own, the deck's empty state points to the library
+and the library's points to **New play**, so he is never stranded.
+`HiddenPlayChecks` holds all of it.
+
 Setup is filed under four tabs (`SET_TABS`): **Game** (players on the field,
 play names), **Clock**, **Your own** (names, weeks, drawn plays) and **Tablet**
 (sync, the log, Start over). Only the open tab's rows are on the page, so its
