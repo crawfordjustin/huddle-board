@@ -45,7 +45,8 @@ internal static class Authoring
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, SpotLabel>> spotMap,
         IReadOnlyDictionary<string, string> notes,
         IReadOnlyList<Authored> plays,
-        IReadOnlyList<PlayPack> packs) =>
+        IReadOnlyList<PlayPack> packs,
+        IReadOnlyList<(string Situation, string Call)> script) =>
         new(id, players, prefix, label, formations, spotMap, notes,
             [.. plays.OrderBy(a => a.Num).Select(a => new Play(
                 a.Num, a.Name, a.Formation, a.Category, a.Tagline, a.Mistake,
@@ -54,5 +55,5 @@ internal static class Authoring
             plays.ToDictionary(a => a.Num, a => a.Kid),
             plays.ToDictionary(a => a.Num, a => a.Ball),
             plays.Where(a => a.Thrower is not null).ToDictionary(a => a.Num, a => a.Thrower!),
-            packs);
+            packs, script);
 }

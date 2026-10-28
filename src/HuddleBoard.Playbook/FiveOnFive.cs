@@ -910,5 +910,20 @@ public static class FiveOnFive
         "5", 5, "f_", "5 on 5", Formations, SpotMap, Notes, Library,
         Authoring.Weeks(
             "Game one. One run, one quick pass, one third down, one goal line. Master these four first.",
-            1, 2, 12, 22));
+            1, 2, 12, 22),
+        [
+            ("1st down, run zone", "51 Dive (1) or Fly Sweep (7)"),
+            ("2nd and short", "Sit Flat (15) or Power Pitch (19)"),
+            ("2nd and long", "Levels (14)"),
+            ("3rd and short", "Quick Out (12)"),
+            ("3rd and long", "Corner Sit (4) or Three Verts (11)"),
+            ("Rusher is winning", "Quick In (2) or Trio Flat (18)"),
+            ("Defense chases motion", "Fly Keep (8), then Fly Pass (9)"),
+            ("Defense crowds the middle", "Quick Toss (5) or Back Wheel (3)"),
+            ("Defense flies to the pitch", "Power Reverse (20)"),
+            ("Run has been working", "Fake Dive Post (6) or Power Fake Post (24)"),
+            ("No-run zone", "Four Spots (10) or Post Sit (17)"),
+            ("Inside the 5", "Corner Fade (22) or Power Dive (21)"),
+            ("Extra point", "Stairs (13)"),
+        ]);
 }

@@ -201,7 +201,7 @@ internal static class FieldDiagram
     public static string DrawPlayer(string label, double x, double y, string? formation = null)
     {
         if (formation is not null)
-            label = Spots.Map[formation][label].Tag;
+            label = Formats.ByFormation(formation).SpotMap[formation][label].Tag;
 
         double cx = Px(x), cy = Py(y);
         if (label == "QB")
@@ -222,7 +222,7 @@ internal static class FieldDiagram
 
     public static string PlaySvg(Play play, bool showRush = true, string? viewBox = null)
     {
-        var pos = Formations.All[play.Formation];
+        var pos = Formats.ByFormation(play.Formation).Formations[play.Formation];
         viewBox ??= $"0 0 {W} {H}";
 
         var b = new StringBuilder();

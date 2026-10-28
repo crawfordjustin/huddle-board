@@ -1,7 +1,8 @@
 namespace HuddleBoard.Playbook.Print;
 
 /// <summary>
-/// Rotation and playing-time sheet for an 11-14 player 6-on-6 roster. Filled in
+/// Rotation and playing-time sheet for a roster of two units and a few to spare,
+/// in whichever format the team plays. Filled in
 /// before kickoff, because deciding who sits while you are down a score is how
 /// the same four kids end up playing every snap.
 /// </summary>
@@ -10,22 +11,34 @@ internal static class RotationSheet
     private const int RosterRows = 14;
     private const int SeriesRows = 12;
 
-    public static string Build() =>
+    public static string Build(Format f) =>
         "<!doctype html><html><head><meta charset=\"utf-8\">"
-        + "<title>Rotation Sheet</title><style>" + Css + "</style></head>"
-        + "<body>" + Page1() + Page2() + Page3() + "</body></html>";
+        + $"<title>Rotation Sheet — {f.Label}</title><style>" + Css + "</style></head>"
+        + "<body>" + Page1(f) + Page2(f) + Page3() + "</body></html>";
 
-    private static string UnitBox(string letter, string tint)
+    /// <summary>The kids on the field, the two trained spots first.</summary>
+    private static IEnumerable<string> Unit(Format f) =>
+        new[] { "THROWER", "SNAPPER" }.Concat(Enumerable.Range(3, f.Players - 2).Select(n => $"PLAYER {n}"));
+
+    private static string Words(int n) => n switch
     {
-        var rows = string.Concat(
-            new[] { "THROWER", "SNAPPER", "PLAYER 3", "PLAYER 4", "PLAYER 5", "PLAYER 6" }
+        5 => "five",
+        6 => "six",
+        7 => "seven",
+        _ => n.ToString(System.Globalization.CultureInfo.InvariantCulture),
+    };
+
+    private static string UnitBox(Format f, string letter, string tint)
+    {
+        var rows = string.Concat(Unit(f)
                 .Select(s => $"<tr><td class=\"sp\">{s}</td><td class=\"wr\"></td></tr>"));
         return $"<div class=\"unit\" style=\"--tint:{tint}\"><h4>UNIT {letter}</h4>"
             + $"<table>{rows}</table></div>";
     }
 
-    private static string Page1()
+    private static string Page1(Format f)
     {
+        var two = 2 * f.Players;
         var floaters = string.Concat(Enumerable.Range(1, 4)
             .Select(j => $"<tr><td class=\"sp\">SUB {j}</td><td class=\"wr\"></td></tr>"));
 
@@ -36,21 +49,21 @@ internal static class RotationSheet
                 <div><h1>Rotation &amp; playing time</h1>
                   <p>Fill this in before kickoff. Deciding who sits while you are down a score is how
                   the same four kids end up playing every snap.</p></div>
-                <div class="stamp">6-on-6 &middot; 8U</div>
+                <div class="stamp">{f.Label} &middot; 6U&ndash;8U</div>
               </header>
 
               <div class="cols3">
                 <div class="span2">
                   <h3>Build two units</h3>
-                  <p class="body">With 11&ndash;14 kids, the simplest fair system is two units that alternate by
+                  <p class="body">With {two - 1}&ndash;{two + 2} kids, the simplest fair system is two units that alternate by
                   <b>series</b>, not by play. A kid who changes spots mid-drive is a kid who lines up wrong.</p>
-                  <div class="units">{UnitBox("A", "#127a4d")}{UnitBox("B", "#1b6ba8")}
+                  <div class="units">{UnitBox(f, "A", "#127a4d")}{UnitBox(f, "B", "#1b6ba8")}
                     <div class="unit" style="--tint:#c9700d"><h4>FLOATERS</h4>
                       <table>{floaters}</table>
                     </div>
                   </div>
-                  <p class="body small">Two units of six covers 12 kids. With 13&ndash;14, the extras go in
-                  FLOATERS and rotate in one per series &mdash; write who they replace. With 11, one kid plays
+                  <p class="body small">Two units of {Words(f.Players)} covers {two} kids. With {two + 1}&ndash;{two + 2}, the extras go in
+                  FLOATERS and rotate in one per series &mdash; write who they replace. With {two - 1}, one kid plays
                   both units; make it a different kid every game and write their name here:
                   <span class="inline-line"></span></p>
 
@@ -79,7 +92,7 @@ internal static class RotationSheet
                       every unit. These are the only two spots that need a trained kid.</li>
                     <li><b>Split the rest evenly by speed.</b> Do not stack Unit A. Two roughly equal units
                       means you never feel tempted to leave one on the field.</li>
-                    <li><b>Do not assign spots here.</b> Players 3 through 6 can play <i>any</i> spot &mdash;
+                    <li><b>Do not assign spots here.</b> Players 3 through {f.Players} can play <i>any</i> spot &mdash;
                       you point them where to line up in the huddle. That is the whole point of the spot
                       system.</li>
                     <li><b>Swap on change of possession.</b> Whoever is not on the field is the next unit.
@@ -87,14 +100,14 @@ internal static class RotationSheet
                   </ol>
                   <div class="mathbox">
                     <b>The fairness math</b>
-                    <span>A typical 8U game is 16&ndash;22 offensive series. Two units alternating means every
+                    <span>A typical game at this age is 16&ndash;22 offensive series. Two units alternating means every
                     kid gets 8&ndash;11 series &mdash; roughly 30&ndash;45 snaps. That is more than enough to
                     satisfy any parent, and you never have to count in your head.</span>
                   </div>
                 </div>
               </div>
               <div class="tips">
-                <div><b>Give the resting kids a job.</b> Six kids with nothing to do is a discipline problem
+                <div><b>Give the resting kids a job.</b> {Words(f.Players)[..1].ToUpperInvariant()}{Words(f.Players)[1..]} kids with nothing to do is a discipline problem
                   waiting to happen. Rotate three roles each series: <i>spotter</i> (calls out the down and
                   distance), <i>card holder</i> (finds the next play card), and <i>water</i>. Kids who have a
                   job on the sideline stop asking when they go back in.</div>
@@ -102,7 +115,7 @@ internal static class RotationSheet
                   every series, so everybody plays about half. I track carries and targets and even them out
                   over the season.&rdquo; Said before the first game, this ends the conversation. Said after a
                   loss, it sounds like an excuse.</div>
-                <div><b>Decide now when you would break it.</b> Most coaches eventually want their best six on
+                <div><b>Decide now when you would break it.</b> Most coaches eventually want their best {Words(f.Players)} on
                   the field at the end of a close game. Whether you do that is your call &mdash; but decide
                   before the season and say it out loud, so you are not making it up while a parent watches
                   their kid stand next to you.</div>
@@ -112,13 +125,9 @@ internal static class RotationSheet
             """;
     }
 
-    private static string Page2()
+    private static string Page2(Format f)
     {
-        string[] heads =
-        [
-            "#", "THROWER", "SNAPPER", "PLAYER 3", "PLAYER 4", "PLAYER 5", "PLAYER 6",
-            "SWAPPED IN FOR", "RESULT",
-        ];
+        string[] heads = ["#", .. Unit(f), "SWAPPED IN FOR", "RESULT"];
         var th = string.Concat(heads.Select(h => $"<th>{h}</th>"));
         var cells = string.Concat(Enumerable.Repeat("<td></td>", heads.Length - 1));
         var rows = string.Concat(Enumerable.Range(1, SeriesRows)

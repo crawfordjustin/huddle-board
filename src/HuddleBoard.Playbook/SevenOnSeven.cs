@@ -1021,5 +1021,21 @@ public static class SevenOnSeven
         "7", 7, "s_", "7 on 7", Formations, SpotMap, Notes, Library,
         Authoring.Weeks(
             "Game one. One run, one quick pass, one third down, one goal line. Master these four first.",
-            1, 2, 9, 22));
+            1, 2, 9, 22),
+        [
+            ("1st down, run zone", "71 Dive (1) or Speed Sweep (13)"),
+            ("2nd and short", "Flood Sit (9) or Heavy Pitch (19)"),
+            ("2nd and long", "Sideline Flood (8)"),
+            ("3rd and short", "Flood Sit (9) — set the sit past the sticks"),
+            ("3rd and long", "Pro Smash (2) or Slot Post (12)"),
+            ("Rusher is winning", "Short Side (3) or Double In (17)"),
+            ("Defense chases motion", "Speed Keep (18), then Speed Pass (14)"),
+            ("Defense crowds the middle", "71 Toss (5) or Weakside Dive (10)"),
+            ("Defense flies to the pitch", "Heavy Reverse (20) or Pro Wheel (6)"),
+            ("Run has been working", "71 Fake Post (4) or Heavy Fake Post (24)"),
+            ("No-run zone", "Flood Spots (11) or All Spots (16)"),
+            ("Inside the 5", "Twin Fades (22) or Heavy Dive (21)"),
+            ("Extra point", "Roll Stairs (7)"),
+            ("Need a big play", "Five Verts (15)"),
+        ]);
 }

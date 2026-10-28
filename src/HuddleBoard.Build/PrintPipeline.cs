@@ -19,11 +19,18 @@ internal static class PrintPipeline
         var o = output ?? Console.Out;
         var dir = Workspace.Ensure(Workspace.Print);
 
+        // one set per format, named for it, because a coach prints the one his
+        // division plays and nothing in a 5-on-5 book is any use at 7-on-7
         Sheet[] sheets =
         [
-            new("playbook.html", PrintDocuments.Playbook(), "8U-Flag-Football-Playbook.pdf", false),
-            new("cards.html", PrintDocuments.Cards(), "8U-Field-Cards.pdf", true),
-            new("rotation.html", PrintDocuments.Rotation(), "8U-Rotation-Sheet.pdf", true),
+            .. Formats.All.SelectMany(f => new Sheet[]
+            {
+                new($"playbook-{f.Id}v{f.Id}.html", PrintDocuments.Playbook(f),
+                    $"Flag-Football-Playbook-{f.Id}v{f.Id}.pdf", false),
+                new($"cards-{f.Id}v{f.Id}.html", PrintDocuments.Cards(f), $"Field-Cards-{f.Id}v{f.Id}.pdf", true),
+                new($"rotation-{f.Id}v{f.Id}.html", PrintDocuments.Rotation(f),
+                    $"Rotation-Sheet-{f.Id}v{f.Id}.pdf", true),
+            }),
         ];
 
         foreach (var sheet in sheets)
