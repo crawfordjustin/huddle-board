@@ -821,7 +821,7 @@ const throwPts = (arc, n = 24) =>
   Array.from({length:n + 1}, (_, i) => qbez(arc.src, arc.ctrl, arc.dst, i / n));
 
 /* ------------------------------------------------------------ timeline */
-const HOLD = 700, YD = 150, TAIL = 1500;
+const HOLD = 700, YD = 150, TAIL = 1500, SNAP = 120;
 function buildTimeline(play){
   const tl = {paths:[], tSnap:HOLD, tEnd:0};
   let motionEnd = HOLD;
@@ -861,7 +861,19 @@ function buildTimeline(play){
     const legs = (b.legs || [{who:b.who, path:runPathOf(play, b.who)}])
       .map(l => ({who:l.who, pathIdx:l.path, handoff:l.handoff}));
     legs.forEach((l, k) => {
-      if (k === 0){ l.start = tl.paths[l.pathIdx].start; return; }
+      // The first exchange: the THROWER carries it down his handoff arrow and
+      // lets go at its end, once the carrier has got there too. Until then it
+      // is his ball, not the carrier's — a DIVE used to show the back holding
+      // it from the snap while the THROWER's arrow ran out empty-handed.
+      if (k === 0){
+        const seg = tl.paths[l.pathIdx];
+        l.start = seg.start;
+        if (l.handoff == null) return;
+        const hs = tl.paths[l.handoff], h = play.paths[l.handoff], to = h.pts[h.pts.length-1];
+        l.start = Math.max(hs.start + hs.dur,
+                           seg.start + seg.dur * fracNear(play.paths[l.pathIdx].pts, to));
+        return;
+      }
       const giver = legs[k-1], seg = tl.paths[giver.pathIdx];
       const h = play.paths[l.handoff], to = h.pts[h.pts.length-1];
       l.start = seg.start + seg.dur * fracNear(play.paths[giver.pathIdx].pts, to);
@@ -883,7 +895,7 @@ function buildTimeline(play){
     // it leaves the THROWER's hands just after the snap — or the runner's
     // when his run ends — and lands as the receiver gets there
     const legs = b.legs ? legTimes() : null;
-    const ready = legs ? legEnd(legs) : tl.tSnap + 120;
+    const ready = legs ? legEnd(legs) : tl.tSnap + SNAP;
     const start = Math.max(ready, arrive - 620);
     tl.ball = {mode:"pass", pathIdx:idx, legs, thrower:b.thrower || "QB",
                start, dur:Math.max(300, arrive - start), arrive, src, ctrl, dst};
@@ -891,6 +903,27 @@ function buildTimeline(play){
   tl.tEnd = Math.max(...tl.paths.map(p => p.start + p.dur),
                      tl.ball.start + tl.ball.dur) + TAIL;
   return tl;
+}
+/* Where the ball is while somebody holds it. It sits with the SNAPPER until
+   the snap, goes back to the THROWER, and is his until the first exchange —
+   down his handoff arrow on a run, on his spot on a pass, where a handoff is
+   a fake. After that it is in the hands of whoever's leg started last: on a
+   pass, the runner carrying it up to the moment he throws. */
+function heldBall(play, tl, t){
+  const b = tl.ball, legs = b.legs || [];
+  const along = (i, t) => {
+    const seg = tl.paths[i];
+    return walk(play.paths[i].pts, Math.max(0, Math.min(1, (t - seg.start) / seg.dur))).end;
+  };
+  let leg = null;
+  for (const l of legs) if (t >= l.start) leg = l;
+  const at = leg ? along(leg.pathIdx, t)
+           : legs.length && legs[0].handoff != null ? along(legs[0].handoff, t)
+           : b.src || [play.spots.QB.x, play.spots.QB.y];
+  const C = play.spots.C, f = (t - tl.tSnap) / SNAP;
+  if (f >= 1) return at;
+  if (f <= 0) return [C.x, C.y];
+  return [C.x + (at[0] - C.x) * f, C.y + (at[1] - C.y) * f];
 }
 
 /* ------------------------------------------------------------ state */
@@ -4510,20 +4543,11 @@ function frame(now){
       const f = Math.max(0, Math.min(1, (t - b.start) / b.dur));
       bp = qbez(b.src, b.ctrl, b.dst, f);
       ahead = qbez(b.src, b.ctrl, b.dst, Math.min(1, f + STEP));
-      show = true;
-    } else if (b.legs){
-      // whoever is holding it: the last leg that has started. On a pass this
-      // is the runner carrying it up to the moment he throws.
-      let leg = null;
-      for (const l of b.legs) if (t >= l.start) leg = l;
-      if (leg){
-        const seg = tl.paths[leg.pathIdx], pts = p.paths[leg.pathIdx].pts;
-        const prog = Math.max(0, Math.min(1, (t - seg.start) / seg.dur));
-        bp = walk(pts, prog).end;
-        ahead = walk(pts, Math.min(1, prog + STEP)).end;
-        show = true;
-      }
+    } else {
+      bp = heldBall(p, tl, t);
+      ahead = heldBall(p, tl, t + 30);
     }
+    show = true;
   }
   // the throw line grows under the ball and stays after the catch. It keeps
   // drawing in solo, dimmed like the other routes, so tapping the receiver
