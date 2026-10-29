@@ -233,6 +233,15 @@ the chain into legs, and the marker follows the first runner until he reaches
 the end of the second arrow, then the second. `BallChecks` reads a frame either
 side of that exchange on all three reverses.
 
+The first exchange follows the same rule, and for a long time did not: every
+run showed the carrier holding the ball on his own spot from the snap, while
+the THROWER's handoff arrow drew out empty-handed. Now the ball sits with the
+SNAPPER until the snap, goes back to the THROWER (`SNAP`), and rides his
+handoff arrow until he and the carrier have both reached its end
+(`heldBall`). On a pass it stays on the THROWER's spot until the throw, so a
+fake handoff is still a fake. `BallChecks` reads the snap and the first
+exchange in all three formats.
+
 A pass shows its flight the same way a handoff does. The handoff arrow is a
 dashed grey line the ball rides along, and it stays on screen after the
 exchange; a throw used to be the ball alone on an invisible arc, which six

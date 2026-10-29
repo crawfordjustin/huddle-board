@@ -162,6 +162,79 @@ public sealed class BallChecks(AppFixture app)
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
 
+    private sealed record Snap(
+        [property: JsonPropertyName("preOnSnapper")] double PreOnSnapper,
+        [property: JsonPropertyName("heldOnThrower")] double HeldOnThrower,
+        [property: JsonPropertyName("heldOffCarrier")] double HeldOffCarrier,
+        [property: JsonPropertyName("afterOnCarrier")] double AfterOnCarrier);
+
+    /// <summary>
+    /// Draw a frame just before the snap, one just after it, and on a run one
+    /// after the first exchange, and read where the ball is against the
+    /// SNAPPER, the THROWER (the tip of his handoff arrow, or his spot on a
+    /// pass) and the carrier. Distances are in viewBox units; a yard is 31.25.
+    /// </summary>
+    private const string FromTheSnap = """
+        () => {
+          const tl = S.tl, b = tl.ball, p = S.play, legs = b.legs || [];
+          const ball = (t) => {
+            S.stage = 'run'; S.t0 = 0; frame(t);
+            const m = /translate\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/.exec(SC.ball.getAttribute('transform') || '');
+            return m ? [+m[1], +m[2]] : [9999, 9999];
+          };
+          const tip = (i, t) => {
+            const seg = tl.paths[i];
+            const e = walk(p.paths[i].pts, Math.max(0, Math.min(1, (t - seg.start) / seg.dur))).end;
+            return W2S(e[0], e[1]);
+          };
+          const gap = (a, c) => +Math.hypot(a[0]-c[0], a[1]-c[1]).toFixed(1);
+          const first = legs[0], run = b.mode === 'carry' && first && first.handoff != null;
+          const t0 = tl.tSnap - 100, t1 = tl.tSnap + SNAP + 10;
+          const b0 = ball(t0), b1 = ball(t1);
+          const thrower = run ? tip(first.handoff, t1) : W2S(p.spots.QB.x, p.spots.QB.y);
+          const out = {preOnSnapper: gap(b0, W2S(p.spots.C.x, p.spots.C.y)),
+                       heldOnThrower: gap(b1, thrower), heldOffCarrier: 9999, afterOnCarrier: 0};
+          if (run){
+            const t2 = first.start + 300, b2 = ball(t2);
+            out.heldOffCarrier = gap(b1, tip(first.pathIdx, t1));
+            out.afterOnCarrier = gap(b2, tip(first.pathIdx, t2));
+          }
+          return JSON.stringify(out);
+        }
+        """;
+
+    /// <summary>
+    /// The ball starts with the SNAPPER, goes back to the THROWER at the snap,
+    /// and on a run is his until he hands it off. It used to appear in the
+    /// carrier's hands at the snap, on his own spot, while the THROWER's
+    /// handoff arrow drew out empty-handed beside it.
+    /// </summary>
+    [Theory]
+    [InlineData("p_01")]
+    [InlineData("f_01")]
+    [InlineData("s_01")]
+    [InlineData("p_02")]
+    [InlineData("p_18")]
+    public async Task TheBallStartsWithTheSnapperAndIsTheThrowersUntilHeHandsItOff(string play)
+    {
+        var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], settle: 350);
+        await OpenAsync(page, play);
+        await page.WaitForTimeoutAsync(400);
+
+        var g = JsonSerializer.Deserialize<Snap>(
+            await page.EvaluateAsync<string>(FromTheSnap))!;
+
+        Assert.True(g.PreOnSnapper < 3, $"{play}: before the snap the ball is {g.PreOnSnapper} off the SNAPPER");
+        Assert.True(g.HeldOnThrower < 3, $"{play}: after the snap the ball is {g.HeldOnThrower} off the THROWER");
+        // half a yard, not a whole one: on JET SWEEP the carrier is running
+        // past the THROWER at the snap, so he really is that close to the ball
+        Assert.True(g.HeldOffCarrier > 15, $"{play}: the carrier has the ball before the handoff ({g.HeldOffCarrier} away)");
+        Assert.True(g.AfterOnCarrier < 3, $"{play}: after the handoff the ball is {g.AfterOnCarrier} off the carrier");
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
     private sealed record Hands(
         [property: JsonPropertyName("legs")] int Legs,
         [property: JsonPropertyName("first")] string First,
