@@ -286,6 +286,23 @@ never loops (`frame()` clamps at `tEnd`); the tutorial's running slide and the
 designer's preview still do, because nobody is standing there to press Replay.
 `BallChecks` holds the opening frame and that a run does not come round again.
 
+**Tapping a kid shows his job step by step** (`kidSteps`). Line up, the snap
+if it is his, then each leg of his route and each handoff or throw he is part
+of; Next, Back and Again take the rail's place, and All goes back to the play
+as the tap found it. The steps are read off the timeline, never authored, so
+every shipped and drawn play in every format has them, and each leg is named
+in the nine shapes plus the app's action words (LINE UP, MOTION, SNAP, TAKE
+IT, HAND OFF, THROW, CATCH, FAKE) — OUT at 5 is a GO and then an OUT, which
+is how the shape is made. The written job stays under the steps as the whole
+thing in one line. In this view, and only here, his marker runs the step
+(`kidAt`) and the ball shows; everyone else holds his spot. A receiver's catch
+ends his last leg's sentence rather than being a step of its own, because the
+ball is in the air for nearly all of a slant's IN. A passer's run is part of
+his THROW. This came from the Coach Mode prototype (`prototypes/coach-mode`),
+rebuilt on the play's own timeline and vocabulary. `StepChecks` holds the
+steps, the rail, the marker, All, the vocabulary across all three libraries
+and the fit at the five sizes.
+
 **10. Tablets sync by file, and the file is not trusted.** Assistant coaches
 carry their own tablets and the sideline has no network, so there is no server
 to sync through and never will be. Setup's **Sync tablets** row exports one

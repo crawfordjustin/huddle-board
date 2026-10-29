@@ -472,6 +472,30 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .solo b{font-family:var(--disp);font-size:clamp(17px,3.2vh,30px);text-transform:uppercase;line-height:1}
 .solo span{font-size:clamp(11px,1.9vh,18px);color:var(--ink-2);line-height:1.2;margin-top:3px}
 .solo .x{position:absolute;right:14px;top:50%;transform:translateY(-50%)}
+/* one kid's steps: his name and the numbered steps, the one being shown big,
+   and his whole written job underneath */
+.steps{flex:1;min-width:0;display:flex;flex-direction:column;gap:clamp(4px,.8vh,8px);
+  padding:0 clamp(8px,1vw,14px);border-left:4px solid var(--ball)}
+/* the steps sit beside the name while they fit, and drop under it when they
+   do not — a narrow portrait has the height to spare, not the width */
+.srow{display:flex;flex-wrap:wrap;align-items:center;gap:6px clamp(8px,1vw,14px);min-width:0}
+.sname{flex:none;font-family:var(--disp);font-size:clamp(17px,3vh,28px);text-transform:uppercase;line-height:1}
+.strack{flex:1 0 auto;max-width:100%;display:flex;gap:6px}
+.spill{flex:0 1 auto;min-width:0;display:flex;align-items:center;gap:6px;padding:4px 10px 4px 5px;
+  min-height:36px;border-radius:9px;border:1.5px solid var(--hair);background:var(--ground);color:var(--ink-2);
+  font-family:var(--disp);text-transform:uppercase;font-size:clamp(12px,1.9vh,17px);letter-spacing:.03em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spill i{flex:none;font-style:normal;width:1.55em;height:1.55em;border-radius:50%;display:grid;place-items:center;
+  background:var(--hair);color:var(--ink);font-size:.85em}
+.spill.done{color:var(--green);border-color:#BFD9C9}
+.spill.done i{background:var(--green);color:#fff}
+.spill.now{background:var(--ball);border-color:#C99A00;color:var(--ink)}
+.spill.now i{background:var(--ink);color:#fff}
+.snow{display:flex;align-items:baseline;gap:clamp(10px,1.2vw,18px);min-width:0}
+.snow b{flex:none;font-family:var(--disp);font-size:clamp(26px,4.6vh,46px);text-transform:uppercase;line-height:1}
+.snow span{font-size:clamp(15px,2.6vh,24px);font-weight:700;line-height:1.15}
+.sjob{font-size:clamp(11px,1.7vh,15px);color:var(--ink-2);line-height:1.2}
+.rbtn[disabled]{opacity:.4}
 
 .hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
   font-size:clamp(10px,1.5vh,13px);color:var(--ink-2);letter-spacing:.1em;text-transform:uppercase;
@@ -927,7 +951,7 @@ function heldBall(play, tl, t){
 }
 
 /* ------------------------------------------------------------ state */
-const S = {screen:"deck", play:null, tl:null, stage:"lineup", solo:null,
+const S = {screen:"deck", play:null, tl:null, stage:"lineup", solo:null, steps:null, step:null,
            t0:0, running:false, hintSeen:false};
 
 // An empty deck is a deck: a coach who cleared it to build his own should
@@ -2573,7 +2597,7 @@ function startTourField(play){
   S.play = play;
   S.tl = buildTimeline(play);
   S.stage = "run";
-  S.solo = null;
+  S.solo = null; S.steps = null; S.step = null;
   mTarget = mAnim = 0;
   S.t0 = performance.now();
   buildScene();
@@ -3583,7 +3607,7 @@ function openDesigner(id, base){
 }
 
 function renderDesigner(){
-  S.screen = "designer"; S.solo = null; S.stage = "lineup";
+  S.screen = "designer"; S.solo = null; S.steps = null; S.step = null; S.stage = "lineup";
   mTarget = mAnim = 0;                 // the designer never mirrors: it is drawn one way
   app.innerHTML = `
     <div class="play designer">
@@ -4127,6 +4151,7 @@ function openPlay(id){
   // is the last frame of the run, held: Line up goes back to the spots, and
   // Run it and Replay play it once from the snap.
   S.stage = "run"; S.t0 = performance.now() - S.tl.tEnd; S.solo = null; S.running = false;
+  S.steps = null; S.step = null;
   mTarget = mAnim = 0;
   const p = S.play;
   app.innerHTML = `
@@ -4145,7 +4170,10 @@ function openPlay(id){
           <div class="hint" id="hint">Tap a player to show him his job</div>
         </div>
         <div class="rail">
+          <button class="rbtn go hidden" id="snext"></button>
           <button class="rbtn" id="stage"></button>
+          <button class="rbtn hidden" id="sback">Back<small>last step</small></button>
+          <button class="rbtn hidden" id="sagain">Again<small>this step</small></button>
           <button class="rbtn" id="mirror">Mirror<small>swap sides</small></button>
           <button class="rbtn" id="replay">Replay</button>
         </div>
@@ -4163,6 +4191,9 @@ function openPlay(id){
     mTarget = mTarget ? 0 : 1; if (REDUCED) mAnim = mTarget; syncRail();
     logEvent("mirror", {play: S.play.id, on: mTarget === 1}); };
   document.getElementById("replay").onclick = () => { S.stage = "run"; S.t0 = performance.now(); syncRail(); };
+  document.getElementById("snext").onclick = () => goStep(Math.min(S.steps.length - 1, S.step.i + 1));
+  document.getElementById("sback").onclick = () => goStep(Math.max(0, S.step.i - 1));
+  document.getElementById("sagain").onclick = () => goStep(S.step.i);
   buildScene();
   renderCalls();
   syncRail();
@@ -4177,28 +4208,243 @@ function toggleStage(){
   } else {
     S.stage = "lineup";
   }
-  S.solo = null;
+  S.solo = null; S.steps = null; S.step = null;
   renderCalls(); syncRail();
 }
 function syncRail(){
   const st = document.getElementById("stage");
-  const run = S.stage === "run";
-  st.className = "rbtn go";
+  const run = S.stage === "run", steps = !!S.steps;
+  st.className = "rbtn go" + (steps ? " hidden" : "");
   st.innerHTML = run ? "Line up<small>back to spots</small>" : "Run it<small>animate</small>";
   document.getElementById("mirror").classList.toggle("on", mTarget === 1);
-  document.getElementById("replay").classList.toggle("hidden", !run);
+  document.getElementById("replay").classList.toggle("hidden", !run || steps);
+  // a kid's steps take the rail over: Next where Line up was, under the thumb
+  ["snext", "sback", "sagain"].forEach(id => document.getElementById(id).classList.toggle("hidden", !steps));
+  if (steps){
+    const nx = document.getElementById("snext"), last = S.step.i === S.steps.length - 1;
+    nx.innerHTML = `Next<small>step ${S.step.i + 1} of ${S.steps.length}</small>`;
+    nx.disabled = last;
+    document.getElementById("sback").disabled = S.step.i === 0;
+  }
   const h = document.getElementById("hint");
   if (h) h.style.opacity = S.hintSeen ? 0 : 1;
 }
 
+/* ------------------------------------------------------------ one kid, step by step
+   Tapping a kid shows his job one step at a time: where he lines up, the
+   snap if it is his, then every leg of his route and every handoff, throw
+   and catch he is part of. Next plays one step and holds where it ends. His
+   marker runs it, because a kid watching a line draw out is watching the
+   line, not himself. The steps are read off the play's own timeline, so a
+   drawn play gets them too, and a leg is named in the nine shapes — OUT at 5
+   is a GO and then an OUT, which is how the shape is made. The written job
+   stays under them as the whole thing in one line. */
+const STEP_SLOW = 1.6, STEP_MIN = 600;
+
+// where a kid is at t: the tip of the line he is running. A handoff arrow is
+// the ball's, not his, unless it is all he has — the THROWER on a run walks
+// down his — and a fake handoff on a pass he never walks at all.
+function kidAt(play, tl, key, t){
+  const real = new Set((tl.ball.legs || []).map(l => l.handoff).filter(h => h != null));
+  const mine = play.paths.map((p, i) => i).filter(i => play.paths[i].who === key);
+  const moves = mine.filter(i => play.paths[i].type !== "handoff");
+  const use = moves.length ? moves : mine.filter(i => real.has(i));
+  let at = [play.spots[key].x, play.spots[key].y], from = -1;
+  for (const i of use){
+    const seg = tl.paths[i];
+    if (t < seg.start || seg.start < from) continue;
+    from = seg.start;
+    at = walk(play.paths[i].pts, Math.min(1, (t - seg.start) / seg.dur)).end;
+  }
+  return at;
+}
+// who has the ball at t — nobody while it is in the air
+function ballHolder(play, tl, t){
+  const b = tl.ball;
+  if (t < tl.tSnap) return "C";
+  if (b.mode === "pass" && t >= b.start) return t >= b.start + b.dur ? play.paths[b.pathIdx].who : null;
+  let who = "QB";
+  for (const l of b.legs || []) if (t >= l.start) who = l.who;
+  return who;
+}
+
+function kidSteps(play, tl, key){
+  const sp = play.spots[key], b = tl.ball, legs = b.legs || [];
+  const nm = k => { const n = play.spots[k].name; return /BLUE|ORANGE/.test(n) ? n : "the " + n; };
+  const sideW = x => x < 0 ? "BLUE" : "ORANGE";
+  const steps = [];
+  const lat = Math.abs(sp.x);
+  steps.push({head: "LINE UP", ta: 0, tb: 0,
+    text: sp.name === "SNAPPER" ? "On the ball."
+        : sp.name === "THROWER" ? "Right behind the SNAPPER."
+        : (lat >= 8 ? `Out wide on the ${sideW(sp.x)} side`
+          : lat >= 4 ? `Halfway out on the ${sideW(sp.x)} side`
+          : lat >= 1 ? `Next to the SNAPPER, on the ${sideW(sp.x)} side` : "Behind the SNAPPER")
+          + (sp.y < -1.2 ? ", a few steps back." : ", on the line.")});
+  const dirW = v => {
+    const ax = Math.abs(v[0]), ay = Math.abs(v[1]), s = sideW(v[0]);
+    return ay >= 2 * ax ? (v[1] > 0 ? "straight up the field" : "straight back")
+         : ax >= 2 * ay ? `across, toward the ${s} side`
+         : v[1] > 0 ? `up the field, toward the ${s} side` : `back, toward the ${s} side`;
+  };
+  const motion = play.paths.find(p => p.who === key && p.type === "motion");
+  if (motion){
+    const a = motion.pts[0], z = motion.pts[motion.pts.length - 1];
+    steps.push({head: "MOTION", ta: HOLD, tb: tl.tSnap,
+      text: `Before the snap, jog ${dirW([z[0] - a[0], z[1] - a[1]])}.`});
+  }
+  if (key === "C" || key === "QB")
+    steps.push({head: "SNAP", ta: tl.tSnap, tb: tl.tSnap + SNAP,
+      text: key === "C" ? "Snap the ball back to the THROWER." : "Catch the snap with both hands."});
+  const s0 = key === "C" || key === "QB" ? tl.tSnap + SNAP : tl.tSnap;
+
+  // the ball's moments that are his
+  const ev = [];
+  legs.forEach(l => {
+    if (l.handoff == null) return;
+    const giver = play.paths[l.handoff].who;
+    if (giver === key) ev.push({t: l.start, tag: "give", other: l.who});
+    if (l.who === key) ev.push({t: l.start, tag: "take", other: giver});
+  });
+  if (b.mode === "pass"){
+    const rec = play.paths[b.pathIdx].who;
+    if (b.thrower === key) ev.push({t: b.start, tag: "throw", other: rec});
+    if (rec === key) ev.push({t: b.start + b.dur, tag: "catch"});
+  }
+  // every corner of every line he runs after the snap, and where it ends
+  const cuts = ev.map(e => e.t);
+  let end = Math.max(s0, ...cuts);
+  const mainIdx = play.paths.findIndex(p => p.who === key && p.type !== "motion" && p.type !== "handoff");
+  play.paths.forEach((path, i) => {
+    if (path.who !== key || path.type === "motion") return;
+    if (path.type === "handoff" && mainIdx >= 0) return;
+    const seg = tl.paths[i], L = lens(path.pts), tot = L[L.length - 1] || 1;
+    for (let j = 1; j < path.pts.length; j++) cuts.push(seg.start + seg.dur * L[j] / tot);
+    end = Math.max(end, seg.start + seg.dur);
+  });
+  const ends = [...new Set(cuts.filter(c => c > s0 + 40 && c <= end).concat(end).map(Math.round))]
+    .sort((x, y) => x - y);
+
+  // which way is OUT for him: his own side, or for a kid on the ball,
+  // whichever way his line ends up going — shapeOf's rule
+  const main = mainIdx >= 0 ? play.paths[mainIdx].pts : null;
+  const outSign = sp.side === "blue" ? -1 : sp.side === "orange" ? 1
+                : main ? Math.sign(main[main.length-1][0] - main[0][0]) || 1 : 1;
+  let ta = s0, first = true;
+  ends.forEach((tb, n) => {
+    if (tb - ta < 40) return;
+    const a = kidAt(play, tl, key, ta), z = kidAt(play, tl, key, tb);
+    const v = [z[0] - a[0], z[1] - a[1]], far = Math.hypot(v[0], v[1]) > 0.6;
+    const e = ev.find(x => Math.abs(x.t - tb) < 40);
+    const caught = !!e && e.tag === "catch";
+    const mine = ballHolder(play, tl, (ta + tb) / 2) === key;
+    let head = null, text = null;
+    if (e && e.tag === "take"){
+      head = "TAKE IT"; text = `Go to ${nm(e.other)}. Take the ball with both hands.`;
+    } else if (e && e.tag === "give"){
+      head = "HAND OFF"; text = `Hand the ball to ${nm(e.other)}.`;
+    } else if (e && e.tag === "throw"){
+      head = "THROW";
+      text = (far ? `Run ${dirW(v)} with the ball. Stay behind the line. ` : `Look at ${nm(e.other)}. `)
+           + `Throw it to ${nm(e.other)}!`;
+      tb = b.start + b.dur;                          // hold the step until the catch
+    } else if (caught && !far){
+      head = "CATCH"; text = "Look for the ball.";
+    } else if (!far){
+      return;                                        // standing still is not a step
+    } else if (mine && ev.some(x => x.tag === "throw" && x.t > tb)){
+      return;                                        // a passer's run is part of his THROW
+    } else if (mine){
+      head = "CARRY"; text = `Run with the ball ${dirW(v)}.`;
+    } else if (play.paths.some(p => p.who === key && p.type === "fake")){
+      head = "FAKE"; text = `Pretend you have the ball. Run ${dirW(v)}.`;
+    } else {
+      const ax = Math.abs(v[0]), toOut = Math.sign(v[0]) === outSign, deep = z[1] >= 8;
+      const last = n === ends.length - 1, bar = main && play.paths[mainIdx].end === "bar";
+      const turn = first ? "Run" : "Turn and run";
+      // leaning but mostly upfield is still GO, as shapeOf has it
+      if (v[1] > 0 && ax <= v[1]){
+        if (last && bar){ head = "SIT"; text = "Run up the field. Stop, and turn to face the THROWER."; }
+        else { head = "GO"; text = "Run straight up the field."; }
+      } else if (Math.abs(v[1]) <= ax * 0.5){
+        if (first && z[1] <= 1.5){ head = "SWING"; text = `Run out flat, toward the ${sideW(v[0])} side.`; }
+        else if (toOut){ head = "OUT"; text = `${turn} toward the ${sideW(v[0])} sideline.`; }
+        else { head = "IN"; text = `${turn} across, toward the ${sideW(v[0])} side.`; }
+      } else if (v[1] > 0){
+        if (toOut){ head = deep ? "CORNER" : "OUT";
+          text = deep ? `${turn} toward the ${sideW(v[0])} corner of the end zone.`
+                      : `${turn} up and out, toward the ${sideW(v[0])} sideline.`; }
+        else { head = deep ? "POST" : "IN";
+          text = deep ? `${turn} toward the middle of the end zone.`
+                      : `${turn} up and across, toward the ${sideW(v[0])} side.`; }
+      } else if (caught){ head = "CATCH"; text = `Run ${dirW(v)}. Look for the ball.`; }
+      else return;                                   // drifting back with no ball: part of the next step
+    }
+    if (first && key !== "C" && key !== "QB" && (!e || caught))
+      text = "At the snap: " + text[0].toLowerCase() + text.slice(1);
+    first = false;
+    // The ball is in the air for most of a receiver's last leg, so the catch
+    // is the end of that leg's sentence and not a step of its own: a step that
+    // began at the throw swallowed the IN of a slant whole.
+    const prev = steps[steps.length - 1];
+    let st;
+    if (prev.ta >= s0 && prev.head === head && prev.head !== "CARRY" || prev.head === head && prev.text === text){
+      prev.tb = tb; st = prev;                       // GO and then more GO is one GO
+    } else steps.push(st = {head, text, ta, tb});
+    if (caught) st.text += " Catch it with both hands!";
+    ta = tb;
+  });
+  return steps;
+}
+
+function soloOn(key){
+  S.solo = key;
+  if (S.screen !== "play") return;
+  if (!S.steps) S.stepWas = {stage: S.stage, t0: S.t0};
+  S.steps = kidSteps(S.play, S.tl, key);
+  goStep(0);
+}
+function soloOff(){
+  S.solo = null;
+  if (S.steps){ S.stage = S.stepWas.stage; S.t0 = S.stepWas.t0; }
+  S.steps = null; S.step = null;
+  renderCalls(); syncRail();
+}
+function goStep(i){
+  const st = S.steps[i];
+  S.step = {i, ta: st.ta, tb: st.tb, t0: performance.now(),
+            ms: Math.max(STEP_MIN, (st.tb - st.ta) * STEP_SLOW)};
+  S.stage = "run";
+  logEvent("solo_step", {play: S.play.id, spot: S.solo, step: i, head: st.head});
+  renderCalls(); syncRail();
+}
+function stepT(now){
+  const s = S.step;
+  return s.ta + (s.tb - s.ta) * Math.max(0, Math.min(1, (now - s.t0) / s.ms));
+}
+// BLUE and ORANGE in a sentence wear their own colour, the way the field does
+const paintSides = s => esc(s).replace(/\b(BLUE|ORANGE)\b/g,
+  m => `<span style="color:${m === "BLUE" ? SIDE.blue : SIDE.orange}">${m}</span>`);
+
 function renderCalls(){
   const el = document.getElementById("calls");
   const p = S.play;
+  el.classList.toggle("stepping", !!S.steps);
   if (S.solo){
-    el.innerHTML = `<div class="solo"><b style="color:${SIDE[sideOf(S.solo)]}">${esc(sideName(S.solo))}</b>
-      <span>${esc(mirrored() ? swapWords(p.assign[S.solo]) : p.assign[S.solo])}</span></div>
-      <button class="rbtn" style="flex:0 0 90px" id="unsolo">All<small>everyone</small></button>`;
-    document.getElementById("unsolo").onclick = () => { S.solo = null; renderCalls(); };
+    const W = s => mirrored() ? swapWords(s) : s;
+    const job = W(p.assign[S.solo]);
+    const name = `<b class="sname" style="color:${SIDE[sideOf(S.solo)]}">${esc(sideName(S.solo))}</b>`;
+    el.innerHTML = S.steps
+      ? `<div class="steps">
+          <div class="srow">${name}<div class="strack">${S.steps.map((s, k) =>
+            `<button class="spill ${k < S.step.i ? "done" : k === S.step.i ? "now" : ""}" data-step="${k}"><i>${k + 1}</i>${esc(W(s.head))}</button>`).join("")}</div></div>
+          <div class="snow"><b>${esc(W(S.steps[S.step.i].head))}</b><span>${paintSides(W(S.steps[S.step.i].text))}</span></div>
+          <div class="sjob">${esc(job)}</div></div>
+        <button class="rbtn" style="flex:0 0 90px" id="unsolo">All<small>everyone</small></button>`
+      : `<div class="solo">${name}<span>${esc(job)}</span></div>
+        <button class="rbtn" style="flex:0 0 90px" id="unsolo">All<small>everyone</small></button>`;
+    document.getElementById("unsolo").onclick = soloOff;
+    el.querySelectorAll("[data-step]").forEach(b => b.onclick = () => goStep(+b.dataset.step));
     return;
   }
   el.innerHTML = callsHTML(p.calls, mirrored());
@@ -4359,10 +4605,10 @@ function buildScene(){
     g.addEventListener("click", () => {
       if (S.screen === "designer") return;   // the designer reads its own taps
       S.hintSeen = true;
-      S.solo = (S.solo === key) ? null : key;
-      if (S.solo) logEvent("solo", {play: S.play.id, spot: key,
-                                    name: S.play.spots[key].name});
-      renderCalls(); syncRail();
+      if (S.solo === key){ soloOff(); return; }
+      logEvent("solo", {play: S.play.id, spot: key, name: S.play.spots[key].name});
+      soloOn(key);
+      if (S.screen !== "play"){ renderCalls(); syncRail(); }
     });
     svg.appendChild(g);
     SC.players[key] = {g, shape, halo, l1, l2, role};
@@ -4398,7 +4644,7 @@ function frame(now){
   // The play screen runs a play once and holds the last frame; Replay is
   // there for another look. The tutorial and the designer's preview loop,
   // because nobody is standing there to press it.
-  const t = !running ? 0 : S.screen === "play" ? Math.min(now - S.t0, tl.tEnd)
+  const t = !running ? 0 : S.step ? stepT(now) : S.screen === "play" ? Math.min(now - S.t0, tl.tEnd)
                          : (now - S.t0) % tl.tEnd;
 
   // field
@@ -4477,10 +4723,15 @@ function frame(now){
   });
 
   // players
-  const lining = !running;                       // LINE UP stage
+  // LINE UP stage, or a kid's first step, which is lining up
+  const lining = !running || (!!S.step && S.step.tb === 0);
   const R = dzView() ? (lining ? 12.5 : 11) : lining ? 17 : 12.5, f = LBL();
   for (const key in SC.players){
-    const sp = p.spots[key], P = SC.players[key], c = W2S(sp.x, sp.y);
+    const sp = p.spots[key], P = SC.players[key];
+    // everybody holds his spot while the routes draw out — except the kid
+    // whose steps these are, who runs his
+    const at = S.step && key === S.solo ? kidAt(p, tl, key, t) : [sp.x, sp.y];
+    const c = W2S(at[0], at[1]);
     P.g.setAttribute("transform", `translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})`);
 
     const sd = sideOf(key);
@@ -4538,7 +4789,8 @@ function frame(now){
   const b = tl.ball;
   const STEP = 0.02;
   let show = false, bp = null, ahead = null;
-  if (running && !S.solo){
+  // in a kid's steps the ball shows: being handed it, or thrown it, is his job
+  if (running && (!S.solo || S.step)){
     if (b.mode === "pass" && t >= b.start){
       const f = Math.max(0, Math.min(1, (t - b.start) / b.dur));
       bp = qbez(b.src, b.ctrl, b.dst, f);
