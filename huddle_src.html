@@ -1055,7 +1055,7 @@ function heldBall(play, tl, t){
 
 /* ------------------------------------------------------------ state */
 const S = {screen:"deck", play:null, tl:null, stage:"lineup", solo:null, steps:null, step:null,
-           t0:0, running:false, hintSeen:false};
+           t0:0, running:false};
 
 // An empty deck is a deck: a coach who cleared it to build his own should
 // find it still empty after a reload, not quietly refilled with Week 1.
@@ -1339,7 +1339,6 @@ function resetEverything(){
   loadMode(keep);
   setOurSide("blue");
   resetTour();
-  S.hintSeen = false;
   stopClock();
   clk = {at:0, running:false, warned:false, expired:false};
   flushLog();
@@ -1510,7 +1509,6 @@ function applySetup(s){
   cfg = Object.assign({}, CFG_DEFAULTS, s.settings); saveCfg();
   loadMode(cfg.players);
   if (s.ourSide) setOurSide(s.ourSide);
-  S.hintSeen = false;
   stopClock();
   clk = {at:0, running:false, warned:false, expired:false};
   logEvent("sync_import", {deck: deck.slice(), renamed: renamedCount(), dropped: s.dropped,
@@ -3223,7 +3221,6 @@ function renderSettings(tab){
       loadMode(cfg.players);
       deckF = {kind:"all", cat:"all"};
       libF = {q:"", kind:"all", cat:"all", deckOnly:false};
-      S.hintSeen = false;
     }
     stopClock(); clk.warned = clk.expired = false;
     renderSettings();
@@ -4490,7 +4487,6 @@ function openPlay(id){
       <div class="stagewrap">
         <div class="fieldwrap">
           <svg id="field" viewBox="0 0 ${VB_W} ${VB_H}" preserveAspectRatio="xMidYMid meet"></svg>
-          <div class="hint" id="hint">Tap a player to show him his job</div>
         </div>
         <div class="rail">
           <button class="rbtn go hidden" id="snext"></button>
@@ -4556,8 +4552,6 @@ function syncRail(){
     nx.disabled = last;
     document.getElementById("sback").disabled = S.step.i === 0;
   }
-  const h = document.getElementById("hint");
-  if (h) h.style.opacity = S.hintSeen ? 0 : 1;
 }
 
 /* ------------------------------------------------------------ one kid, step by step
@@ -4934,7 +4928,6 @@ function buildScene(){
     g.appendChild(l1); g.appendChild(l2);
     g.addEventListener("click", () => {
       if (S.screen === "designer") return;   // the designer reads its own taps
-      S.hintSeen = true;
       if (S.solo === key){ soloOff(); return; }
       logEvent("solo", {play: S.play.id, spot: key, name: S.play.spots[key].name});
       soloOn(key);
