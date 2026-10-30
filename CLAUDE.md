@@ -214,7 +214,11 @@ anyway, an empty left half is just wasted space.)
 **Change plays** is in the hamburger with Setup and Exit, because changing the
 deck is something a coach does between series, not with six kids waiting.
 `MenuChecks` holds the three items and that the menu is the last thing in the
-bar.
+bar. **Exit** goes back to the intro, and on an installed launch
+(`isInstalled()`, which unlike `isImmersive()` does not count a tab made full
+screen) it also closes the app's window. The intro is drawn first, so a close
+the OS refuses still lands there. In a tab it never closes, because that tab
+belongs to the coach. `FullScreenChecks` holds both.
 
 **8. An update never interrupts a live play.** The service worker installs a new
 build as a *waiting* worker and shows "Update ready". It swaps only on tap. The

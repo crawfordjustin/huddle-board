@@ -236,6 +236,48 @@ public sealed class FullScreenChecks(AppFixture app) : IDisposable
         await page.CloseAsync();
     }
 
+    /// <summary>
+    /// Installed, Exit closes the app's window; in a tab — even one the Full
+    /// screen button made immersive — it only goes back to the intro, because
+    /// the tab is the coach's. Either way the intro is drawn, so a close the OS
+    /// refuses still lands somewhere.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ExitClosesOnlyAnInstalledApp(bool installed)
+    {
+        var page = await app.Browser.NewPageAsync(new BrowserNewPageOptions
+        {
+            ViewportSize = new ViewportSize { Width = 1400, Height = 900 },
+        });
+        await AppFixture.MarkTourSeenAsync(page);
+        await page.AddInitScriptAsync($$"""
+            window.__closed = 0;
+            window.close = () => { window.__closed++; };
+            if ({{(installed ? "true" : "false")}}) {
+              const mm = window.matchMedia;
+              window.matchMedia = q => q.includes('display-mode: fullscreen')
+                ? {matches:true, addEventListener(){}, removeEventListener(){}, media:q}
+                : mm(q);
+            }
+            """);
+
+        await page.GotoAsync(_site.Origin + "/index.html");
+        await page.WaitForTimeoutAsync(1000);
+        await page.ClickAsync("#start");
+        await page.WaitForSelectorAsync(".deck");
+        Assert.Equal(installed, await page.EvaluateAsync<bool>("isInstalled()"));
+
+        await page.ClickAsync("#ham");
+        await page.ClickAsync("#exit");
+        await page.WaitForSelectorAsync("#start");
+
+        Assert.Equal("intro", await page.EvaluateAsync<string>("S.screen"));
+        Assert.Equal(installed ? 1 : 0, await page.EvaluateAsync<int>("window.__closed"));
+        await page.CloseAsync();
+    }
+
     /// <summary>A local file can never be installed, so the button stays.</summary>
     [Fact]
     public async Task FromALocalFileTheButtonIsStillOffered()
