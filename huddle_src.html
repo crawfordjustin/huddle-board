@@ -435,20 +435,25 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .play{flex:1;display:flex;flex-direction:column;min-height:0}
 .bar{flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
   gap:clamp(10px,1.4vw,18px);background:var(--ink);color:#fff;
-  padding:clamp(6px,1.1vh,12px) clamp(10px,1.4vw,18px)}
-.back{justify-self:start;font-family:var(--disp);font-size:clamp(18px,2.8vh,26px);
-  text-transform:uppercase;letter-spacing:.06em;padding:8px 16px;border-radius:9px;
-  background:transparent;border:1.5px solid #3B443E;color:#E4E9E5;min-height:44px}
+  padding:clamp(4px,.6vh,8px) clamp(10px,1.4vw,18px)}
+.back{justify-self:start;font-family:var(--disp);font-size:clamp(15px,2.2vh,21px);
+  text-transform:uppercase;letter-spacing:.06em;padding:5px 14px;border-radius:9px;
+  background:transparent;border:1.5px solid #3B443E;color:#E4E9E5;min-height:38px}
 .back:active{background:#242B26}
 .titlewrap{grid-column:2;min-width:0;display:flex;align-items:baseline;gap:12px;
   justify-content:center}
-.titlewrap .kid{font-family:var(--disp);font-size:clamp(20px,3.6vw,44px);text-transform:uppercase;
+.titlewrap .kid{font-family:var(--disp);font-size:clamp(18px,2.8vw,34px);text-transform:uppercase;
   line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
 .titlewrap .coach{font-size:clamp(10px,1.6vh,14px);color:#98A49B;font-weight:600;
   letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
 .chip{justify-self:end;font-family:var(--body);font-size:clamp(9px,1.3vh,12px);font-weight:700;
   letter-spacing:.11em;text-transform:uppercase;color:#fff;background:var(--cat);
   padding:5px 10px;border-radius:5px;white-space:nowrap}
+/* the clock and the designer's buttons are shared with roomier screens, so
+   they are trimmed to this bar's height here rather than everywhere */
+.bar .clock{min-height:38px;padding:3px clamp(9px,1vw,13px)}
+.bar .clock .cnum{font-size:clamp(20px,3vh,30px)}
+.bar .edit{min-height:38px;padding:5px 14px;font-size:clamp(13px,1.9vh,18px)}
 
 .stagewrap{flex:1;display:flex;min-height:0}
 /* overflow:hidden here + overflow:visible on the svg lets the out-of-bounds
