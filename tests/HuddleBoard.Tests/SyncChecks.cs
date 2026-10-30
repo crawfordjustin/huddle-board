@@ -28,6 +28,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
     /// <summary>Everything the file carries, in one comparable line.</summary>
     private const string StateProbe = """
         () => [deck.join(','), JSON.stringify(names), JSON.stringify(packSaves), JSON.stringify(packNames),
+               JSON.stringify(notes),
                cfg.clockSecs, cfg.warnAt, cfg.vibrate, cfg.funNames, cfg.showClock, ourSide].join('|')
         """;
 
@@ -88,6 +89,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
               cfg.clockSecs = 25; cfg.warnAt = 15; cfg.funNames = true; cfg.showClock = false;
               saveCfg();
               setOurSide('orange');
+              setNote('p_01', 'ORANGE sells the fake\nOnly inside their 10');
               renderDeck();
             }
             """);
@@ -132,6 +134,9 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
             var packNames = six.GetProperty("packNames");
             Assert.Single(packNames.EnumerateObject());
             Assert.Equal("PLAYOFFS", packNames.GetProperty("week2").GetString());
+            // a note travels with its play, line break and all
+            Assert.Equal("ORANGE sells the fake\nOnly inside their 10",
+                six.GetProperty("notes").GetProperty("p_01").GetString());
             // the file carries choices, never the recording
             Assert.False(root.TryGetProperty("events", out _), "the game log leaked into the setup file");
         }
@@ -145,11 +150,17 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         // a week this tablet saved on its own has to go: the file decides every slot
         await pageB.EvaluateAsync("setPack('week5', DATA.plays.slice(0, 3).map(p => p.id));");
         await pageB.EvaluateAsync("setPackName('week5', 'BYE WEEK');");
+        // and so does a note written only here
+        await pageB.EvaluateAsync("setNote('p_07', 'MINE');");
         await pageB.EvaluateAsync("logEvent('scratch'); flushLog();");
         var loggedBefore = await pageB.EvaluateAsync<int>("events.length");
         Assert.True(loggedBefore > 0, "nothing in the log to protect");
 
         await OpenSetupAsync(pageB);
+        // a note exists nowhere but here, so Import says so and takes two taps
+        Assert.Contains("1 play note written", await pageB.InnerTextAsync(".setrows"));
+        await pageB.ClickAsync("#syncimp");
+        Assert.Equal("SURE?", (await pageB.InnerTextAsync("#syncimp")).Trim().ToUpperInvariant());
         await ImportAsync(pageB, path);
 
         Assert.Equal(wanted, await pageB.EvaluateAsync<string>(StateProbe));
@@ -158,6 +169,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         Assert.Contains("2 renamed plays", msg);
         Assert.Contains("1 saved week", msg);
         Assert.Contains("1 renamed week", msg);
+        Assert.Contains("1 play note", msg);
         Assert.Contains("ORANGE", msg);
         Assert.DoesNotContain("not recognised", msg);
         Assert.Equal("week2", await pageB.EvaluateAsync<string>("Object.keys(packSaves).join(',')"));
@@ -210,6 +222,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
                          "funNames":true,"__proto__":{"polluted":true}},
              "packs":{"week3":["p_02","p_99","p_02",5],"week9":["p_01"],"week4":"nope","week5":[]},
              "packNames":{"week2":"<b>X</b> & CO","week9":"GHOST","week3":5,"week1":" week 1 "},
+             "notes":{"p_02":"<b>X</b> & CO","p_99":"GHOST","p_04":5,"p_05":"   "},
              "ourSide":"left"}
             """);
         var garbage = Path.Combine(dir, "garbage.json");
@@ -240,6 +253,9 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         // week names: a slot the build knows, text only, and the shipped name retyped is not a rename
         Assert.Equal("week2", await page.EvaluateAsync<string>("Object.keys(packNames).join(',')"));
         Assert.Equal("<b>X</b> & CO", await page.EvaluateAsync<string>("packNames.week2"));
+        // notes: a play the library has, text only, and a blank one is no note
+        Assert.Equal("p_02", await page.EvaluateAsync<string>("Object.keys(notes).join(',')"));
+        Assert.Equal("<b>X</b> & CO", await page.EvaluateAsync<string>("notes.p_02"));
 
         var msg = await page.InnerTextAsync("#syncmsg");
         Assert.Contains("Imported", msg);

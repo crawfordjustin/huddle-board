@@ -93,6 +93,13 @@ dotnet test                                           # build, then full suite
    stored, so retyping the shipped name is not a rename; `RenameChecks` holds
    that. Search must match both custom and shipped names, so renaming can
    never hide a play. Do not put overrides into the build or printed playbook.
+   **Play notes** are the coach's own text per play, under `hb.notes` (per
+   format, keyed by play id, shipped or drawn), written from the play screen's
+   **Notes** rail button (`openNotes`) and shown read-only in the library
+   preview. They go through `tidyNote` in and `esc()` out, survive an update,
+   a hidden play and Start over, leave with a deleted drawn play, travel in
+   each format's sync section as `notes`, arm Import like drawn plays, and are
+   cleared by Setup's **Play notes** row. `NoteChecks` and `SyncChecks` hold it.
    **Destructive setup actions require two taps.** Use `confirmTap`; its
    armed state must lapse on its own. `Start over` resets the deck, name
    overrides, settings, sideline, saved packs, pack names, and the tutorial
@@ -307,7 +314,7 @@ shared `dist/` output.
   should pass `intro: true`. The fixture writes the tutorial flag before the
   app boots so every other check lands on the deck; `TutorialChecks` opens the
   one tablet that has not seen it.
-- `RenameChecks`, `ResetChecks`, `SyncChecks`, `FormatChecks` and `PwaChecks` run against the
+- `RenameChecks`, `NoteChecks`, `ResetChecks`, `SyncChecks`, `FormatChecks` and `PwaChecks` run against the
   hosted build over `StaticSite`, because they are about storage and service
   workers and a `file://` origin has neither. Everything else, including
   `NameChecks` (tile-name fitting) and `PackChecks`, runs on the standalone

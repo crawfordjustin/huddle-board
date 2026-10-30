@@ -143,6 +143,29 @@ it, including the survives-an-update part, against a real new build taken throug
 the service worker. Custom names are per tablet and do not reach the printed
 playbook, which is built from source.
 
+**A coach can keep notes on a play.** "ORANGE has to sell the fake", "only
+inside their 10" — a few lines of his own, there when he brings the play up.
+The play screen's rail has a **Notes** button (`openNotes`) that reads "add"
+or, with a note there, "read" with a gold edge; it opens a one-box sheet, to
+read when there is a note (no keyboard thrown over half the tablet on the
+sideline) and to write when there is none, and emptying the box is how a note
+comes off. It is hidden while a kid's steps hold the rail, because the steps
+are the kid's and the note is the coach's. The library preview shows the note
+too, clamped to three lines so the picture keeps its room. Notes live under
+`hb.notes`, per format, keyed by play id — shipped or drawn — and never in the
+build, so they survive an update. They are the third string a coach types, so
+they go through `tidyNote` on the way in and `esc()` on the way out. Unlike
+names they are not something that shipped, so **Start over leaves them
+alone**, the way it leaves a drawn play; a hidden play keeps its note, a
+deleted drawn play takes its note with it, and Setup's **Play notes** row
+(Your own) counts them and clears them in two taps. The sync file carries
+each format's `notes`; `readSetup` accepts only a play that format has (or a
+drawn play in the same file) holding a string, and Import replaces them like
+everything else — so with any notes on the tablet Import arms on the first
+tap, as it does for drawn plays. Notes do not reach the printed playbook.
+`NoteChecks` holds the sheet, the update, Start over and the clear;
+`SyncChecks` carries a note across two tablets and feeds it markup.
+
 A library row's **thumbnail** opens the play large (`openPreview`): the same
 picture, with the play's chips, names and tagline, sized by `fitPreview` to
 whatever height the words leave so the whole card is on screen at every size.
@@ -735,7 +758,7 @@ The app opens on an intro screen — art and one START button — so
 `AppFixture.OpenAppAsync` taps through it and hands every other check the deck.
 Pass `intro: true` to stay on it; `IntroChecks` is the only thing that does.
 
-`RenameChecks`, `ResetChecks`, `SyncChecks`, `FormatChecks` and `PwaChecks` run against the hosted
+`RenameChecks`, `NoteChecks`, `ResetChecks`, `SyncChecks`, `FormatChecks` and `PwaChecks` run against the hosted
 build over a local `StaticSite` rather than the standalone file, because all of
 them are about storage and service workers and a `file://` origin has neither.
 `SyncChecks` opens each tablet in its own browser context: headless Chromium has
