@@ -335,7 +335,9 @@ defense has already chased, because a reverse is the punishment for chasing.
 A play opens on its **finished picture** — the last frame of the run, held:
 every route drawn and the ball where it ends up, because that is what a coach
 turns around to show. **Line up** goes back to the spots; **Run it** and
-**Replay** play it once from the snap and stop on that frame. The play screen
+**Replay** play it once from the snap and stop on that frame. The button
+beside Line up says Run it until the play has run on this screen (`S.ran`),
+because a coach who opened on the picture has not seen it run to replay. The play screen
 never loops (`frame()` clamps at `tEnd`); the tutorial's running slide and the
 designer's preview still do, because nobody is standing there to press Replay.
 `BallChecks` holds the opening frame and that a run does not come round again.

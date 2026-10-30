@@ -4477,8 +4477,10 @@ function openPlay(id){
   // It opens on the finished play — every route drawn, the ball where it
   // ends up — because that is the picture a coach turns around to show. It
   // is the last frame of the run, held: Line up goes back to the spots, and
-  // Run it and Replay play it once from the snap.
+  // Run it and Replay play it once from the snap. Nobody has seen it run
+  // yet, so the button beside Line up says Run it until it has (S.ran).
   S.stage = "run"; S.t0 = performance.now() - S.tl.tEnd * playPace(); S.solo = null; S.running = false;
+  S.ran = false;
   S.steps = null; S.step = null;
   mTarget = mAnim = 0;
   const p = S.play;
@@ -4519,7 +4521,7 @@ function openPlay(id){
   document.getElementById("mirror").onclick = () => {
     mTarget = mTarget ? 0 : 1; if (REDUCED) mAnim = mTarget; syncRail();
     logEvent("mirror", {play: S.play.id, on: mTarget === 1}); };
-  document.getElementById("replay").onclick = () => { S.stage = "run"; S.t0 = performance.now(); syncRail(); };
+  document.getElementById("replay").onclick = () => { S.stage = "run"; S.t0 = performance.now(); S.ran = true; syncRail(); };
   document.getElementById("slow").onclick = toggleSlow;
   document.getElementById("snext").onclick = () => goStep(Math.min(S.steps.length - 1, S.step.i + 1));
   document.getElementById("sback").onclick = () => goStep(Math.max(0, S.step.i - 1));
@@ -4534,7 +4536,7 @@ function openPlay(id){
 function toggleStage(){
   if (S.stage === "lineup"){
     S.stage = "run";
-    S.t0 = performance.now();
+    S.t0 = performance.now(); S.ran = true;
     logEvent("play_run", {play: S.play.id, mirrored: mTarget === 1});
   } else {
     S.stage = "lineup";
@@ -4562,7 +4564,9 @@ function syncRail(){
   st.className = "rbtn go" + (steps ? " hidden" : "");
   st.innerHTML = run ? "Line up<small>back to spots</small>" : "Run it<small>animate</small>";
   document.getElementById("mirror").classList.toggle("on", mTarget === 1);
-  document.getElementById("replay").classList.toggle("hidden", !run || steps);
+  const rp = document.getElementById("replay");
+  rp.classList.toggle("hidden", !run || steps);
+  rp.textContent = S.ran ? "Replay" : "Run it";
   // a kid's steps keep their own pace, so Slow waits with the notes
   const sl = document.getElementById("slow");
   sl.classList.toggle("hidden", steps);

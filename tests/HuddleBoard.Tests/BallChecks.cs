@@ -176,7 +176,8 @@ public sealed class BallChecks(AppFixture app)
     /// A play opens on its finished picture — every route drawn, the ball at
     /// the catch — with no tap. Line up goes back to the spots, and Run it
     /// plays it once and stops on that same last frame rather than looping:
-    /// Replay is there for another look.
+    /// Replay is there for another look. Until it has run, that button says
+    /// Run it, because the coach opened on the picture and never saw a run.
     /// </summary>
     [Fact]
     public async Task APlayOpensFinishedAndARunStopsAtTheEnd()
@@ -188,6 +189,7 @@ public sealed class BallChecks(AppFixture app)
         Assert.Equal("run", await page.EvaluateAsync<string>("S.stage"));
         Assert.Contains("Line up", await page.InnerTextAsync("#stage"), StringComparison.OrdinalIgnoreCase);
         Assert.True(await page.IsVisibleAsync("#replay"), "Replay is hidden on the finished play");
+        Assert.Equal("Run it", (await page.InnerTextAsync("#replay")).Trim(), ignoreCase: true);
         var g = JsonSerializer.Deserialize<Ball>(await page.EvaluateAsync<string>(Measure))!;
         Assert.True(g.Opacity == 1 && Math.Abs(g.Dx) < 1.5 && Math.Abs(g.Dy) < 1.5,
             $"the play opened with the ball {g.Dx},{g.Dy} off the catch (opacity {g.Opacity})");
@@ -205,6 +207,7 @@ public sealed class BallChecks(AppFixture app)
         g = JsonSerializer.Deserialize<Ball>(await page.EvaluateAsync<string>(Measure))!;
         Assert.True(g.Opacity == 1 && Math.Abs(g.Dx) < 1.5 && Math.Abs(g.Dy) < 1.5,
             $"after the run the ball is {g.Dx},{g.Dy} off the catch (opacity {g.Opacity}) — it looped");
+        Assert.Equal("Replay", (await page.InnerTextAsync("#replay")).Trim(), ignoreCase: true);
 
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
