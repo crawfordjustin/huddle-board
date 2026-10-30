@@ -50,18 +50,4 @@ public static class Formations
             ["Z"] = new(9, 0),
         },
     };
-
-    /// <summary>Why you would call each one.</summary>
-    public static readonly IReadOnlyDictionary<string, string> Notes =
-        new Dictionary<string, string>
-        {
-            ["TWINS RIGHT"] =
-                "Your base look. A ball carrier in the backfield plus two receivers stacked to the right, so you can run it or throw a two-man combo out of the same picture.",
-            ["TRIPS LEFT"] =
-                "Three to the left, one to the right. Overloads one side so the defense has to declare who covers whom. Best for flood and staircase-out concepts.",
-            ["SPREAD"] =
-                "Two each side, nobody in the backfield. Widest possible spacing — the defense cannot double anybody. This is your must-pass formation.",
-            ["ACE"] =
-                "Tighter set with a BACK behind the thrower. Best run look and best goal-line look, because everybody is close enough to the ball to get there fast.",
-        };
 }

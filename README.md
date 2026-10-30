@@ -48,15 +48,16 @@ serve the app on localhost — that is the way to exercise the install prompt,
 offline caching and browser storage, none of which work from a local file.
 **HuddleBoard.Build** has a launch profile per verb.
 
-`... -- print` regenerates the paper fallbacks — playbook, field cards, rotation
-sheet — as PDFs. The first test or print run downloads Chromium for Playwright.
+**Print** on the Change plays screen prints the deck as one quick-reference
+sheet, through the browser's own print dialog. The first test run downloads
+Chromium for Playwright.
 
 ## What's in here
 
 | | |
 |---|---|
 | `huddle_src.html` | the whole app: markup, styles, script — one file, no framework |
-| `src/HuddleBoard.Playbook` | the 27 plays, the checker, the build, the print documents |
+| `src/HuddleBoard.Playbook` | the 27 plays, the checker, the build |
 | `src/HuddleBoard.Build` | the command line |
 | `src/HuddleBoard.Web` | the website — pages at `/`, the app at `/app/` — for F5 and for Azure |
 | `tests/HuddleBoard.Tests` | verification — real browser, five tablet shapes |
@@ -90,8 +91,7 @@ on it, ship it to your league, sell it with your changes. No attribution beyond
 keeping the licence text with the copy, no share-alike, no field-of-use
 restriction, nothing to ask permission for.
 
-The whole project is covered — the app, the play library, the checker, the build
-and the print documents. `art/intro-art.png` ships under the same terms.
+The whole project is covered — the app, the play library, the checker and the build. `art/intro-art.png` ships under the same terms.
 
 If it turns out to be useful to somebody else's eight-year-olds, that is the
 entire point.

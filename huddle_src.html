@@ -730,6 +730,37 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .lrow.on .lfix{color:#B23A2B}
 .hidden{display:none!important}
 @media (prefers-reduced-motion:reduce){.tile,.rbtn,.start{transition:none}}
+/* the deck on paper: a quick-reference sheet to laminate, every play's tile
+   picture in a grid with its names. Only ever seen through the print dialog. */
+#printsheet{display:none}
+@media print{
+  @page{size:Letter landscape;margin:.3in}
+  html,body{height:auto;overflow:visible;background:#fff}
+  body > :not(#printsheet){display:none!important}
+  #printsheet{display:block;color:#141A16;font-family:var(--body);
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .ppage{height:7.85in;display:flex;flex-direction:column;gap:.08in;break-inside:avoid}
+  .ppage + .ppage{break-before:page}
+  .phead{flex:none;display:flex;justify-content:space-between;align-items:baseline;
+    font-family:var(--disp);font-size:10pt;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:#4A554E;border-bottom:1.5px solid #141A16;padding-bottom:.04in}
+  .pgrid{flex:1;min-height:0;display:grid;gap:.12in}
+  .pcell{min-height:0;display:flex;flex-direction:column;gap:.03in;padding:.06in;
+    border:1px solid #C9D0CB;border-top:4px solid var(--cat);border-radius:6px;overflow:hidden}
+  .pcell .thumbsvg{flex:1;min-height:0;width:100%;height:100%;display:block}
+  .pname{flex:none;display:flex;align-items:baseline;gap:.08in;font-family:var(--disp);
+    font-weight:800;text-transform:uppercase;line-height:1.05}
+  .pname b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pname .pstar{color:#B07A00}
+  .ptag{flex:none;font-size:.62em;letter-spacing:.06em;font-weight:700;color:#fff;
+    background:var(--cat);border-radius:3px;padding:.02in .05in}
+  .ptag.run{background:#127A4D}.ptag.pass{background:#1B6BA8}
+  .psub{flex:none;font-weight:600;color:#4A554E;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;line-height:1.15}
+  .pgrid.g2 .pname{font-size:22pt}.pgrid.g2 .psub{font-size:13pt}
+  .pgrid.g3 .pname{font-size:15pt}.pgrid.g3 .psub{font-size:10pt}
+  .pgrid.g4 .pname{font-size:11.5pt}.pgrid.g4 .psub{font-size:8pt}
+}
 </style>
 
 <div id="app"></div>
@@ -3410,6 +3441,48 @@ function fitPreview(){
 }
 addEventListener("resize", fitPreview);
 
+/* ------------------------------------------------------ the deck on paper
+   One sheet to laminate and carry: every play in the deck, in deck order, as
+   the deck tile's own picture with the coach's name, the kids' name and the
+   RUN/PASS and situation tag. 2x2 up to four plays, 3x3 up to nine, 4x4 after
+   that, and a deck past sixteen goes on to another page. It is built from
+   what is on this tablet, so renames and drawn plays print as they are; notes
+   stay off, because the sheet is for reading at a glance. The print dialog is
+   the browser's, so Save as PDF and a printer both work with no network. */
+function printSheet(){
+  const plays = deck.map(id => DATA.plays.find(p => p.id === id)).filter(Boolean);
+  if (!plays.length) return;
+  const n = plays.length <= 4 ? 2 : plays.length <= 9 ? 3 : 4, per = n * n;
+  const pages = [];
+  for (let i = 0; i < plays.length; i += per) pages.push(plays.slice(i, i + per));
+  const cell = p => {
+    const kid = kidNameOf(p), sub = [kid, p.formation].filter(Boolean).map(esc).join(" &middot; ");
+    return `<div class="pcell" style="--cat:${CAT[p.category]}">
+      ${thumbSVG(p)}
+      <div class="pname">${p.custom ? `<span class="pstar">&#9733;</span>` : ""}<b>${esc(coachNameOf(p))}</b>
+        <span class="ptag ${isRun(p) ? "run" : "pass"}">${isRun(p) ? "Run" : "Pass"}</span>
+        <span class="ptag">${esc(p.category)}</span></div>
+      <div class="psub">${sub}</div>
+    </div>`;
+  };
+  const old = document.getElementById("printsheet");
+  if (old) old.remove();
+  const el = document.createElement("div");
+  el.id = "printsheet";
+  el.innerHTML = pages.map((pg, i) => `
+    <section class="ppage">
+      <div class="phead"><span>Huddle Board &middot; ${esc(DATA.label)} &middot;
+        ${plays.length} play${plays.length === 1 ? "" : "s"}</span>
+        <span>${pages.length > 1 ? `Page ${i + 1} of ${pages.length}` : ""}</span></div>
+      <div class="pgrid g${n}" style="grid-template-columns:repeat(${n},minmax(0,1fr));
+        grid-template-rows:repeat(${n},minmax(0,1fr))">${pg.map(cell).join("")}</div>
+    </section>`).join("");
+  document.body.appendChild(el);
+  logEvent("deck_printed", {plays: plays.length});
+  addEventListener("afterprint", () => el.remove(), {once: true});
+  print();
+}
+
 /* ------------------------------------------------------ show and hide
    Every shipped play in this format, one row each, filed the way the library
    files them. Tapping a row flips it between shown and hidden in a working
@@ -3569,6 +3642,7 @@ function renderLibrary(welcome){
            <button class="fchip" id="lclear">Clear filters</button></div>`;
     lib.scrollTop = 0;
     document.getElementById("lcount").textContent = deck.length + " in your deck";
+    document.getElementById("lprint").disabled = !deck.length;
     const pack = packOf();
     const away = hidden.size ? ` ${hidden.size} shipped play${hidden.size === 1 ? " is" : "s are"} hidden
       &mdash; Setup &rarr; Your own shows ${hidden.size === 1 ? "it" : "them"} again.` : "";
@@ -3728,6 +3802,7 @@ function renderLibrary(welcome){
         <h1>Play Library<span class="fmt" id="lfmt">${esc(DATA.label.toUpperCase())}</span></h1>
         <div class="dh-right">
           <p id="lcount"></p>
+          <button class="edit" id="lprint">Print</button>
           <button class="edit" id="lnew">New play</button>
           <button class="edit done" id="done">Done</button>
         </div>
@@ -3739,6 +3814,7 @@ function renderLibrary(welcome){
     </div>`;
   document.getElementById("done").onclick = renderDeck;
   document.getElementById("lnew").onclick = () => pickFormation();
+  document.getElementById("lprint").onclick = () => printSheet();
   drawFilters(); drawPacks(); drawRows();
   if (welcome === true) openLibraryWelcome();
 }

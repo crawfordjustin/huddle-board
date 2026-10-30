@@ -78,8 +78,5 @@ public sealed record PlayText(
 /// <summary>The short diagram tag and the full spoken name for a geometry key.</summary>
 public sealed record SpotLabel(string Tag, string Name);
 
-/// <summary>A spot on the field and how to explain where it is.</summary>
-public sealed record SpotDef(string Tag, string Name, string Where);
-
 /// <summary>One of the nine shapes. There is no tenth — see CLAUDE.md.</summary>
 public sealed record Shape(string Name, string Teach, IReadOnlyList<Pt> Pts, EndStyle End);

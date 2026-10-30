@@ -25,9 +25,6 @@ public static class Workspace
     /// <summary>The static site.</summary>
     public static string Deploy => Path.Combine(Dist, "deploy");
 
-    /// <summary>The paper playbook, field cards and rotation sheet.</summary>
-    public static string Print => Path.Combine(Dist, "print");
-
     /// <summary>The single source file for the app itself.</summary>
     public static string Source => Path.Combine(Root, Marker);
 

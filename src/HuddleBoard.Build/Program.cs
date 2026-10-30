@@ -6,7 +6,6 @@ using HuddleBoard.Playbook;
 //   dotnet run --project src/HuddleBoard.Build -- build    data -> dist/
 //   dotnet run --project src/HuddleBoard.Build -- check    fast play-library check
 //   dotnet run --project src/HuddleBoard.Build -- icons    regenerate app icons
-//   dotnet run --project src/HuddleBoard.Build -- print    the paper playbook, as PDFs
 //   dotnet run --project src/HuddleBoard.Build -- shots    regenerate the README screenshots
 //
 // In Visual Studio, set HuddleBoard.Build as the startup project and pick the
@@ -23,7 +22,6 @@ try
         "check" => PlayChecker.Run(),
         "export" => ProtoExporter.Run(),
         "icons" => IconRenderer.Run(),
-        "print" => await PrintPipeline.RunAsync(),
         "shots" => await Screenshots.RunAsync(),
         "clean" => Clean(),
         _ => Usage(verb),
@@ -62,6 +60,6 @@ static int Clean()
 
 static int Usage(string verb)
 {
-    Console.Error.WriteLine($"unknown target '{verb}' — try build, check, export, icons, print, shots, clean");
+    Console.Error.WriteLine($"unknown target '{verb}' — try build, check, export, icons, shots, clean");
     return 2;
 }

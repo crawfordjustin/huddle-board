@@ -11,7 +11,7 @@ namespace HuddleBoard.Playbook;
 /// ball — the same one rule as <see cref="ProtoExporter"/>'s 6-on-6 table.</param>
 /// <param name="Thrower">Who throws it, when it is not the THROWER.</param>
 /// <param name="Assign">One line per spot, in spot language (LEFT/RIGHT names;
-/// the exporter recolours them). The paper playbook and the tablet both read it.</param>
+/// the exporter recolours them). The tablet reads it.</param>
 internal sealed record Authored(
     int Num,
     string Name,
@@ -43,11 +43,9 @@ internal static class Authoring
         string id, int players, string prefix, string label,
         OrderedDictionary<string, OrderedDictionary<string, Pt>> formations,
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, SpotLabel>> spotMap,
-        IReadOnlyDictionary<string, string> notes,
         IReadOnlyList<Authored> plays,
-        IReadOnlyList<PlayPack> packs,
-        IReadOnlyList<(string Situation, string Call)> script) =>
-        new(id, players, prefix, label, formations, spotMap, notes,
+        IReadOnlyList<PlayPack> packs) =>
+        new(id, players, prefix, label, formations, spotMap,
             [.. plays.OrderBy(a => a.Num).Select(a => new Play(
                 a.Num, a.Name, a.Formation, a.Category, a.Tagline, a.Mistake,
                 a.Paths, a.Assign, a.Notes, a.Complexity))],
@@ -55,5 +53,5 @@ internal static class Authoring
             plays.ToDictionary(a => a.Num, a => a.Kid),
             plays.ToDictionary(a => a.Num, a => a.Ball),
             plays.Where(a => a.Thrower is not null).ToDictionary(a => a.Num, a => a.Thrower!),
-            packs, script);
+            packs);
 }

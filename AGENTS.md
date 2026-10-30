@@ -14,8 +14,8 @@ tool worse for actual eight-year-olds.
 ## Project shape
 
 - `HuddleBoard.slnx` is the Visual Studio solution.
-- `src/HuddleBoard.Playbook` contains the play library, validator, build and
-  print pipeline. Most substantive product work is here.
+- `src/HuddleBoard.Playbook` contains the play library, validator and
+  build. Most substantive product work is here.
 - `src/HuddleBoard.Build` is the command-line entry point.
 - `src/HuddleBoard.Web` is the ASP.NET Core website: Razor Pages at `/` and
   the app at `/app/`; use it for local web behavior and F5. Add APIs or a
@@ -35,7 +35,6 @@ Run commands from the repository root:
 ```text
 dotnet run --project src/HuddleBoard.Build -- check   # fast legality/product check
 dotnet run --project src/HuddleBoard.Build -- build   # source -> dist/
-dotnet run --project src/HuddleBoard.Build -- print   # paper PDFs
 dotnet run --project src/HuddleBoard.Build -- icons   # redraw icons
 dotnet run --project src/HuddleBoard.Build -- shots   # README screenshots
 dotnet test                                           # build, then full suite
@@ -92,7 +91,7 @@ dotnet test                                           # build, then full suite
    `esc()` before markup. Only a name that differs from the shipped one is
    stored, so retyping the shipped name is not a rename; `RenameChecks` holds
    that. Search must match both custom and shipped names, so renaming can
-   never hide a play. Do not put overrides into the build or printed playbook.
+   never hide a play. Do not put overrides into the build.
    **Play notes** are the coach's own text per play, under `hb.notes` (per
    format, keyed by play id, shipped or drawn), written from the play screen's
    **Notes** rail button (`openNotes`) and shown read-only in the library
@@ -115,6 +114,11 @@ dotnet test                                           # build, then full suite
    A library thumbnail alone opens `openPreview`; the rest of the row still
    adds or removes the play. The preview never changes the deck and
    `fitPreview` must keep the whole card on screen at all five sizes.
+
+   **Print** in the library header (`printSheet`) prints the deck, in order,
+   as a 2x2/3x3/4x4 Letter-landscape sheet of `thumbSVG` pictures with both
+   names and the RUN/PASS and situation tags, through the browser's print
+   dialog. Renames and drawn plays print; notes do not. `PrintChecks` holds it.
 
    Shipped plays can be hidden through Your own > Shipped plays
    (`openHidePicker`). Hidden plays disappear from library rows, counts,
@@ -240,8 +244,7 @@ dotnet test                                           # build, then full suite
     Start over resets every format's shipped choices but keeps drawn plays
     and the player count (`cfg.players`, default 6). Sync is v2 with a
     section per format, validated against that format alone; missing formats
-    reset to shipped. V1 files read as 6-on-6. Print outputs are suffixed
-    `-5v5`, `-6v6`, `-7v7`. Preserve `FormatChecks`.
+    reset to shipped. V1 files read as 6-on-6. Preserve `FormatChecks`.
 
 ## Source and data rules
 
@@ -264,8 +267,8 @@ dotnet test                                           # build, then full suite
 ### Adding a play
 
 For 5-on-5 or 7-on-7, append an `Authored` row in `FiveOnFive.cs` or
-`SevenOnSeven.cs` with geometry, text, kid name, ball and thrower; add a script
-line if appropriate. The parallel-table steps below apply to 6-on-6.
+`SevenOnSeven.cs` with geometry, text, kid name, ball and thrower.
+The parallel-table steps below apply to 6-on-6.
 
 1. Append to `Recent` in `PlaysMore.cs`: geometry, tagline, notes, mistake.
 2. Add matching text in `PlayTextsMore.cs`: the call strip and per-spot
@@ -365,7 +368,7 @@ remain in both shipping forms and as `dist/deploy/LICENSE.txt`.
   The local designer does support checked coach-authored plays. It does not
   yet support copying shipped plays, pre-snap motion, a reverse ending in a
   throw, pitches on runs, flea flickers, throws partway through a rollout,
-  editable per-kid instructions, printing or graduating drawings into the library.
+  editable per-kid instructions, graduating drawings into the library.
 - Rewriting the one-file app in Blazor or another framework.
 - A flip/orientation toggle.
 - Parent or assistant-coach logging applications.

@@ -51,29 +51,6 @@ public static class Spots
             },
         };
 
-    /// <summary>Every spot, and how to explain where it is.</summary>
-    public static readonly IReadOnlyList<SpotDef> Glossary =
-    [
-        new("SN", "SNAPPER",
-            "Right over the ball. Snaps it, then becomes a receiver."),
-        new("QB", "THROWER",
-            "Three yards behind the snapper. Takes the snap."),
-        new("WL", "WIDE LEFT",
-            "All the way out by the left sideline."),
-        new("SL", "SLOT LEFT",
-            "Halfway between the snapper and the left sideline."),
-        new("TL", "TIGHT LEFT",
-            "Just outside the snapper's left shoulder."),
-        new("TR", "TIGHT RIGHT",
-            "Just outside the snapper's right shoulder."),
-        new("SR", "SLOT RIGHT",
-            "Halfway between the snapper and the right sideline."),
-        new("WR", "WIDE RIGHT",
-            "All the way out by the right sideline."),
-        new("B", "BACK",
-            "Behind and beside the thrower."),
-    ];
-
     /// <summary>
     /// The nine shapes, and no tenth. Every route a kid runs is one of these,
     /// plus the default rule below. A tenth shape costs every kid on the team,
@@ -109,8 +86,4 @@ public static class Spots
             "You get the ball. Run where the coach points.",
             [new(0, -4), new(0.8, -2), new(1.5, 7)], Arrow),
     ];
-
-    /// <summary>What to tell a kid who forgets his job.</summary>
-    public const string DefaultRule =
-        "If the coach did not give you a job, run GO — sprint straight downfield and take your defender with you.";
 }
