@@ -6,7 +6,7 @@ uses it on an 11-inch rugged Android tablet, turns it around, and shows the
 kids what to do. The coach knows football; the product simplifies
 the explaining, not the football.
 
-`CLAUDE.md` is the long form of this file and carries the reasoning behind
+`CLAUDE.md` is the primary source of truth and carries the reasoning behind
 every rule below. When a rule here seems to be in the way, read the reason
 there before working around it; each one exists because breaking it made the
 tool worse for actual eight-year-olds.
@@ -17,8 +17,9 @@ tool worse for actual eight-year-olds.
 - `src/HuddleBoard.Playbook` contains the play library, validator, build and
   print pipeline. Most substantive product work is here.
 - `src/HuddleBoard.Build` is the command-line entry point.
-- `src/HuddleBoard.Web` is the ASP.NET Core static host; use it for local web
-  behavior and F5.
+- `src/HuddleBoard.Web` is the ASP.NET Core website: Razor Pages at `/` and
+  the app at `/app/`; use it for local web behavior and F5. Add APIs or a
+  database only when they have a caller.
 - `tests/HuddleBoard.Tests` drives the real built app in Chromium.
 - `huddle_src.html` is the entire hand-written UI: markup, CSS and JavaScript.
   Do not replace it with a framework or move its UI into C#.
@@ -62,7 +63,8 @@ dotnet test                                           # build, then full suite
    WHEEL, SWING, or CARRY (`Spots.Shapes`); no unassigned job means GO. A tenth
    shape costs every kid on the team a new word, so adding one is a product
    decision, not a convenience. Play 11's `CROSS deep` is the one deliberate
-   exception, pinned by `PlayLibraryChecks.TheVocabularyHasNotGrown`.
+   exception in 6-on-6 only, pinned by
+   `PlayLibraryChecks.TheVocabularyHasNotGrown`; 5-on-5 and 7-on-7 have none.
 2. **Use colors, never left/right, for player sides.** Player sides are BLUE
    and ORANGE, because 8U players confuse left and right and because left and
    right invert depending on which side of them the coach stands. The field's
@@ -78,7 +80,9 @@ dotnet test                                           # build, then full suite
    call strip BLUE <-> ORANGE.
 5. **The intro illustration is inlined.** Author it at `art/intro-art.png`.
    The build converts it into a data URI for the one-file app; do not add a
-   runtime image request. Keep `IntroChecks` passing when changing it. Known
+   runtime image request. Keep `IntroChecks` passing when changing it. Its
+   size and decode checks matter: `IntroArt.cs` downsamples to 1600px and
+   chooses the smallest WebP, JPEG or PNG encoding. Known
    design debt, not a decision: the raster cannot be swept for letters, so rule
    3 does not reach it, and the current art is blue against red rather than
    ORANGE. Do not try to make `LabelChecks` cover the art, and do not assume
@@ -94,6 +98,25 @@ dotnet test                                           # build, then full suite
    overrides, settings, sideline, saved packs, pack names, and the tutorial
    flag (`hb.tour`), but deliberately keeps the game log. The log is a
    recording rather than a preference, and has its own Clear action.
+   Start over preserves drawn plays and the player count, resets hidden
+   shipped plays in every format, and returns to the intro. Setup has four
+   tabs (`SET_TABS`): Game, Clock, Your own, Tablet. Only the open tab's rows
+   exist; wire those handlers and open the tab before testing its controls
+   (`AppFixture.SetupTabAsync`). The open tab (`setTab`) is memory only;
+   import results open on Tablet.
+
+   A library thumbnail alone opens `openPreview`; the rest of the row still
+   adds or removes the play. The preview never changes the deck and
+   `fitPreview` must keep the whole card on screen at all five sizes.
+
+   Shipped plays can be hidden through Your own > Shipped plays
+   (`openHidePicker`). Hidden plays disappear from library rows, counts,
+   search, filters and weeks (`packsNow`); `forgetPlays` removes them from
+   the deck and saved weeks. Save arms first and reports how many leave the
+   deck. Renames survive hiding. `hb.hidden` is per format and synced;
+   `readSetup` accepts unique shipped ids only and refuses a hidden play in
+   a deck or week. Drawn plays are deleted rather than hidden. Empty states
+   lead to the library and New play. Preserve `HiddenPlayChecks`.
 7. **The deck filter is in memory only, never saved.** The deck carries the
    same run/pass and situation chips as the library, in the same `.fchip`
    styling, because two screens should not teach two controls for one idea. A
@@ -103,6 +126,10 @@ dotnet test                                           # build, then full suite
    it. The deck has no title row: every line of chrome above the tiles is a
    row of plays the coach cannot see. **Change plays** lives in the hamburger
    with Setup and Exit. `DeckFilterChecks` and `MenuChecks` hold all of this.
+   Situation labels remain visible at every column count; filter chips show
+   whenever the deck has differing run/pass or situation values. Exit draws
+   the intro first and closes the window only for an installed launch
+   (`isInstalled()`, not `isImmersive()`); browser tabs never close.
 8. **A pending update never interrupts a play.** The service worker waits and
    offers an update only on the deck and intro, the two screens never turned
    around at the kids. It activates only after the coach taps the offer.
@@ -111,31 +138,103 @@ dotnet test                                           # build, then full suite
    the same line a handoff rides, so there is one picture for where the ball
    goes. A non-thrower pass must name the thrower in `ProtoExporter.Throwers`,
    have a reachable handoff chain, and finish behind the line of scrimmage.
+   The ball starts with the SNAPPER, follows `SNAP` to the THROWER, and rides
+   each real exchange (`heldBall`); fake handoffs keep it with the passer.
+   A THROWER rollout exports one leg (`ProtoExporter.Rollout`) and throws
+   from its end behind the line. NO-RUN ZONE forbids handoffs and runs across
+   the line, not rollouts behind it. Thumbnails use the same `throwArc`.
+
+   Plays open on the finished picture. Line up returns to the spots; Run it
+   and Replay run once and hold the last frame (`frame()` clamps at `tEnd`).
+   Only the tutorial and designer preview loop. Tapping a kid opens
+   timeline-derived `kidSteps`, never separately authored instructions:
+   Next, Back, Again replace the rail; All restores the play as tapped.
+   Only his marker moves (`kidAt`) while everyone else holds position.
+   Use the nine shapes plus LINE UP, MOTION, SNAP, TAKE IT, HAND OFF, THROW,
+   CATCH and FAKE; a catch ends the receiver's last leg and a passer's run
+   belongs to THROW. Preserve `BallChecks` and `StepChecks`.
 10. **Tablet sync is an untrusted, replace-not-merge JSON file.** Validate all
     imported ids, settings, sides, packs, and strings in `readSetup`; escape
     names on output. Settings from the file are applied over the shipped
     defaults, never over what the tablet had, so the result depends on the
     file alone. Sync never carries the game log.
-11. **The shipped packs are complete, replaceable decks.** Each play appears
-    in exactly one shipped week. Week 1 is the default deck. Saved packs
+    Export prefers the share sheet, then download; cancelling the sheet is
+    a cancel. Report invalid imported values and counts on the row.
+11. **Week 1 is the starting deck; Weeks 2–6 ship empty.** Each format's
+    Week 1 has four calls: a run, quick pass, third down and goal line.
+    `PlayLibraryChecks` pins this and `PlayPacks.Check` rejects an empty
+    starting deck. Saved packs
     (`hb.packs`) and pack names (`hb.packnames`) are independent local
     overrides with the same rule as play names: only a slot that differs from
     the shipped one is stored, so saving the shipped deck into its own week is
     not a save. Importing replaces them. The pack strip is not a filter: it
     changes what is in the deck, wears its own `.pack` chip, and has no label
     at rest.
+    Taking a pack replaces the deck with two taps and an expiring armed
+    state. Save deck and Rename ask which week; their modes expire and
+    cancel one another. Week names use `tidyName` and `esc()`; empty resets
+    the name. Your own weeks resets both names and saved decks.
+    An empty deck survives reload and sync, shows a library button (`#dlib`),
+    and disables Save deck. Empty weeks never light as the current deck or
+    replace it when tapped; they explain how to fill them. Sync writes empty
+    weeks as `[]` and exports every week's contents, shipped or saved.
 12. **The tutorial is first-start only.** It is per tablet, not synced, and
     can be reopened from the menu. Skip marks it seen; Start over clears it.
     Its visuals must be drawn by the actual app code so they cannot drift from
     the product.
+    First START asks the player count (`renderAskPlayers`) before the six
+    slides, with the kept answer lit after Start over. Menu Tutorial never
+    asks again. First-start Skip tutorial and Pick plays land in the library
+    with `openLibraryWelcome`, then Done reaches the deck. Menu Tutorial
+    closes to the deck. The running slide uses the real timeline and scene,
+    stopped when its slide changes (`tourFieldOn`).
 
-13. **Three formats, kept apart.** 5/6/7-on-7 are each a `Format` with
+13. **Drawn plays are local, checked drawings.** New play opens the designer;
+    `hb.plays` stores drawings under `u_` ids, not compiled plays or markup.
+    `compileDesign` rebuilds them on load; `saneDesign` validates structure
+    and `checkPlay` gates Save on errors, allowing warnings. Changes to
+    `PlayChecker.cs` must also change `checkPlay`; `DesignerChecks` proves
+    parity across the shipped library. The JavaScript-only `LEGAL/pitch`
+    rule has no C# counterpart because shipped data has no pitch flag.
+
+    Use the real `buildScene()`/`frame()` for the field and preview. The field
+    extends to `DZ_BOT`, but kids and points stop at `FIELD_BOT`. Picking a
+    kid does not draw: start each leg inside the dotted ring; its drawn
+    radius is its hit area (`RING_KID`, `RING_END`). Drawing uses `HIT_ON`,
+    picking `HIT_PICK`. Designer Start over takes two taps, resets to the
+    starting formation, keeps names and saved id, and disables when clean.
+
+    `meetPoint` places handoffs; `meetRunning` places reverse exchanges.
+    Run chains use `ball.via` plus `ball.who`, at most three carriers
+    (`VIA_CAP`), no repeats; the THROWER may only start a chain. A back's
+    pass has one passer in `ball.via`, distinct from THROWER and target;
+    `ball.pitch` selects a toss. `pitchPoint` requires at least `PITCH_MIN`
+    yards and an exchange behind or level with THROWER. `clampFor` holds
+    passers and rollouts behind the line. Any exchange forbids NO-RUN ZONE.
+    Take back restores THROWER; changing target keeps the passer; Run drops it.
+
+    `shapeOf` uses the nine shapes (OUT is toward the kid's own sideline).
+    Moved kids keep formation names, get lineup instructions and a SHIFTED
+    formation label. Drawn plays use a situation or CUSTOM, a Yours chip
+    and a star; new plays enter the deck and their pencil opens the designer.
+    Keep rejected stored designs as Needs fixing and carry unreadable designs
+    through saves untouched. Drawn plays survive updates and Start over;
+    Your own plays clears them with two taps and removes deck/week references.
+    Sync replaces drawings, validates each through `saneDesign` and the
+    checker, and reports failures. Import arms when replacing drawn plays
+    and reports their count. Preserve `DesignerChecks`.
+
+14. **Three formats, kept apart.** 5/6/7-on-7 are each a `Format` with
     their own formations, plays and Week 1; Setup's first row picks one, and
     `loadMode(n)` is both boot and switch. Coach state is stored per format
-    (`keyIn(k, n)`: 6-on-6 keeps its old keys, others add `.5`/`.7`).
+    (`keyIn(k, n)`: 6-on-6 keeps its old keys, others add `.5`/`.7`), including
+    drawn and hidden plays. Settings, sideline, tutorial and log are shared.
     Formation names are unique across formats; play ids are `f_`/`p_`/`s_`.
-    Start over resets every format but keeps the player count. Sync is v2
-    with a section per format; v1 files read as 6-on-6. See CLAUDE.md rule 14.
+    Start over resets every format's shipped choices but keeps drawn plays
+    and the player count (`cfg.players`, default 6). Sync is v2 with a
+    section per format, validated against that format alone; missing formats
+    reset to shipped. V1 files read as 6-on-6. Print outputs are suffixed
+    `-5v5`, `-6v6`, `-7v7`. Preserve `FormatChecks`.
 
 ## Source and data rules
 
@@ -157,6 +256,10 @@ dotnet test                                           # build, then full suite
 
 ### Adding a play
 
+For 5-on-5 or 7-on-7, append an `Authored` row in `FiveOnFive.cs` or
+`SevenOnSeven.cs` with geometry, text, kid name, ball and thrower; add a script
+line if appropriate. The parallel-table steps below apply to 6-on-6.
+
 1. Append to `Recent` in `PlaysMore.cs`: geometry, tagline, notes, mistake.
 2. Add matching text in `PlayTextsMore.cs`: the call strip and per-spot
    instructions. Call-strip labels use LEFT/RIGHT spot names (`SLOT LEFT`),
@@ -169,8 +272,8 @@ dotnet test                                           # build, then full suite
    does not end at `Ball`. A play in `Throwers` names the kid who throws it
    instead; then the chain has to reach him, his run has to end behind the
    line, and `Ball` is his first read.
-4. Put it in exactly one week in `PlayPacks.cs`; `PlayLibraryChecks` holds
-   that.
+4. Add it to Week 1 only if it belongs in a new tablet's starting deck;
+   otherwise it goes in no week. Weeks 2–6 ship empty.
 5. Run `check` until clean, then test.
 
 ## UI and browser gotchas
@@ -204,15 +307,26 @@ shared `dist/` output.
   should pass `intro: true`. The fixture writes the tutorial flag before the
   app boots so every other check lands on the deck; `TutorialChecks` opens the
   one tablet that has not seen it.
-- `RenameChecks`, `ResetChecks`, `SyncChecks` and `PwaChecks` run against the
+- `RenameChecks`, `ResetChecks`, `SyncChecks`, `FormatChecks` and `PwaChecks` run against the
   hosted build over `StaticSite`, because they are about storage and service
   workers and a `file://` origin has neither. Everything else, including
   `NameChecks` (tile-name fitting) and `PackChecks`, runs on the standalone
   file. Sync uses separate browser contexts to represent separate tablets.
 - Sweep tests must assert that they observed real elements or states; never
   accept a vacuous pass.
+- `OpenAppAsync` accepts `players:` for 5/7-on-7. Large-library checks use
+  `InjectPlaysAsync` with `x_` ids to avoid format id collisions.
 
 ## Deployment constraints
+
+The live deployment publishes `HuddleBoard.Web`, with website pages at `/`
+and the app at `/app/` on the same origin to preserve localStorage. Keep
+`/app` redirecting to `/app/` (301): relative worker paths require the slash.
+The root `wwwroot/sw.js` is a legacy kill-switch delivered only as an update;
+it unregisters itself and deletes only the cache holding root `/index.html`,
+never the `/app/` worker's caches. `PwaChecks` covers root and mounted hosting.
+Publish builds and stages the app into `wwwroot/app/`, leaving static-host
+configuration behind because the ASP.NET host applies the response rules.
 
 `dist/deploy/` is a static site. It requires `.webmanifest` to be served as
 `application/manifest+json`, and `index.html` plus `sw.js` to be sent with
@@ -225,13 +339,26 @@ credential is bound to `environment: production`, not to the branch. Removing
 that `environment:` line from the job breaks the login outright; the branch
 restriction lives in the GitHub environment's deployment policy. There are no
 Azure secrets in the repository and publish profiles do not work here.
+The workflow deploys pushes to `master` to Windows App Service `huddleboard`
+(`rg-default`, westus2), using `dotnet publish src/HuddleBoard.Web` in the same
+step that exports `HB_VERSION`, then deploying with `clean: true`. Keep the
+publish package small; preserve the platform-specific native asset trimming.
+The host needs .NET 10 and Always On; if .NET 10 becomes unavailable, publish
+self-contained and check package size against disk space. OIDC trust uses
+immutable owner/repository ids and the production environment; keep its branch
+policy aligned. Azure identifiers are repository variables, not secrets.
 
 Do not change the MIT license text or add extra restrictions. The license must
 remain in both shipping forms and as `dist/deploy/LICENSE.txt`.
 
 ## Explicitly out of scope
 
-- Coach-authored plays without checker validation.
+- Sharing drawn plays between formats; there is deliberately no conversion.
+- Coach-authored plays in the shipped library; grow it through source files.
+  The local designer does support checked coach-authored plays. It does not
+  yet support copying shipped plays, pre-snap motion, a reverse ending in a
+  throw, pitches on runs, flea flickers, throws partway through a rollout,
+  editable per-kid instructions, printing or graduating drawings into the library.
 - Rewriting the one-file app in Blazor or another framework.
 - A flip/orientation toggle.
 - Parent or assistant-coach logging applications.
