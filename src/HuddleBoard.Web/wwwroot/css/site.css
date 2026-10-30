@@ -44,6 +44,15 @@ main{max-width:1200px;margin:0 auto;padding:clamp(24px,5vw,64px) clamp(16px,4vw,
 .points p{margin:0;color:var(--ink-2)}
 .feature{display:grid;grid-template-columns:1.2fr 1fr;gap:clamp(24px,4vw,56px);align-items:center}
 
+.install{margin-top:clamp(48px,7vw,88px);scroll-margin-top:24px}
+.install .lede{max-width:760px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin:24px 0}
+.steps article{background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:20px}
+.steps h3{font:700 22px/1.1 var(--disp);letter-spacing:.01em;margin:0 0 .5em}
+.steps ol{margin:0;padding-left:1.3em;color:var(--ink-2)}
+.steps li+li{margin-top:.5em}
+.steps b{color:var(--ink)}
+
 .prose{max-width:720px}
 .prose h2{margin-top:1.4em}
 
@@ -53,6 +62,7 @@ main{max-width:1200px;margin:0 auto;padding:clamp(24px,5vw,64px) clamp(16px,4vw,
 
 @media (max-width:960px){
   .points{grid-template-columns:repeat(2,1fr)}
+  .steps{grid-template-columns:1fr}
 }
 @media (max-width:720px){
   .hero,.feature{grid-template-columns:1fr}
