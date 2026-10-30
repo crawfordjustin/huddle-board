@@ -62,7 +62,7 @@ public static class AppBuilder
         <meta name="theme-color" content="#1E2521">
         <link rel="manifest" href="./manifest.webmanifest">
         <link rel="icon" href="./icon-192.png">
-        <link rel="apple-touch-icon" href="./icon-192.png">
+        <link rel="apple-touch-icon" href="./icon-apple-180.png">
         </head>
         <body>
 
@@ -82,7 +82,8 @@ public static class AppBuilder
         const VERSION = "__VERSION__";
         const CACHE = "huddle-" + VERSION;
         const ASSETS = ["./", "./index.html", "./manifest.webmanifest",
-                        "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
+                        "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png",
+                        "./icon-apple-180.png"];
 
         self.addEventListener("install", e => {
           e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
