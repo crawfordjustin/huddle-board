@@ -843,6 +843,50 @@ function fracNear(pts, q){        // fraction along pts of the point nearest q
   }
   return along / total;
 }
+/* Rounded corners. A route is authored as straight legs, and those points stay
+   the rule — the checker, the timeline, the steps and the designer's taps all
+   read them. What is drawn, and what the ball and a stepping kid ride, is the
+   same line with each break rounded by about a yard: still a plant and a cut,
+   not a kink. A gentle bend gets at least 0.8 yd either side, or its rounding
+   would be too small to see. Each authored corner stands for the middle of its rounding
+   (`knots`), so curveWalk at a raw fraction lands where walk would have, only
+   on the curve — a handoff, a catch or a step boundary keeps its moment. */
+const R_CUT = 1.0, CUT_MIN = 8 * Math.PI / 180, ARC_STEP = 12 * Math.PI / 180;
+const CURVES = new WeakMap();
+function roundPts(pts){
+  let c = CURVES.get(pts);
+  if (c) return c;
+  const out = [pts[0]], mids = [0];
+  for (let i = 1; i < pts.length - 1; i++){
+    const a = pts[i-1], v = pts[i], b = pts[i+1];
+    const ux = a[0]-v[0], uy = a[1]-v[1], wx = b[0]-v[0], wy = b[1]-v[1];
+    const lu = Math.hypot(ux, uy), lw = Math.hypot(wx, wy);
+    const cos = lu && lw ? Math.max(-1, Math.min(1, (ux*wx + uy*wy) / (lu*lw))) : -1;
+    const turn = Math.PI - Math.acos(cos);
+    if (turn < CUT_MIN || turn > Math.PI - 0.01){ mids.push(out.length); out.push(v); continue; }
+    const d = Math.min(Math.max(R_CUT * Math.tan(turn / 2), 0.8 * R_CUT), 0.45 * Math.min(lu, lw));
+    const p1 = [v[0] + ux/lu*d, v[1] + uy/lu*d], p2 = [v[0] + wx/lw*d, v[1] + wy/lw*d];
+    const n = 2 * Math.max(2, Math.ceil(turn / ARC_STEP / 2));
+    mids.push(out.length + n / 2);
+    for (let s = 0; s <= n; s++) out.push(qbez(p1, v, p2, s / n));
+  }
+  if (pts.length > 1){ mids.push(out.length); out.push(pts[pts.length - 1]); }
+  const L = lens(out), tot = L[L.length - 1];
+  c = {pts: out, knots: mids.map(m => tot ? L[m] / tot : 0)};
+  CURVES.set(pts, c);
+  return c;
+}
+function curveWalk(pts, t){       // walk, on the rounded line, at the raw fraction t
+  const c = roundPts(pts);
+  if (c.pts.length === pts.length) return walk(pts, t);
+  const L = lens(pts), tot = L[L.length - 1];
+  if (!tot) return walk(pts, t);
+  const r = Math.max(0, Math.min(1, t)) * tot;
+  let i = 1;
+  while (i < L.length - 1 && L[i] < r) i++;
+  const f = L[i] > L[i-1] ? (r - L[i-1]) / (L[i] - L[i-1]) : 1;
+  return walk(c.pts, c.knots[i-1] + (c.knots[i] - c.knots[i-1]) * f);
+}
 const runPathOf = (play, who) =>
   play.paths.findIndex(p => p.who === who && (p.type === "run" || p.type === "route"));
 function qbez(a, b, c, t){
@@ -963,7 +1007,7 @@ function heldBall(play, tl, t){
   const b = tl.ball, legs = b.legs || [];
   const along = (i, t) => {
     const seg = tl.paths[i];
-    return walk(play.paths[i].pts, Math.max(0, Math.min(1, (t - seg.start) / seg.dur))).end;
+    return curveWalk(play.paths[i].pts, Math.max(0, Math.min(1, (t - seg.start) / seg.dur))).end;
   };
   let leg = null;
   for (const l of legs) if (t >= l.start) leg = l;
@@ -2282,7 +2326,7 @@ function thumbSVG(p){
     const dash = pa.type === "motion" ? '4 3' : pa.type === "fake" ? '5 3'
                : pa.type === "handoff" ? '3 2' : '';
     const strong = p.jobs.includes(pa.who);
-    o.push(`<polyline points="${poly(pa.pts)}" fill="none" stroke="${col[pa.type]}"
+    o.push(`<polyline points="${poly(roundPts(pa.pts).pts)}" fill="none" stroke="${col[pa.type]}"
       stroke-width="${pa.type === "run" ? 3.4 : 2.4}" stroke-linejoin="round"
       stroke-linecap="round" opacity="${strong ? 1 : .34}"
       ${dash ? `stroke-dasharray="${dash}"` : ""}/>`);
@@ -4078,7 +4122,7 @@ function dzOverlay(p){
   svg.insertBefore(g, firstKid ? firstKid.g : null);
   if (DZ.preview) return;                         // the play draws itself
   const line = (pts, attrs) => g.appendChild(mk("polyline", Object.assign({
-    points: pts.map(fpt).join(" "), fill: "none",
+    points: roundPts(pts).pts.map(fpt).join(" "), fill: "none",
     "stroke-linejoin": "round", "stroke-linecap": "round"}, attrs)));
   const hot = new Set(DZ.findings.filter(f => f.level === "error").flatMap(f => f.keys));
   for (const path of p.paths){
@@ -4411,7 +4455,7 @@ function kidAt(play, tl, key, t){
     const seg = tl.paths[i];
     if (t < seg.start || seg.start < from) continue;
     from = seg.start;
-    at = walk(play.paths[i].pts, Math.min(1, (t - seg.start) / seg.dur)).end;
+    at = curveWalk(play.paths[i].pts, Math.min(1, (t - seg.start) / seg.dur)).end;
   }
   return at;
 }
@@ -4867,7 +4911,7 @@ function frame(now){
     g.line.setAttribute("opacity", op);
     if (g.bar) g.bar.setAttribute("opacity", op);
     if (prog <= 0) return;
-    const w = walk(path.pts, prog);
+    const w = curveWalk(path.pts, prog);
     g.line.setAttribute("points", w.pts.map(pt).join(" "));
     if (g.bar && prog > 0.985){
       const n = w.pts.length, a = w.pts[n-2] || w.pts[0], b = w.pts[n-1];

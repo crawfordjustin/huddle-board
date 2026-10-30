@@ -88,6 +88,46 @@ internal static class FieldDiagram
         return (p0.X + (dx / d * dist), p0.Y + (dy / d * dist));
     }
 
+    /// <summary>
+    /// The line with each corner rounded by about <paramref name="r"/> pixels, so
+    /// a cut reads as a cut and not a kink. The same rule the tablet's
+    /// <c>roundPts</c> draws with: a corner under 8° is left alone, a rounding
+    /// takes at least 0.8 r and never more than 0.45 of either leg. Drawing
+    /// only — the checker and the exporter read the authored points.
+    /// </summary>
+    private static List<(double X, double Y)> Round(IReadOnlyList<(double X, double Y)> pts, double r)
+    {
+        var o = new List<(double X, double Y)> { pts[0] };
+        for (var i = 1; i < pts.Count - 1; i++)
+        {
+            var (a, v, b) = (pts[i - 1], pts[i], pts[i + 1]);
+            double ux = a.X - v.X, uy = a.Y - v.Y, wx = b.X - v.X, wy = b.Y - v.Y;
+            double lu = double.Hypot(ux, uy), lw = double.Hypot(wx, wy);
+            var cos = lu > 0 && lw > 0 ? Math.Clamp(((ux * wx) + (uy * wy)) / (lu * lw), -1, 1) : -1;
+            var turn = Math.PI - Math.Acos(cos);
+            if (turn < 8 * Math.PI / 180 || turn > Math.PI - 0.01)
+            {
+                o.Add(v);
+                continue;
+            }
+
+            var d = Math.Min(Math.Max(r * Math.Tan(turn / 2), 0.8 * r), 0.45 * Math.Min(lu, lw));
+            (double X, double Y) p1 = (v.X + (ux / lu * d), v.Y + (uy / lu * d));
+            (double X, double Y) p2 = (v.X + (wx / lw * d), v.Y + (wy / lw * d));
+            var n = 2 * Math.Max(2, (int)Math.Ceiling(turn / (12 * Math.PI / 180) / 2));
+            for (var s = 0; s <= n; s++)
+            {
+                double t = (double)s / n, u = 1 - t;
+                o.Add(((u * u * p1.X) + (2 * u * t * v.X) + (t * t * p2.X),
+                       (u * u * p1.Y) + (2 * u * t * v.Y) + (t * t * p2.Y)));
+            }
+        }
+
+        if (pts.Count > 1)
+            o.Add(pts[^1]);
+        return o;
+    }
+
     /// <summary>The cross-bar that means "stop here and turn around".</summary>
     private static (double X1, double Y1, double X2, double Y2) Bar(
         (double X, double Y) prev, (double X, double Y) end, double length = 13)
@@ -175,7 +215,7 @@ internal static class FieldDiagram
         var end = p.End ?? EndStyle.Arrow;
         var style = StyleFor(p.Type);
         var marker = end == EndStyle.Bar ? "" : $" marker-end=\"url(#ah-{Key(p.Type)})\"";
-        var d = string.Join(" ", pts.Select(q => $"{F(q.X)},{F(q.Y)}"));
+        var d = string.Join(" ", Round(pts, Sx).Select(q => $"{F(q.X)},{F(q.Y)}"));
 
         var b = new StringBuilder();
         b.Append($"<polyline points=\"{d}\" fill=\"none\" {style} stroke-linejoin=\"round\" ")
@@ -286,7 +326,7 @@ internal static class FieldDiagram
         var mk = end == EndStyle.Bar ? "" : " marker-end=\"url(#ah-route)\"";
 
         var body = new StringBuilder();
-        body.Append($"<polyline points=\"{string.Join(" ", p.Select(q => $"{F(q.X)},{F(q.Y)}"))}\" ")
+        body.Append($"<polyline points=\"{string.Join(" ", Round(p, sc).Select(q => $"{F(q.X)},{F(q.Y)}"))}\" ")
             .Append($"fill=\"none\" {st} stroke-linejoin=\"round\" stroke-linecap=\"round\"{mk}/>");
         if (end == EndStyle.Bar)
         {

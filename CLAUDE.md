@@ -313,6 +313,20 @@ never loops (`frame()` clamps at `tEnd`); the tutorial's running slide and the
 designer's preview still do, because nobody is standing there to press Replay.
 `BallChecks` holds the opening frame and that a run does not come round again.
 
+**Routes are drawn with rounded corners, and only drawn so.** Every line is
+authored as straight legs, and those points stay the rule: the checker (both
+copies), the exporter, the timeline, the steps and the designer's taps all
+read them. What is drawn, and what the ball and a stepping kid ride, is
+`roundPts`: each cut rounded by about a yard (`R_CUT`), a gentle bend given
+at least 0.8 yd either side so it visibly sweeps, never more than 0.45 of
+either leg, a bend under 8° left alone — still a plant and a cut, not a
+kink, and not a spline that would turn OUT into an arc. `curveWalk` maps a raw
+fraction onto the curve through the middle of each rounding, so a handoff, a
+catch or a step boundary keeps the moment it had. The play screen, the
+thumbnails and the designer draw it; the print diagrams round the same way
+(`FieldDiagram.Round`). `BallChecks` holds that a line ends on its points and
+goes round its corners, not through them.
+
 **Tapping a kid shows his job step by step** (`kidSteps`). Line up, the snap
 if it is his, then each leg of his route and each handoff or throw he is part
 of; Next, Back and Again take the rail's place, and All goes back to the play
