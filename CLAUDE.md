@@ -56,7 +56,7 @@ the root and once under `/app` (`StaticSite`'s `mount`), so both stay true.
 dotnet run --project src/HuddleBoard.Build -- build   # data -> dist/
 dotnet run --project src/HuddleBoard.Build -- check   # fast play-library check
 dotnet run --project src/HuddleBoard.Build -- print   # the paper PDFs
-dotnet run --project src/HuddleBoard.Build -- icons   # redraw the app icons
+dotnet run --project src/HuddleBoard.Build -- icons   # app icons from art/bookmark-icon.png
 dotnet run --project src/HuddleBoard.Build -- shots   # README screenshots
 dotnet test                                           # build, then every check
 ```
@@ -605,6 +605,10 @@ huddle_src.html                 the whole app — markup, CSS, JS. __DATA__,
                                 not C#.
 art/intro-art.png               the intro illustration, as authored. Swap this
                                 file and rebuild; nothing else changes.
+art/bookmark-icon.png           the app icon, as authored: the installed app's
+                                icons are this picture scaled down, redrawn by
+                                `build` whenever it is newer than them. The
+                                website's img/icon-192.png is a copy by hand.
 
 src/HuddleBoard.Playbook/
   Model.cs, Geometry.cs         the record types; Pt and Num
@@ -624,7 +628,7 @@ src/HuddleBoard.Playbook/
   ProtoExporter.cs              plays + spots -> dist/proto_data.json
   AppBuilder.cs                 proto_data + huddle_src -> the shipping forms
   DeployReadme.cs               the notes that ship inside dist/deploy/
-  IconRenderer.cs               app icons, drawn to still read at 48px
+  IconRenderer.cs               art/bookmark-icon.png -> the installed app's icons
   IntroArt.cs                   art/intro-art.png -> a data URI small enough to
                                 inline in the one file the app ships as
   JsonWriter.cs                 exact control over how the data is spelled

@@ -42,7 +42,7 @@ static int Build()
     if (code != 0)
         return code;
 
-    if (!File.Exists(Path.Combine(Workspace.Deploy, "icon-192.png")))
+    if (IconRenderer.IsStale)
     {
         code = IconRenderer.Run();
         if (code != 0)
