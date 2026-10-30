@@ -9,7 +9,6 @@ namespace HuddleBoard.Tests;
 /// the deck and the saved weeks after a warning, back again on demand, per
 /// format, carried by sync and undone by Start over.
 /// </summary>
-[Collection(AppCollection.Name)]
 public sealed class HiddenPlayChecks(AppFixture app)
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);

@@ -741,8 +741,8 @@ timing bug that only appears on screen at a particular size. Checks run across
 five tablet shapes (`AppFixture.Sizes`) — two landscape, two portrait, and a
 short landscape that catches anything relying on vertical room.
 
-**Match the verification to the change.** The full suite is about four minutes
-and most changes do not need it. `check` runs in seconds and is always run —
+**Match the verification to the change.** The full suite is about a minute and
+a half and most changes do not need it. `check` runs in seconds and is always run —
 it is what gates the deploy. A change to one screen's drawing or behaviour
 gets the one class that covers it:
 
@@ -771,9 +771,17 @@ plays (`AppFixture.InjectPlaysAsync`, ids `x_` so they never collide with a
 format's) to judge the UI at a size it has not reached yet. `OpenAppAsync`'s
 `players:` opens a tablet already set to 5 or 7 on the field.
 
-Everything shares one browser and one build and runs in sequence — two checks
-racing over the same `dist/` is not a real signal. The first run downloads
-Chromium (about 190 MB); after that it is cached in your profile.
+Everything shares one browser and one build (xUnit v3's assembly fixture), and
+the classes run in parallel, each opening pages of its own, so each has its own
+storage. That is only safe because **nothing writes to `dist/` after the
+build**: a check that ships a new build to see the update offer ships it to a
+`PrivateBuild` — a temp copy of the site, served — and never to the build every
+other check is reading. A class runs its own tests in order, so the slowest
+class is the length of the run; a sweep that waits on a fixed timeout per state
+is where the time goes, and waiting for a drawn frame (`LabelChecks`' `Drawn`)
+is the cure. `IntroArt.Build` remembers its encode per version of the file,
+because a rebuild that re-encodes the art costs seconds. The first run
+downloads Chromium (about 190 MB); after that it is cached in your profile.
 
 When a sweep test can only pass by finding nothing, give it something to assert
 it actually looked — `LabelChecks` checks it saw six players per state, so the

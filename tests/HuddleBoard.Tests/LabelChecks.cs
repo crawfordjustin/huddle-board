@@ -9,7 +9,6 @@ namespace HuddleBoard.Tests;
 /// land. Every play in every format, both mirror states, both stages, five
 /// viewports.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class LabelChecks(AppFixture app)
 {
     private const string Check = """
@@ -34,6 +33,13 @@ public sealed class LabelChecks(AppFixture app)
         }
         """;
 
+    /// <summary>
+    /// Resolves once <c>frame()</c> has drawn what was just set: the frame
+    /// already queued may run before the change, the one after it cannot.
+    /// </summary>
+    private const string Drawn =
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))";
+
     [Theory]
     [MemberData(nameof(AppFixture.AllSizes), MemberType = typeof(AppFixture))]
     public async Task NamesStayOnTheFieldAndNoLetterTagsSurvive(string label, int width, int height)
@@ -50,7 +56,7 @@ public sealed class LabelChecks(AppFixture app)
             foreach (var id in ids)
             {
                 await page.EvaluateAsync($"openPlay('{id}')");
-                await page.WaitForTimeoutAsync(90);
+                await page.EvaluateAsync(Drawn);
 
                 // guards against this whole sweep passing because it looked at nothing
                 Assert.Equal(format.Players, await page.EvaluateAsync<int>("Object.keys(SC.players).length"));
@@ -63,7 +69,7 @@ public sealed class LabelChecks(AppFixture app)
                     foreach (var stage in new[] { "lineup", "run" })
                     {
                         await page.EvaluateAsync($"S.stage='{stage}'; S.t0=performance.now()-S.tl.tEnd*0.5");
-                        await page.WaitForTimeoutAsync(60);
+                        await page.EvaluateAsync(Drawn);
                         var found = await page.EvaluateAsync<string[]>(Check);
                         bad.AddRange(found.Select(x =>
                             $"{id} {stage} {(mirrored ? "mirrored" : "")} {x}"));

@@ -19,20 +19,13 @@ namespace HuddleBoard.Tests;
 /// storage checks seed a design directly, because they are about what happens
 /// to a play after it exists, not about drawing one.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class DesignerChecks(AppFixture app) : IDisposable
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);
 
-    private readonly StaticSite _site = new(Workspace.Deploy);
+    private readonly PrivateBuild _build = new();
 
-    public void Dispose()
-    {
-        _site.Dispose();
-
-        // put the real version back in dist/ for whatever runs next
-        AppBuilder.Run(output: TextWriter.Null);
-    }
+    public void Dispose() => _build.Dispose();
 
     /// <summary>
     /// A design built in the page from a shipped formation, with any spots,
@@ -906,7 +899,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         await pageA.WaitForTimeoutAsync(300);
         Assert.Equal(1, await pageA.Locator(".tile[data-id=\"u_slotin01\"]").CountAsync());
 
-        Assert.Equal(0, AppBuilder.Run("9.9.9-designer", TextWriter.Null));
+        Assert.Equal(0, _build.Ship("9.9.9-designer"));
         await pageA.EvaluateAsync("navigator.serviceWorker.getRegistration().then(r => r.update())");
         await pageA.WaitForTimeoutAsync(2500);
         await pageA.ClickAsync("#upd");
@@ -931,7 +924,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         Assert.True(errorsA.Count == 0, string.Join("\n", errorsA));
 
         // the file carries the drawing, not a compiled play
-        var file = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        var file = JsonNode.Parse(await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken))!.AsObject();
         // a drawn play travels in its own format's section of the file
         var plays = file["modes"]!["6"]!["plays"]!.AsArray();
         Assert.Single(plays);
@@ -950,7 +943,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         file["modes"]!["6"]!["deck"]!.AsArray().Add("u_markup01");
         file["modes"]!["6"]!["deck"]!.AsArray().Add("u_badone01");
         var tampered = Path.Combine(dir, "tampered.json");
-        await File.WriteAllTextAsync(tampered, file.ToJsonString());
+        await File.WriteAllTextAsync(tampered, file.ToJsonString(), TestContext.Current.CancellationToken);
 
         // ---- the assistant's tablet, with a play of its own that is about to go
         var (b, pageB, errorsB) = await OpenHostedAsync();
@@ -1107,7 +1100,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         var page = await context.NewPageAsync();
         var errors = new List<string>();
         page.PageError += (_, e) => errors.Add(e);
-        await page.GotoAsync(_site.Origin + "/index.html");
+        await page.GotoAsync(_build.Site.Origin + "/index.html");
         await page.WaitForTimeoutAsync(1500);
         await page.ClickAsync("#start");
         await page.WaitForSelectorAsync(".deck");

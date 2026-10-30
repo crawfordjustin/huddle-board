@@ -18,7 +18,6 @@ namespace HuddleBoard.Tests;
 /// build got wrong fails silently: the layout is fine, the button works, and the
 /// panel is simply empty. <c>naturalWidth</c> is the only thing that tells you.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class IntroChecks(AppFixture app)
 {
     private sealed record Layout(

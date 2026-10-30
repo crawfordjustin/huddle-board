@@ -8,7 +8,6 @@ namespace HuddleBoard.Tests;
 /// alone will clip — the app measures and shrinks instead. These checks are what
 /// catch it when that stops working.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class NameChecks(AppFixture app)
 {
     /// <summary>

@@ -15,7 +15,6 @@ namespace HuddleBoard.Tests;
 /// one has them, and a leg is named in the nine shapes — the vocabulary check
 /// here is rule 1 reaching a screen that writes its own words.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class StepChecks(AppFixture app)
 {
     private static Task OpenAsync(Microsoft.Playwright.IPage page, string play)

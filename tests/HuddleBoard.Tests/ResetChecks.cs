@@ -14,7 +14,6 @@ namespace HuddleBoard.Tests;
 /// reload has not reset anything. A file:// origin has no storage to prove it
 /// with.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class ResetChecks(AppFixture app) : IDisposable
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);

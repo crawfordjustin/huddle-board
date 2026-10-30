@@ -16,7 +16,6 @@ namespace HuddleBoard.Tests;
 /// every game, so the flag has to reach storage from Skip as well as from
 /// the last slide, and only Start over may clear it.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class TutorialChecks(AppFixture app)
 {
     private sealed record Layout(

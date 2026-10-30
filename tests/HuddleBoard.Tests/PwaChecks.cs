@@ -8,14 +8,8 @@ namespace HuddleBoard.Tests;
 /// The hosted build: installs, caches offline, and offers a new build without
 /// ever interrupting a live play.
 /// </summary>
-[Collection(AppCollection.Name)]
-public sealed class PwaChecks(AppFixture app) : IDisposable
+public sealed class PwaChecks(AppFixture app)
 {
-    public void Dispose()
-    {
-        // put the real version back in dist/ for whatever runs next
-        AppBuilder.Run(output: TextWriter.Null);
-    }
 
     /// <summary>
     /// At the root is <c>dist/deploy</c> hosted alone, the static-host guarantee;
@@ -26,7 +20,8 @@ public sealed class PwaChecks(AppFixture app) : IDisposable
     [InlineData("/app")]
     public async Task ItInstallsCachesOfflineAndUpdatesOnlyOnTap(string mount)
     {
-        using var site = new StaticSite(Workspace.Deploy, mount);
+        using var build = new PrivateBuild(mount);
+        var site = build.Site;
         var url = site.Url + "index.html";
         var context = await app.Browser.NewContextAsync(new BrowserNewContextOptions
         {
@@ -62,7 +57,7 @@ public sealed class PwaChecks(AppFixture app) : IDisposable
         await context.SetOfflineAsync(false);
 
         // ship a new build and confirm the tablet is offered it, but not given it
-        Assert.Equal(0, AppBuilder.Run("9.9.9-test", TextWriter.Null));
+        Assert.Equal(0, build.Ship("9.9.9-test"));
         await page.EvaluateAsync("navigator.serviceWorker.getRegistration().then(r => r.update())");
         await page.WaitForTimeoutAsync(2500);
 
@@ -92,7 +87,6 @@ public sealed class PwaChecks(AppFixture app) : IDisposable
 /// app at <c>/app/</c> — its worker and its offline cache, which share the
 /// root's <c>huddle-*</c> cache names because caches are per origin.
 /// </summary>
-[Collection(AppCollection.Name)]
 public sealed class KillSwitchChecks(AppFixture app) : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("hb-site-").FullName;
@@ -174,7 +168,6 @@ public sealed class KillSwitchChecks(AppFixture app) : IDisposable
 /// The Full screen button: offered in an ordinary tab and from a local file,
 /// suppressed once the app is installed and already full screen.
 /// </summary>
-[Collection(AppCollection.Name)]
 public sealed class FullScreenChecks(AppFixture app) : IDisposable
 {
     private readonly StaticSite _site = new(Workspace.Deploy);

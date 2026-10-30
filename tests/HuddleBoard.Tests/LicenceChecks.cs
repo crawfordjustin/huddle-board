@@ -10,7 +10,6 @@ namespace HuddleBoard.Tests;
 /// somebody's static host, and neither of those carries the repository with it.
 /// Both shipping forms have to say what they are on their own.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class LicenceChecks(AppFixture app)
 {
     private const string Grant =

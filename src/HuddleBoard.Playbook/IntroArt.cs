@@ -43,13 +43,36 @@ public static class IntroArt
     /// <summary>What the encoder settled on, for the build to report.</summary>
     public sealed record Encoded(string DataUri, string Mime, int Width, int Height, int Bytes);
 
-    /// <summary>Reads, downsamples and encodes the illustration.</summary>
+    private static readonly object Gate = new();
+
+    private static (string Path, DateTime Written, long Length, Encoded Art)? _last;
+
+    /// <summary>
+    /// Reads, downsamples and encodes the illustration — once per version of
+    /// the file. Decoding and three encodes take seconds, and the checks
+    /// rebuild the app to fake a deploy; the same picture encodes the same.
+    /// </summary>
     public static Encoded Build()
     {
         if (!File.Exists(SourcePath))
             throw new FileNotFoundException(
                 $"the intro illustration is missing — put a PNG at {SourcePath}", SourcePath);
 
+        var file = new FileInfo(SourcePath);
+        lock (Gate)
+        {
+            if (_last is { } last && last.Path == file.FullName
+                && last.Written == file.LastWriteTimeUtc && last.Length == file.Length)
+                return last.Art;
+
+            var art = Encode();
+            _last = (file.FullName, file.LastWriteTimeUtc, file.Length, art);
+            return art;
+        }
+    }
+
+    private static Encoded Encode()
+    {
         using var source = SKBitmap.Decode(SourcePath)
             ?? throw new InvalidOperationException($"could not decode {SourcePath} as an image");
 

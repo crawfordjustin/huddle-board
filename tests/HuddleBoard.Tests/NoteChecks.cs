@@ -13,7 +13,6 @@ namespace HuddleBoard.Tests;
 /// Hosted rather than standalone, for the same reason as RenameChecks: the
 /// point is storage, and the update is a real one taken through the service worker.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class NoteChecks(AppFixture app) : IDisposable
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);
@@ -26,15 +25,9 @@ public sealed class NoteChecks(AppFixture app) : IDisposable
     /// <summary>Markup and a line break, because a note is typed and a few lines long.</summary>
     private const string Typed = "<b>ORANGE</b> sells the fake & holds\nOnly inside their 10";
 
-    private readonly StaticSite _site = new(Workspace.Deploy);
+    private readonly PrivateBuild _build = new();
 
-    public void Dispose()
-    {
-        _site.Dispose();
-
-        // put the real version back in dist/ for whatever runs next
-        AppBuilder.Run(output: TextWriter.Null);
-    }
+    public void Dispose() => _build.Dispose();
 
     [Fact]
     public async Task NotesAreWrittenOnThePlaySurviveAnUpdateAndStartOverAndClearOnDemand()
@@ -48,7 +41,7 @@ public sealed class NoteChecks(AppFixture app) : IDisposable
         var errors = new List<string>();
         page.PageError += (_, e) => errors.Add(e);
 
-        await page.GotoAsync(_site.Origin + "/index.html");
+        await page.GotoAsync(_build.Site.Origin + "/index.html");
         await page.WaitForTimeoutAsync(1500);
         await page.ClickAsync("#start");
         await page.WaitForSelectorAsync(".deck");
@@ -105,7 +98,7 @@ public sealed class NoteChecks(AppFixture app) : IDisposable
 
         // ship a new build and take it. The note is the coach's, not the build's.
         var installed = await page.EvaluateAsync<string>("APP_BUILD");
-        Assert.Equal(0, AppBuilder.Run("9.9.9-notes", TextWriter.Null));
+        Assert.Equal(0, _build.Ship("9.9.9-notes"));
         await page.EvaluateAsync("navigator.serviceWorker.getRegistration().then(r => r.update())");
         await page.WaitForTimeoutAsync(2500);
         await page.ClickAsync("#upd");

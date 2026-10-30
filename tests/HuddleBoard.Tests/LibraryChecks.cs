@@ -4,7 +4,6 @@ namespace HuddleBoard.Tests;
 /// The library screen: filters, search, the empty state, and the fact that
 /// adding a play does not silently drop the filter you were using.
 /// </summary>
-[Collection(AppCollection.Name)]
 public sealed class LibraryChecks(AppFixture app)
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);
