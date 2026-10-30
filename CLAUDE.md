@@ -653,10 +653,14 @@ huddle_src.html                 the whole app — markup, CSS, JS. __DATA__,
                                 not C#.
 art/intro-art.png               the intro illustration, as authored. Swap this
                                 file and rebuild; nothing else changes.
-art/bookmark-icon.png           the app icon, as authored: the installed app's
-                                icons are this picture scaled down, redrawn by
-                                `build` whenever it is newer than them. The
-                                website's img/icon-192.png is a copy by hand.
+art/bookmark-icon.png           the app icon, as authored: a rounded tile with
+                                transparent corners. The installed app's icons
+                                are this picture scaled down, redrawn by
+                                `build` whenever it is newer than them; the
+                                maskable and iOS ones sit on the tile's own
+                                colour, because the platform shapes those and
+                                iOS paints transparency black. The website's
+                                img/icon-192.png is a copy by hand.
 
 src/HuddleBoard.Playbook/
   Model.cs, Geometry.cs         the record types; Pt and Num
