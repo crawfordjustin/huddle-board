@@ -2824,7 +2824,15 @@ function renderDeck(){
   document.getElementById("setup").onclick = () => { closeMenu(); renderSettings(); };
   document.getElementById("tour").onclick = () => { closeMenu(); renderTour(false); };
   document.getElementById("exit").onclick = () => {
-    closeMenu(); logEvent("exit_to_intro"); renderIntro();
+    closeMenu();
+    // An installed launch is its own window, so Exit means leave. The intro is
+    // drawn first anyway: if the OS refuses the close, Exit still lands where
+    // it always did. In a tab it never closes — that tab is the coach's.
+    if (isInstalled()){
+      logEvent("exit_app"); flushLog(); renderIntro(); window.close();
+      return;
+    }
+    logEvent("exit_to_intro"); renderIntro();
   };
   const fs = document.getElementById("fs");
   if (fs) fs.onclick = goFullscreen;
@@ -4862,6 +4870,15 @@ function isImmersive(){
       || matchMedia("(display-mode: minimal-ui)").matches
       || navigator.standalone === true
       || !!document.fullscreenElement;
+}
+/* Launched from the home-screen icon, as opposed to a tab — including a tab
+   the Full screen button has made immersive, which is still a tab. Only an
+   installed launch has a window of its own for Exit to close.               */
+function isInstalled(){
+  return (matchMedia("(display-mode: fullscreen)").matches && !document.fullscreenElement)
+      || matchMedia("(display-mode: standalone)").matches
+      || matchMedia("(display-mode: minimal-ui)").matches
+      || navigator.standalone === true;
 }
 function canFullscreen(){
   return !!(document.documentElement.requestFullscreen
