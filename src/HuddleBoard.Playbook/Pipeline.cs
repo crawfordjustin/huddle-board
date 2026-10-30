@@ -18,8 +18,8 @@ public static class Pipeline
         if (code != 0)
             return code;
 
-        // icons change about once a year; only draw them when they are missing
-        if (!File.Exists(Path.Combine(Workspace.Deploy, "icon-192.png")))
+        // icons change about once a year; only redraw them when the art is newer
+        if (IconRenderer.IsStale)
         {
             code = IconRenderer.Run(o);
             if (code != 0)
