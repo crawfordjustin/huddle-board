@@ -123,9 +123,11 @@ the rules bite, but the first screen a kid sees is now teaching a different
 colour pair than every screen after it. That is a live design debt, not a
 decision.
 
-The football (`BALL_BODY`/`BALL_LACES`) is one shape shared between the play
-screen's ball marker and nothing else now — a kid should not have to learn two
-pictures of the same object. `BallChecks` holds that marker's shape, heading and
+The football (`BALL_BODY`/`BALL_BANDS`/`BALL_LACES`) is one shape shared
+between the play screen's ball marker and nothing else now — a kid should not
+have to learn two pictures of the same object. It has a full belly rather than
+the lens it used to be, and a youth ball's white bands near each end, because
+the bands are what still read at marker size and they show which way it flies. `BallChecks` holds that marker's shape, heading and
 landing spot.
 
 **6. A coach's own play names outlive the build.** Every team ends up calling
