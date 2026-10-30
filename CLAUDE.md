@@ -174,6 +174,20 @@ Only the thumbnail does this — the rest of the row still adds and removes the
 play — and the preview has nothing that touches the deck. `LibraryChecks`
 holds it at the five sizes.
 
+**Any play can be copied and edited.** The preview's **Copy to edit** opens
+the play in the designer as a new drawing (`designFrom`), with its names
+filled in to be changed; Save makes it one of the coach's own (rule 13), into
+the deck, and the original is untouched. A drawn play copies as the drawing
+it is. A shipped one is turned back into a drawing: every spot and line as
+shipped, the ball to the same kids in the same order. What the designer
+cannot draw does not come across. Motion becomes the start of the kid's line
+after the snap, so he still lines up on his spot. A fake handoff is dropped,
+though the faker's run stays as a route. A route's delay is dropped, and the
+exchanges are placed again by `meetPoint`/`meetRunning`. The tagline is
+left blank because it described the original. `DesignerChecks` holds that
+every shipped play in all three formats copies to a design the checker
+passes clean, with the same ball, and walks the copy through the UI.
+
 **The deck prints as one sheet.** **Print**, in the library's header beside
 New play, puts the deck on paper as a quick-reference sheet to laminate
 (`printSheet`): every play in deck order, the tile's own picture (`thumbSVG`),
@@ -1006,7 +1020,7 @@ classic route into quirks mode) and writes `LICENSE.txt` into `dist/deploy/`.
 - **Coach-authored plays in the shipped library.** The designer (rule 13)
   draws plays that live on one tablet and its sync partners; the library
   itself still grows by editing `PlaysMore.cs`. Not yet in the designer, and
-  the obvious next steps: copy-and-edit of a shipped play, pre-snap motion
+  the obvious next steps: pre-snap motion
   (REVERSE and JET REVERSE start with it), a reverse that ends in a throw
   (the passer takes the ball from the THROWER and nobody else), a pitch on a
   run, the flea flicker (decided against for now), a rollout that throws on the run

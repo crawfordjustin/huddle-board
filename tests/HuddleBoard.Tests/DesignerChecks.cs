@@ -684,6 +684,116 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
     }
 
     /// <summary>
+    /// Every shipped play in every format turns back into a drawing the
+    /// designer can open and save: the same kids, the ball to the same kids in
+    /// the same order, every route still drawn. Motion and fake handoffs do not
+    /// come across, so this holds what does.
+    /// </summary>
+    [Fact]
+    public async Task EveryShippedPlayCopiesIntoADrawing()
+    {
+        var (page, errors) = await app.OpenAppAsync(Desk);
+        var bad = await page.EvaluateAsync<string[]>("""
+            (() => {
+              const out = [];
+              let seen = 0;
+              for (const n of FORMAT_IDS){
+                loadMode(n);
+                for (const p of DATA.plays.filter(q => !q.custom)){
+                  seen++;
+                  const d = designFrom(p);
+                  const clean = d && saneDesign(Object.assign({}, d, {id: "u_copycheck"}));
+                  if (!clean){ out.push(p.id + " is not a design"); continue; }
+                  const c = compileDesign(clean, 0);
+                  const holders = q => q.ball.legs ? q.ball.legs.map(l => l.who).join(">") : "";
+                  if (c.ball.mode !== p.ball.mode || c.ball.who !== p.ball.who || holders(c) !== holders(p)
+                      || (c.ball.thrower || "") !== (p.ball.thrower || ""))
+                    out.push(p.id + " ball " + JSON.stringify(c.ball) + " not " + JSON.stringify(p.ball));
+                  for (const path of p.paths)
+                    if (path.type === "route" && !clean.routes[path.who]) out.push(p.id + " lost " + path.who);
+                  if (c.formation !== p.formation) out.push(p.id + " moved somebody: " + c.formation);
+                  const e = errorsIn(c);
+                  if (e.length) out.push(p.id + " " + e.map(f => f.rule + ": " + f.msg).join("; "));
+                }
+              }
+              loadMode(cfg.players);
+              return seen > 60 ? out : ["only saw " + seen + " plays"];
+            })()
+            """);
+        Assert.True(bad.Length == 0, string.Join("\n", bad));
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
+    /// Copy to edit, from the library's preview: the play opens in the designer
+    /// as a new drawing with its names, saves as the coach's own, goes into the
+    /// deck, and leaves the shipped play exactly as it was. Leaving the copy
+    /// unsaved asks first, and a drawn play copies as well.
+    /// </summary>
+    [Fact]
+    public async Task ACoachCopiesAShippedPlayAndSavesItAsHisOwn()
+    {
+        var (page, errors) = await app.OpenAppAsync(Desk);
+        await page.ClickAsync("#ham");
+        await page.ClickAsync("#edit");
+        await page.ClickAsync(".lthumb[data-prev=\"p_01\"]");
+        await page.ClickAsync("#prev-copy");
+        await page.WaitForSelectorAsync(".designer #field");
+        await page.WaitForTimeoutAsync(300);
+
+        Assert.Equal("22 DIVE", (await page.InnerTextAsync("#dz-title")).Trim());
+        Assert.Equal("TWINS RIGHT", (await page.InnerTextAsync("#dz-fm")).Trim());
+        Assert.Equal(0, await ErrorCountAsync(page));
+        Assert.Equal("H", await page.EvaluateAsync<string>("S.play.ball.who"));
+        Assert.Contains("CARRY", await CallsAsync(page));
+
+        // a copy is work: leaving it asks first
+        await page.ClickAsync("#dz-back");
+        Assert.Equal("DISCARD?", (await page.InnerTextAsync("#dz-back")).Trim().ToUpperInvariant());
+
+        // the wide blue breaks out instead, and it saves as a play of his own
+        await TapAsync(page, -9, 0);                               // WIDE BLUE
+        await TapAsync(page, -9, 10);                              // the ring on the end of his GO
+        await TapAsync(page, -13, 10);
+        Assert.Contains("OUT at 10", await CallsAsync(page));
+        Assert.True(await ErrorCountAsync(page) == 0, await page.InnerTextAsync("#dz-line"));
+        await page.ClickAsync("#dz-save");
+        await page.WaitForSelectorAsync("#dzsheet");
+        Assert.Equal("22 DIVE", await page.InputValueAsync("#dz-real"));
+        Assert.Equal("BULLDOZER", await page.InputValueAsync("#dz-fun"));
+        Assert.Equal(0, await page.Locator("#dz-del").CountAsync());
+        await page.FillAsync("#dz-real", "22 Dive Post");
+        await page.ClickAsync("#dz-ok");
+        await page.WaitForSelectorAsync(".lib");
+        await page.WaitForTimeoutAsync(300);
+
+        var id = await page.EvaluateAsync<string>("Object.keys(designs)[0]");
+        Assert.StartsWith("u_", id);
+        Assert.True(await page.EvaluateAsync<bool>($"deck.includes('{id}')"), "the copy did not go into the deck");
+        Assert.Equal("22 DIVE POST", (await page.InnerTextAsync($".lrow[data-id=\"{id}\"] .lname b")).Trim());
+        // the shipped play is untouched: its own name, its own route
+        Assert.Equal("22 DIVE", (await page.InnerTextAsync(".lrow[data-id=\"p_01\"] .lname b")).Trim());
+        Assert.Equal(2, await page.EvaluateAsync<int>(
+            "DATA.plays.find(p => p.id === 'p_01').paths.find(p => p.who === 'X').pts.length"));
+
+        // a drawn play copies as the drawing it is, into a second play
+        await page.ClickAsync($".lthumb[data-prev=\"{id}\"]");
+        await page.ClickAsync("#prev-copy");
+        await page.WaitForSelectorAsync(".designer #field");
+        Assert.Equal(new[] { -13.0, 10 }, await page.EvaluateAsync<double[]>("DZ.d.routes.X.pts[1]"));
+        Assert.True(await page.EvaluateAsync<bool>("DZ.id === null && DZ.d.id === null"));
+        await page.ClickAsync("#dz-save");
+        await page.WaitForSelectorAsync("#dzsheet");
+        await page.ClickAsync("#dz-ok");
+        await page.WaitForSelectorAsync(".lib");
+        Assert.Equal(2, await page.EvaluateAsync<int>("customCount()"));
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
     /// The same trick off a pitch: a soft toss back to the back already going
     /// to the edge — PITCH RIGHT until he stops and throws. The pitch is
     /// placed out in front of him and behind the THROWER. One that would have

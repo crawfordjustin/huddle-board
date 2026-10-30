@@ -2294,6 +2294,45 @@ function forgetPlays(ids){
   }
   savePackSaves();
 }
+/* A play turned back into a drawing, to save as a new one of his own: most of
+   what a coach wants is "22 DIVE, but the slot goes the other way", not a
+   blank field. Everyone stands where the play puts him and runs the line it
+   draws, and the ball goes to the same kids in the same order. What the
+   designer cannot draw does not come across: a kid in motion lines up on his
+   spot and runs the motion as the start of his line, after the snap rather
+   than before it; a fake handoff is gone (his run stays, as a route); and
+   the exchanges are placed again where the two kids meet, as every drawn
+   handoff is. A drawn play copies as the drawing it already is. The names
+   come along to be changed; the tagline does not, because it describes the
+   original. Null for a play this format cannot draw from. */
+function designFrom(p){
+  if (designs[p.id]){
+    const d = JSON.parse(JSON.stringify(designs[p.id]));
+    return Object.assign(d, {id: null, created: 0});
+  }
+  const base = p.formation, fm = FORMATIONS[base];
+  if (!fm || FORMATION_PLAYERS[base] !== DATA.players) return null;
+  const d = {id: null, v: DESIGN_V, base, spots: {}, routes: {}, ball: null,
+             coachName: coachNameOf(p), kidName: kidNameOf(p), tagline: "",
+             category: p.category, complexity: p.complexity, created: 0};
+  for (const k of Object.keys(fm)) d.spots[k] = [p.spots[k].x, p.spots[k].y];
+  for (const path of p.paths){
+    const k = path.who;
+    if (path.type === "handoff") continue;
+    const r = d.routes[k] || (d.routes[k] = {pts: [], end: "arrow"});
+    r.pts.push(...path.pts.slice(1).map(q => [q[0], q[1]]));
+    if (path.end === "bar") r.end = "bar";
+  }
+  const b = p.ball, legs = (b.legs || []).map(l => l.who);
+  if (b.mode === "carry"){
+    d.ball = {mode: "carry", who: b.who};
+    if (legs.length > 1) d.ball.via = legs.slice(0, -1);
+  } else if (b.who){
+    d.ball = {mode: "pass", who: b.who};
+    if (b.thrower) d.ball.via = [b.thrower];
+  }
+  return d;
+}
 // a deleted play takes its note with it; a hidden one keeps it, so forgetPlays does not
 function deleteDesign(id){
   delete designs[id]; saveDesigns(); refreshPlays(); forgetPlays([id]); resetNotes([id]);
@@ -3391,12 +3430,13 @@ function openNotes(id, after){
    the picture and only the picture — opens the same card large, so a coach
    can read the routes before he decides; the rest of the row still adds and
    removes the play, as it always has. Looking changes nothing: the preview
-   has no button that touches the deck. */
+   has no button that touches the deck. Its one other button, Copy to edit,
+   opens the play in the designer as a new drawing (designFrom). */
 function openPreview(id){
   closeRename();
   const p = DATA.plays.find(x => x.id === id);
   if (!p) return;
-  const nm = nameOf(p);
+  const nm = nameOf(p), copyable = !!designFrom(p);
   const w = document.createElement("div");
   w.className = "sheetwrap";
   w.id = "prevsheet";
@@ -3413,7 +3453,10 @@ function openPreview(id){
       <div class="prevart">${thumbSVG(p)}</div>
       ${p.tagline ? `<p class="sheetnote">${esc(p.tagline)}</p>` : ""}
       ${noteOf(p) ? `<p class="prevnote">${esc(noteOf(p))}</p>` : ""}
-      <div class="sheetbtns"><button class="sbtn go" id="prev-close">Close</button></div>
+      <div class="sheetbtns">
+        ${copyable ? `<button class="sbtn" id="prev-copy">Copy to edit</button>` : ""}
+        <button class="sbtn go" id="prev-close">Close</button>
+      </div>
     </div>`;
   document.body.appendChild(w);
   fitPreview();
@@ -3425,6 +3468,12 @@ function openPreview(id){
   const close = document.getElementById("prev-close");
   close.onclick = () => closeRename();
   close.focus();
+  // the play itself stays as it is: the copy is a new drawing, his to change
+  const copy = document.getElementById("prev-copy");
+  if (copy) copy.onclick = () => {
+    logEvent("play_copied", {play: id});
+    openDesigner(null, null, designFrom(p));
+  };
 }
 
 // The picture takes whatever height the words leave, measured rather than
@@ -3859,19 +3908,21 @@ function pickFormation(){
     w.remove(); openDesigner(null, b.dataset.fm); });
 }
 
-// a new drawing from a formation, or a working copy of one of the coach's plays
-function openDesigner(id, base){
+// a new drawing from a formation, a working copy of one of the coach's plays,
+// or a copy of any play (designFrom) that saves as a new one
+function openDesigner(id, base, from){
   closeRename();
   const src = id ? designs[id] : null;
   if (id && !src) return;
-  const d = src ? JSON.parse(JSON.stringify(src)) : {
+  const d = src ? JSON.parse(JSON.stringify(src)) : from || {
     id: null, v: DESIGN_V, base, spots: {}, routes: {}, ball: null, coachName: "", kidName: "",
     tagline: "", category: "CUSTOM", complexity: "simple", created: 0};
-  if (!src) for (const k of Object.keys(FORMATIONS[base]))
+  if (!src && !from) for (const k of Object.keys(FORMATIONS[base]))
     d.spots[k] = [FORMATIONS[base][k].x, FORMATIONS[base][k].y];
-  DZ = {d, id, tool: "route", sel: null, armed: false, handing: false, drag: null, preview: false, dirty: false,
+  // a copy is work already, so leaving it unsaved asks first
+  DZ = {d, id, tool: "route", sel: null, armed: false, handing: false, drag: null, preview: false, dirty: !!from,
         mode: d.ball ? d.ball.mode : "pass", msg: "", findings: []};
-  logEvent("designer_open", {play: id || "new", base: d.base});
+  logEvent("designer_open", {play: id || (from ? "copy" : "new"), base: d.base});
   renderDesigner();
 }
 
