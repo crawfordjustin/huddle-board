@@ -3757,7 +3757,7 @@ function dzDown(e){
   const grab = drag => { DZ.drag = drag; try { svg.setPointerCapture(e.pointerId); } catch(x){} };
   if (DZ.tool === "move"){
     if (kid === "C") DZ.msg = "The snapper is always on the ball. Move everybody else.";
-    else if (kid) grab({kind: "kid", key: kid});
+    else if (kid){ DZ.moveSel = kid; grab({kind: "kid", key: kid}); }
   } else if (DZ.tool === "route"){
     /* One leg at a time, and only on purpose. Tapping inside the dotted ring
        — round the kid, or on the end of his route — starts a leg; the next
@@ -3981,10 +3981,13 @@ function dzOverlay(p){
     g.appendChild(mk("circle", {cx: c[0], cy: c[1], r: 24, fill: "none", stroke: "#C0392B",
       "stroke-width": 4, "stroke-dasharray": "7 6"}));
   }
-  if (DZ.tool === "route" && DZ.sel){
-    const c = F2S(d.spots[DZ.sel][0], d.spots[DZ.sel][1]);
+  const selected = DZ.tool === "move" ? DZ.moveSel : DZ.tool === "route" ? DZ.sel : null;
+  if (selected){
+    const c = F2S(d.spots[selected][0], d.spots[selected][1]);
     g.appendChild(mk("circle", {cx: c[0], cy: c[1], r: 26, fill: "rgba(27,94,58,.12)",
-      stroke: "#1B5E3A", "stroke-width": 4}));
+      stroke: "#1B5E3A", "stroke-width": 4, class: "dz-selected"}));
+  }
+  if (DZ.tool === "route" && DZ.sel){
     const r = d.routes[DZ.sel];
     if (r) r.pts.forEach((q, i) => {
       const s = F2S(q[0], q[1]);

@@ -135,6 +135,27 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
 
     // ------------------------------------------------------------ the checks
 
+    [Fact]
+    public async Task MoveHighlightsTheSelectedPlayerAndFollowsTheDrag()
+    {
+        var (page, errors) = await OpenDesignerAsync(Desk, "SPREAD");
+        await ToolAsync(page, "move");
+        await TapAsync(page, -9, 0);
+        Assert.Equal(1, await page.Locator("#dz-over .dz-selected").CountAsync());
+        await DragAsync(page, (-9, 0), (-8, -2));
+        Assert.True(await page.EvaluateAsync<bool>("""
+            (() => {
+              const ring = document.querySelector('#dz-over .dz-selected');
+              const spot = F2S(...DZ.d.spots[DZ.moveSel]);
+              return ring && +ring.getAttribute('cx') === spot[0] && +ring.getAttribute('cy') === spot[1];
+            })()
+            """));
+        await ToolAsync(page, "ball");
+        Assert.Equal(0, await page.Locator("#dz-over .dz-selected").CountAsync());
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
     /// <summary>
     /// Two copies of one rulebook are only safe while something proves they
     /// agree. Every finding PlayChecker makes on every format's shipped
