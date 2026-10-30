@@ -2757,7 +2757,7 @@ function tourTile(p){
       <span class="kindrow">
         <span class="kind">${isRun(p) ? "Run" : "Pass"}</span>
         <span class="catchip situation">${p.category}</span>
-        ${complexityHTML(p)}${mineChip(p)}
+        ${mineChip(p)}
       </span>
       <span class="kid">${esc(nameOf(p).big)}</span>
       <span class="coach">${[esc(nameOf(p).small), esc(p.formation)].filter(Boolean).join(" &middot; ")}</span>
@@ -3037,7 +3037,7 @@ function renderDeck(){
               <span class="kindrow">
                 <span class="kind">${isRun(p) ? "Run" : "Pass"}</span>
               <span class="catchip situation">${p.category}</span>
-              ${complexityHTML(p)}${mineChip(p)}${noteMark(p)}
+              ${mineChip(p)}${noteMark(p)}
             </span>
             <span class="kid">${esc(nameOf(p).big)}</span>
             <span class="coach">${[esc(nameOf(p).small), esc(p.formation)].filter(Boolean).join(" &middot; ")}</span>

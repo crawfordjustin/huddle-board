@@ -164,11 +164,9 @@ public sealed class DeckFilterChecks(AppFixture app)
         var situations = await page.EvalOnSelectorAllAsync<int>(
             ".tile .catchip.situation", "e => e.filter(c => c.getBoundingClientRect().width > 0).length");
         Assert.Equal(tiles, situations);
-        var complexities = await page.EvalOnSelectorAllAsync<int>(
-            ".tile .catchip.complexity", "e => e.filter(c => c.getBoundingClientRect().width > 0).length");
-        Assert.Equal(tiles, complexities);
-        Assert.Equal("SIMPLE", await page.InnerTextAsync(".tile[data-id='p_01'] .complexity"));
-        Assert.Equal("ADVANCED", await page.InnerTextAsync(".tile[data-id='p_27'] .complexity"));
+        // complexity is the library's question, not the sideline's: on a tile it
+        // pushed the chips onto a second line, so the deck does not carry it
+        Assert.Equal(0, await page.Locator(".tile .complexity").CountAsync());
 
         // nothing on a tile may fall outside the card. The tagline is the one
         // line allowed to disappear to keep that true; the rest may not be cut.
