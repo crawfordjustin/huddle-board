@@ -340,6 +340,13 @@ never loops (`frame()` clamps at `tEnd`); the tutorial's running slide and the
 designer's preview still do, because nobody is standing there to press Replay.
 `BallChecks` holds the opening frame and that a run does not come round again.
 
+**Slow** on the rail runs Run it and Replay at half speed (`playPace`, scaling
+`S.t0`'s clock in `frame()`), for kids who missed it at full. It is in memory
+like the deck filter, stays on from play to play, and the intro turns it off.
+Switching mid-run keeps the play where it was. It hides while a kid's steps
+hold the rail, because the steps keep their own pace. `BallChecks` holds the
+pace, the switch, the carry and the rail's fit at the five sizes.
+
 **Routes are drawn with rounded corners, and only drawn so.** Every line is
 authored as straight legs, and those points stay the rule: the checker (both
 copies), the exporter, the timeline, the steps and the designer's taps all

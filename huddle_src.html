@@ -2592,6 +2592,7 @@ const KIDS = {5: "Five", 6: "Six", 7: "Seven"};
 function renderIntro(){
   S.screen = "intro";
   deckF = {kind:"all", cat:"all"};   // never come back to a deck that looks empty
+  S.slow = false;                    // nor to plays that run at half speed for no reason
   app.innerHTML = `
     <div class="intro">
       <div class="introart">
@@ -4477,7 +4478,7 @@ function openPlay(id){
   // ends up — because that is the picture a coach turns around to show. It
   // is the last frame of the run, held: Line up goes back to the spots, and
   // Run it and Replay play it once from the snap.
-  S.stage = "run"; S.t0 = performance.now() - S.tl.tEnd; S.solo = null; S.running = false;
+  S.stage = "run"; S.t0 = performance.now() - S.tl.tEnd * playPace(); S.solo = null; S.running = false;
   S.steps = null; S.step = null;
   mTarget = mAnim = 0;
   const p = S.play;
@@ -4502,6 +4503,7 @@ function openPlay(id){
           <button class="rbtn hidden" id="sagain">Again<small>this step</small></button>
           <button class="rbtn" id="mirror">Mirror<small>swap sides</small></button>
           <button class="rbtn" id="replay">Replay</button>
+          <button class="rbtn" id="slow"></button>
           <button class="rbtn" id="notes"></button>
         </div>
       </div>
@@ -4518,6 +4520,7 @@ function openPlay(id){
     mTarget = mTarget ? 0 : 1; if (REDUCED) mAnim = mTarget; syncRail();
     logEvent("mirror", {play: S.play.id, on: mTarget === 1}); };
   document.getElementById("replay").onclick = () => { S.stage = "run"; S.t0 = performance.now(); syncRail(); };
+  document.getElementById("slow").onclick = toggleSlow;
   document.getElementById("snext").onclick = () => goStep(Math.min(S.steps.length - 1, S.step.i + 1));
   document.getElementById("sback").onclick = () => goStep(Math.max(0, S.step.i - 1));
   document.getElementById("sagain").onclick = () => goStep(S.step.i);
@@ -4539,6 +4542,20 @@ function toggleStage(){
   S.solo = null; S.steps = null; S.step = null;
   renderCalls(); syncRail();
 }
+/* Slow runs the play at half speed, for kids who missed it at full. It is
+   in memory only, like the deck filter, and stays on from play to play
+   until the coach turns it off: the kids who needed it slow for one play
+   need it for the next. Switching mid-run keeps the ball where it is. */
+const SLOW_PACE = 2;
+function playPace(){ return S.slow ? SLOW_PACE : 1; }
+function toggleSlow(){
+  const now = performance.now(), was = playPace();
+  const t = Math.min((now - S.t0) / was, S.tl.tEnd);
+  S.slow = !S.slow;
+  S.t0 = now - t * playPace();
+  logEvent("slow", {play: S.play.id, on: S.slow});
+  syncRail();
+}
 function syncRail(){
   const st = document.getElementById("stage");
   const run = S.stage === "run", steps = !!S.steps;
@@ -4546,6 +4563,11 @@ function syncRail(){
   st.innerHTML = run ? "Line up<small>back to spots</small>" : "Run it<small>animate</small>";
   document.getElementById("mirror").classList.toggle("on", mTarget === 1);
   document.getElementById("replay").classList.toggle("hidden", !run || steps);
+  // a kid's steps keep their own pace, so Slow waits with the notes
+  const sl = document.getElementById("slow");
+  sl.classList.toggle("hidden", steps);
+  sl.classList.toggle("on", !!S.slow);
+  sl.innerHTML = `Slow<small>${S.slow ? "half speed" : "full speed"}</small>`;
   // a kid's steps take the rail over: Next where Line up was, under the thumb
   ["snext", "sback", "sagain"].forEach(id => document.getElementById(id).classList.toggle("hidden", !steps));
   // the notes are the coach's, not the kid's; while a kid's steps hold the rail they wait
@@ -4980,7 +5002,7 @@ function frame(now){
   // The play screen runs a play once and holds the last frame; Replay is
   // there for another look. The tutorial and the designer's preview loop,
   // because nobody is standing there to press it.
-  const t = !running ? 0 : S.step ? stepT(now) : S.screen === "play" ? Math.min(now - S.t0, tl.tEnd)
+  const t = !running ? 0 : S.step ? stepT(now) : S.screen === "play" ? Math.min((now - S.t0) / playPace(), tl.tEnd)
                          : (now - S.t0) % tl.tEnd;
 
   // field

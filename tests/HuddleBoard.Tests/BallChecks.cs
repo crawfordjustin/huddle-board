@@ -210,6 +210,103 @@ public sealed class BallChecks(AppFixture app)
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
 
+    /// <summary>
+    /// Slow runs the play at half speed: a whole play's worth of time in, the
+    /// ball is still in the air, and it lands after twice that. Switching it
+    /// mid-run keeps the play where it was, a play opened with it on still
+    /// opens finished, and going back through the intro turns it off.
+    /// </summary>
+    [Fact]
+    public async Task SlowRunsThePlayAtHalfSpeed()
+    {
+        var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], settle: 350);
+        await page.ClickAsync(".tile[data-id='p_05']");
+        await page.WaitForTimeoutAsync(300);
+        Assert.Contains("full speed", await page.InnerTextAsync("#slow"), StringComparison.OrdinalIgnoreCase);
+
+        // switched on with the play held finished: it stays finished
+        await page.ClickAsync("#slow");
+        await page.WaitForTimeoutAsync(100);
+        Assert.Contains("half speed", await page.InnerTextAsync("#slow"), StringComparison.OrdinalIgnoreCase);
+        var g = JsonSerializer.Deserialize<Ball>(await page.EvaluateAsync<string>(Measure))!;
+        Assert.True(Math.Abs(g.Dx) < 1.5 && Math.Abs(g.Dy) < 1.5,
+            $"switching Slow on moved a finished play's ball {g.Dx},{g.Dy} off the catch");
+
+        // half a play's time in at half speed is the frame full speed draws a
+        // quarter of the way in — and that frame has the ball on its way, so
+        // the comparison is not two balls sitting still
+        var drift = await page.EvaluateAsync<double[]>("""
+            async () => {
+              const drawn = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+              const at = async (slow, part) => {
+                S.slow = slow; S.stage = 'run'; S.t0 = performance.now() - S.tl.tEnd * part;
+                await drawn();
+                return (SC.ball.getAttribute('transform') || '').match(/-?[\d.]+/g).slice(0, 2).map(Number);
+              };
+              const slow = await at(true, 0.5), full = await at(false, 0.25), snap = await at(false, 0);
+              S.slow = true;
+              return [Math.hypot(slow[0] - full[0], slow[1] - full[1]), Math.hypot(full[0] - snap[0], full[1] - snap[1])];
+            }
+            """);
+        Assert.True(drift[1] > 20, $"the ball has only moved {drift[1]:0.0} by a quarter of the play, so this compares nothing");
+        Assert.True(drift[0] < 8, $"at half speed the ball is {drift[0]:0.0} from where full speed has it at half the time");
+
+        // switching off halfway keeps it halfway, at full speed from there
+        await page.EvaluateAsync("() => { S.t0 = performance.now() - S.tl.tEnd; }");
+        await page.ClickAsync("#slow");
+        var played = await page.EvaluateAsync<double>("(performance.now() - S.t0) / S.tl.tEnd");
+        Assert.True(played > 0.45 && played < 0.75, $"switching Slow off jumped the play to {played:0.00} of the way");
+
+        // twice the length: landed
+        await page.ClickAsync("#slow");
+        await page.EvaluateAsync("() => { S.t0 = performance.now() - 2 * S.tl.tEnd - 100; }");
+        await page.WaitForTimeoutAsync(100);
+        g = JsonSerializer.Deserialize<Ball>(await page.EvaluateAsync<string>(Measure))!;
+        Assert.True(Math.Abs(g.Dx) < 1.5 && Math.Abs(g.Dy) < 1.5,
+            $"at half speed, after twice the play, the ball is {g.Dx},{g.Dy} off the catch");
+
+        // it carries to the next play, and the intro puts it back
+        await page.EvaluateAsync("openPlay('p_01')");
+        Assert.Contains("half speed", await page.InnerTextAsync("#slow"), StringComparison.OrdinalIgnoreCase);
+        await page.EvaluateAsync("() => { renderIntro(); openPlay('p_01'); }");
+        Assert.Contains("full speed", await page.InnerTextAsync("#slow"), StringComparison.OrdinalIgnoreCase);
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
+    /// The rail at its fullest — Line up, Mirror, Replay, Slow and Notes — is
+    /// on screen at every size, above the calls and not overlapping.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AppFixture.AllSizes), MemberType = typeof(AppFixture))]
+    public async Task TheRailFitsAtEverySize(string label, int width, int height)
+    {
+        var (page, errors) = await app.OpenAppAsync(new Viewport(label, width, height), settle: 350);
+        await page.ClickAsync(".tile[data-id='p_05']");
+        await page.WaitForTimeoutAsync(300);
+        var problems = await page.EvaluateAsync<string[]>("""
+            () => {
+              const out = [], rail = document.querySelector('.rail').getBoundingClientRect();
+              const ids = ['stage', 'mirror', 'replay', 'slow', 'notes'];
+              let last = -1;
+              for (const id of ids){
+                const r = document.getElementById(id).getBoundingClientRect();
+                if (r.height === 0) out.push(`${id} is hidden`);
+                if (r.top < rail.top - 0.5 || r.bottom > rail.bottom + 0.5) out.push(`${id} runs off the rail`);
+                if (r.top < last - 0.5) out.push(`${id} overlaps the button above it`);
+                last = r.bottom;
+              }
+              return out;
+            }
+            """);
+        Assert.True(problems.Length == 0, $"{label}:\n" + string.Join("\n", problems));
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
     private sealed record Snap(
         [property: JsonPropertyName("preOnSnapper")] double PreOnSnapper,
         [property: JsonPropertyName("heldOnThrower")] double HeldOnThrower,
