@@ -4,7 +4,6 @@ namespace HuddleBoard.Tests;
 /// Library names fit at the size the library is now and at the size it might
 /// reach, across all five tablet shapes.
 /// </summary>
-[Collection(AppCollection.Name)]
 public sealed class LibraryFitChecks(AppFixture app)
 {
     private const string Clipped =

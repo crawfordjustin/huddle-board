@@ -13,7 +13,6 @@ namespace HuddleBoard.Tests;
 /// about saying so: the header count, and the filter never surviving a trip
 /// back through the intro.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class DeckFilterChecks(AppFixture app)
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);

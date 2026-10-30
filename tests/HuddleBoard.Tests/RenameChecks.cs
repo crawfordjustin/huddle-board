@@ -14,7 +14,6 @@ namespace HuddleBoard.Tests;
 /// real one — a fresh build with a new version, offered by the service worker
 /// and taken on tap — so "survives an update" means what it says.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class RenameChecks(AppFixture app) : IDisposable
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);
@@ -31,15 +30,9 @@ public sealed class RenameChecks(AppFixture app) : IDisposable
             .RootElement.GetProperty("formats").GetProperty("6").GetProperty("plays")[0]
             .GetProperty("kidName").GetString()!;
 
-    private readonly StaticSite _site = new(Workspace.Deploy);
+    private readonly PrivateBuild _build = new();
 
-    public void Dispose()
-    {
-        _site.Dispose();
-
-        // put the real version back in dist/ for whatever runs next
-        AppBuilder.Run(output: TextWriter.Null);
-    }
+    public void Dispose() => _build.Dispose();
 
     [Fact]
     public async Task NamesCanBeChangedSurviveAnUpdateAndAreResetOnDemand()
@@ -54,7 +47,7 @@ public sealed class RenameChecks(AppFixture app) : IDisposable
         var errors = new List<string>();
         page.PageError += (_, e) => errors.Add(e);
 
-        var url = _site.Origin + "/index.html";
+        var url = _build.Site.Origin + "/index.html";
         await page.GotoAsync(url);
         await page.WaitForTimeoutAsync(1500);
         await page.ClickAsync("#start");
@@ -112,7 +105,7 @@ public sealed class RenameChecks(AppFixture app) : IDisposable
         await page.WaitForTimeoutAsync(400);
 
         // ship a new build and take it. The names are the coach's, not the build's.
-        Assert.Equal(0, AppBuilder.Run("9.9.9-rename", TextWriter.Null));
+        Assert.Equal(0, _build.Ship("9.9.9-rename"));
         await page.EvaluateAsync("navigator.serviceWorker.getRegistration().then(r => r.update())");
         await page.WaitForTimeoutAsync(2500);
         await page.ClickAsync("#upd");

@@ -8,7 +8,6 @@ namespace HuddleBoard.Tests;
 /// reload and through a sync — until he puts something in it. Only Start over
 /// brings Week 1 back.
 /// </summary>
-[Collection(AppCollection.Name)]
 public sealed class EmptyDeckChecks(AppFixture app)
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);

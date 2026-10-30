@@ -16,7 +16,6 @@ namespace HuddleBoard.Tests;
 /// storage on the second tablet. Each tablet is its own browser context, which
 /// is what gives it its own localStorage.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class SyncChecks(AppFixture app) : IDisposable
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);
@@ -109,7 +108,7 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
         Assert.True(await pageA.EvaluateAsync<bool>("events.some(e => e.e === 'sync_export')"),
             "the export was not logged");
 
-        using (var doc = JsonDocument.Parse(await File.ReadAllTextAsync(path)))
+        using (var doc = JsonDocument.Parse(await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken)))
         {
             var root = doc.RootElement;
             Assert.Equal("huddleboard.setup", root.GetProperty("format").GetString());
@@ -224,9 +223,10 @@ public sealed class SyncChecks(AppFixture app) : IDisposable
              "packNames":{"week2":"<b>X</b> & CO","week9":"GHOST","week3":5,"week1":" week 1 "},
              "notes":{"p_02":"<b>X</b> & CO","p_99":"GHOST","p_04":5,"p_05":"   "},
              "ourSide":"left"}
-            """);
+            """, TestContext.Current.CancellationToken);
         var garbage = Path.Combine(dir, "garbage.json");
-        await File.WriteAllTextAsync(garbage, "{\"format\":\"huddleboard.events\",\"v\":1,\"events\":[]}");
+        await File.WriteAllTextAsync(garbage, "{\"format\":\"huddleboard.events\",\"v\":1,\"events\":[]}",
+            TestContext.Current.CancellationToken);
 
         var (ctx, page, errors) = await OpenTabletAsync();
         await page.EvaluateAsync("cfg.clockSecs = 30; saveCfg(); setOurSide('orange');");

@@ -2,6 +2,12 @@ using HuddleBoard.Playbook;
 
 using Microsoft.Playwright;
 
+// Everything shares one build and one browser. The checks run in parallel, a
+// class at a time per thread: each opens its own pages, so each has its own
+// storage, and nothing writes to dist/ after the build — a check that ships a
+// new build ships it to a PrivateBuild of its own.
+[assembly: AssemblyFixture(typeof(HuddleBoard.Tests.AppFixture))]
+
 namespace HuddleBoard.Tests;
 
 /// <summary>One of the five tablet shapes worth caring about.</summary>
@@ -53,7 +59,7 @@ public sealed class AppFixture : IAsyncLifetime
     /// <summary>file:// URI of the standalone build.</summary>
     public string AppUri { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (Pipeline.Build(output: TextWriter.Null) != 0)
             throw new InvalidOperationException("the build failed — run `check` to see why");
@@ -68,7 +74,7 @@ public sealed class AppFixture : IAsyncLifetime
         Browser = await Playwright.Chromium.LaunchAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Browser.CloseAsync();
         Playwright.Dispose();
@@ -183,14 +189,4 @@ public sealed class AppFixture : IAsyncLifetime
           return JSON.stringify(DATA).length;
         }
         """;
-}
-
-/// <summary>
-/// Everything shares one browser and one build, and runs in sequence — two
-/// checks racing each other over the same dist/ is not a real signal.
-/// </summary>
-[CollectionDefinition(Name)]
-public sealed class AppCollection : ICollectionFixture<AppFixture>
-{
-    public const string Name = "huddle board app";
 }

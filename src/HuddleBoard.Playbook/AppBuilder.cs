@@ -247,11 +247,17 @@ public static class AppBuilder
     /// Overrides the stamped version. Falls back to <c>HB_VERSION</c>, then to
     /// the current time — the checks fake a new deploy by passing one.
     /// </param>
-    public static int Run(string? version = null, TextWriter? output = null)
+    /// <param name="dist">
+    /// Builds somewhere other than <c>dist/</c>, from the
+    /// <c>proto_data.json</c> found there — so a check can ship a new build to
+    /// its own copy of the site without changing the one every other check
+    /// is reading.
+    /// </param>
+    public static int Run(string? version = null, TextWriter? output = null, string? dist = null)
     {
         var o = output ?? Console.Out;
-        var dist = Workspace.Ensure(Workspace.Dist);
-        var deploy = Workspace.Ensure(Workspace.Deploy);
+        dist = Workspace.Ensure(dist ?? Workspace.Dist);
+        var deploy = Workspace.Ensure(Path.Combine(dist, "deploy"));
 
         version = version
             ?? Environment.GetEnvironmentVariable("HB_VERSION").NullIfBlank()

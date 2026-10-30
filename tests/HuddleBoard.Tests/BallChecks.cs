@@ -15,7 +15,6 @@ namespace HuddleBoard.Tests;
 /// place, or in the right place only until the coach hits Mirror, is the
 /// failure worth catching.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class BallChecks(AppFixture app)
 {
     private sealed record Ball(

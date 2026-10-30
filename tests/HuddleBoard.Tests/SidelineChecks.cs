@@ -10,7 +10,6 @@ namespace HuddleBoard.Tests;
 /// The sidelines are the one landmark that holds for a whole game — parents move
 /// for the sun, teammates move because only six are on the field.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class SidelineChecks(AppFixture app)
 {
     private sealed record BandGeometry(

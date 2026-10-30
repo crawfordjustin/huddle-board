@@ -13,7 +13,6 @@ namespace HuddleBoard.Tests;
 /// they are <c>position:relative</c> and it has no stacking order of its own.
 /// Both are invisible to any check that only asks whether the buttons exist.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class MenuChecks(AppFixture app)
 {
     private sealed record Panel(

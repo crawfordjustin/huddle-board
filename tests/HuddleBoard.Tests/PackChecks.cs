@@ -13,7 +13,6 @@ namespace HuddleBoard.Tests;
 /// lands exactly, that the tablet says which pack it is on, and that a stray
 /// thumb on the way past costs nothing.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class PackChecks(AppFixture app)
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);

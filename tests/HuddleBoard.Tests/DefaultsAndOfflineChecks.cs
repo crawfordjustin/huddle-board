@@ -6,7 +6,6 @@ namespace HuddleBoard.Tests;
 /// What a coach sees on a tablet that has never run this before, and what
 /// happens on the standalone copy with no network at all.
 /// </summary>
-[Collection(AppCollection.Name)]
 public sealed class DefaultsAndOfflineChecks(AppFixture app)
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);

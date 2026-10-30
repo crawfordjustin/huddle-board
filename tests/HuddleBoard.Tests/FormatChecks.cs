@@ -13,7 +13,6 @@ namespace HuddleBoard.Tests;
 /// hosted build over a local <see cref="StaticSite"/>, like the other storage
 /// checks. The fit runs on the standalone file at every size.
 /// </remarks>
-[Collection(AppCollection.Name)]
 public sealed class FormatChecks(AppFixture app) : IDisposable
 {
     private static readonly Viewport Desk = new("landscape 16:10", 1600, 1000);
