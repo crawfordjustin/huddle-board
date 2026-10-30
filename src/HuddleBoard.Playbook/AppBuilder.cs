@@ -245,8 +245,9 @@ public static class AppBuilder
     /// <c>huddle_src.html</c>. Returns a process exit code.
     /// </summary>
     /// <param name="version">
-    /// Overrides the stamped version. Falls back to <c>HB_VERSION</c>, then to
-    /// the current time — the checks fake a new deploy by passing one.
+    /// Overrides the stamped version. Falls back to <c>HB_VERSION</c>, which CI
+    /// sets to MAJOR.MINOR.N, then to a local dev version stamped with the
+    /// current time — the checks fake a new deploy by passing one.
     /// </param>
     /// <param name="dist">
     /// Builds somewhere other than <c>dist/</c>, from the
@@ -262,7 +263,7 @@ public static class AppBuilder
 
         version = version
             ?? Environment.GetEnvironmentVariable("HB_VERSION").NullIfBlank()
-            ?? DateTime.Now.ToString("yyyy.MM.dd-HHmm", CultureInfo.InvariantCulture);
+            ?? LocalVersion();
 
         var dataPath = Path.Combine(dist, "proto_data.json");
         if (!File.Exists(dataPath))
@@ -325,6 +326,17 @@ public static class AppBuilder
     /// </summary>
     private static string Read(string path) =>
         File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+    /// <summary>
+    /// A build that CI did not stamp: version.txt's MAJOR.MINOR marked as dev,
+    /// plus the time, so the service worker still sees each local build as new.
+    /// </summary>
+    private static string LocalVersion()
+    {
+        var file = Workspace.VersionFile;
+        var prefix = File.Exists(file) ? File.ReadAllText(file).Trim() : "0.0";
+        return $"{prefix}-dev.{DateTime.Now.ToString("yyyyMMdd-HHmm", CultureInfo.InvariantCulture)}";
+    }
 
     private static string Kb(string path) =>
         (new FileInfo(path).Length / 1024.0).ToString("0.0", CultureInfo.InvariantCulture);

@@ -930,9 +930,16 @@ The deploy is gated on `check`, not on `dotnet test`. That is a deliberate
 trade for a fast sideline fix; the browser suite still has to be run by hand
 before anything that touches layout, storage or the service worker.
 
-CI stamps `HB_VERSION` as `yyyy.MM.dd-HHmm+<short sha>`. That string is the
+CI stamps `HB_VERSION` as `MAJOR.MINOR.N`: `MAJOR.MINOR` is `version.txt`,
+edited by hand to bump, and `N` is the number of merges to `master` since
+`version.txt` last changed, so every deploy adds one and a bump starts again at
+0 (the checkout fetches full history for this). `1.0.12` is the 12th
+first-parent commit after the one that set `1.0`, which is how a version traces
+back to a commit. A local build is `1.0-dev.yyyyMMdd-HHmm`. That string is the
 service worker's cache name and the version on the deck note, so it has to
 change on every deploy — a repeated version means tablets keep the old build.
+Re-running the workflow on the same commit repeats its version, which is fine:
+it is the same build.
 
 Auth is OIDC, so there is no Azure credential in this repository. The Entra app
 registration `huddle-board-github-deploy` holds a federated credential and holds
