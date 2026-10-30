@@ -718,6 +718,12 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .sheet .seg button{min-height:44px;padding:0 10px}
 .nfield input.plain{text-transform:none;font-family:var(--body);font-size:clamp(14px,2.2vh,18px)}
 .catchip.mine{background:#56657A}
+/* the coach left himself a note on this play: the same gold the Notes button
+   wears when there is one, at the far end of the chip row */
+.notemark{margin-left:auto;flex:none;display:inline-flex;width:clamp(14px,2.3vh,22px);
+  height:clamp(14px,2.3vh,22px)}
+.notemark svg{width:100%;height:100%;display:block}
+.tiles.compact .notemark,.tiles.tight .notemark{width:clamp(11px,1.5vh,15px);height:clamp(11px,1.5vh,15px)}
 .lnum.mine{color:var(--ball)}
 .lren.mine{color:#8FC9A8}
 .lfix{font-style:normal;color:#F08A7E}
@@ -1549,6 +1555,9 @@ const complexityHTML = p =>
   `<span class="catchip complexity" style="--complex:${COMPLEXITY[p.complexity]}">${p.complexity}</span>`;
 // a coach's own play says so, or he cannot tell it from a shipped one in the same colour
 const mineChip = p => p.custom ? `<span class="catchip mine">Yours</span>` : "";
+const noteMark = p => noteOf(p) ? `<span class="notemark" role="img" aria-label="Has notes" title="Has notes">
+  <svg viewBox="0 0 20 20"><path d="M3 2h10l4 4v12H3z" style="fill:var(--ball)" stroke="#9A6E12" stroke-width="1.4" stroke-linejoin="round"/><path d="M13 2v4h4" fill="#9A6E12"/>
+  <path d="M6 9h8M6 12h8M6 15h5" stroke="#5A3F08" stroke-width="1.6" stroke-linecap="round"/></svg></span>` : "";
 const SIDE = {blue:"#1D6FD0", orange:"#E4610F", none:"#141A16"};
 const app = document.getElementById("app");
 
@@ -2852,7 +2861,7 @@ function renderDeck(){
               <span class="kindrow">
                 <span class="kind">${isRun(p) ? "Run" : "Pass"}</span>
               <span class="catchip situation">${p.category}</span>
-              ${complexityHTML(p)}${mineChip(p)}
+              ${complexityHTML(p)}${mineChip(p)}${noteMark(p)}
             </span>
             <span class="kid">${esc(nameOf(p).big)}</span>
             <span class="coach">${[esc(nameOf(p).small), esc(p.formation)].filter(Boolean).join(" &middot; ")}</span>
