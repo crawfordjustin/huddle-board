@@ -28,6 +28,11 @@ public static class Workspace
     /// <summary>The single source file for the app itself.</summary>
     public static string Source => Path.Combine(Root, Marker);
 
+    /// <summary>
+    /// MAJOR.MINOR, edited by hand to bump. CI adds the last number.
+    /// </summary>
+    public static string VersionFile => Path.Combine(Root, "version.txt");
+
     private static string Locate()
     {
         var fromEnv = Environment.GetEnvironmentVariable("HB_ROOT");

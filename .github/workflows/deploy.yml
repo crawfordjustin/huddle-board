@@ -41,7 +41,10 @@ jobs:
       url: https://huddleboard-hacueydwe7aubxg8.westus2-01.azurewebsites.net
 
     steps:
+      # Full history, because the version's last number is counted from it.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -61,8 +64,10 @@ jobs:
 
       # HB_VERSION is what the app shows on the deck note and what the service
       # worker names its cache, so it has to change on every deploy and has to
-      # be traceable back to a commit. Same shape the local build stamps, plus
-      # the short SHA.
+      # be traceable back to a commit. It is MAJOR.MINOR from version.txt, then
+      # the number of merges to master since version.txt last changed: every
+      # deploy adds one, and bumping version.txt starts the count again at 0.
+      # 1.0.12 is the 12th first-parent commit after the one that set 1.0.
       #
       # Publishing runs `build` itself (BuildHuddleBoardSite in the Web
       # project), so it has to happen in the same step that exports the
@@ -77,7 +82,9 @@ jobs:
       # with the app's "Platform" setting.
       - name: Publish the site
         run: |
-          export HB_VERSION="$(date -u +%Y.%m.%d-%H%M)+${GITHUB_SHA::7}"
+          base=$(git log -1 --format=%H -- version.txt)
+          n=$(git rev-list --count --first-parent "$base"..HEAD)
+          export HB_VERSION="$(tr -d '[:space:]' < version.txt).$n"
           echo "building $HB_VERSION"
           dotnet publish src/HuddleBoard.Web -c Release -r win-x86 --self-contained false -o publish
 

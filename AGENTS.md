@@ -342,7 +342,9 @@ configuration behind because the ASP.NET host applies the response rules.
 `application/manifest+json`, and `index.html` plus `sw.js` to be sent with
 `Cache-Control: no-cache`. CI builds from source, runs `check`, and stamps a
 new `HB_VERSION` for each deployment; do not reuse a version because it is the
-service-worker cache key.
+service-worker cache key. It is `MAJOR.MINOR.N`: `MAJOR.MINOR` from
+`version.txt` (bump by hand), `N` counted from first-parent merges to `master`
+since `version.txt` last changed.
 
 `.github/workflows/deploy.yml` logs in to Azure with OIDC, and the federated
 credential is bound to `environment: production`, not to the branch. Removing
