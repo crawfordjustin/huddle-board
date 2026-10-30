@@ -776,13 +776,15 @@ function F2S(x, y){                    // field paint — never moves
 const pt  = p => W2S(p[0], p[1]).join(",");
 const fpt = p => F2S(p[0], p[1]).join(",");
 
-/* One football, drawn once. The intro art and the play screen both use it: a
-   kid should not have to learn two different pictures of the same object. The
-   ends are pointed rather than an ellipse, which is most of what makes the
-   silhouette read as a football at the size it is actually seen. */
-const BALL_BODY = "M-22 0Q0-13.5 22 0Q0 13.5-22 0Z";
-const BALL_LACES = "M-8.5 0h17M0-4.5v9M-6-3.5v7M6-3.5v7";
-const BALL_FILL = "#7A4520", BALL_EDGE = "#141A16", BALL_LACE = "#F7F9F6";
+/* One football, drawn once. A full belly and blunt points, not a lens: two
+   quadratic arcs made it read as an eye or a leaf. The white bands near each
+   end are a youth ball's, and they are what survives at the size it is seen —
+   small laces sit on top for a closer look, and the bands say which way the
+   ball is pointing in flight. */
+const BALL_BODY = "M-22 0C-15-12.5 15-12.5 22 0C15 12.5-15 12.5-22 0Z";
+const BALL_BANDS = "M-14.5-12h2.6v24h-2.6zM11.9-12h2.6v24h-2.6z";
+const BALL_LACES = "M-5-2h10M-3-4v4M0-4v4M3-4v4";
+const BALL_FILL = "#6E3B1A", BALL_EDGE = "#141A16", BALL_LACE = "#F7F9F6";
 
 const flipSide = s => s === "blue" ? "orange" : s === "orange" ? "blue" : "none";
 const mirrored = () => mAnim > 0.5;
@@ -4818,11 +4820,17 @@ function buildScene(){
   // A football, not a yellow dot, and it points where it is going. The only job
   // this marker has is telling six seven-year-olds where the ball ends up, and
   // they already know what a football looks like.
+  // the bands are clipped to the body, then the edge goes over both
+  const clip = mk("clipPath",{id:"ball-clip"});
+  clip.appendChild(mk("path",{d:BALL_BODY}));
+  defs.appendChild(clip);
   SC.ball = mk("g");
-  SC.ball.appendChild(mk("path",{d:BALL_BODY,fill:BALL_FILL,stroke:BALL_EDGE,
-    "stroke-width":3,"stroke-linejoin":"round"}));
+  SC.ball.appendChild(mk("path",{d:BALL_BODY,fill:BALL_FILL}));
+  SC.ball.appendChild(mk("path",{d:BALL_BANDS,fill:BALL_LACE,"clip-path":"url(#ball-clip)"}));
+  SC.ball.appendChild(mk("path",{d:BALL_BODY,fill:"none",stroke:BALL_EDGE,
+    "stroke-width":2.5,"stroke-linejoin":"round"}));
   SC.ball.appendChild(mk("path",{d:BALL_LACES,fill:"none",stroke:BALL_LACE,
-    "stroke-width":3,"stroke-linecap":"round"}));
+    "stroke-width":1.6,"stroke-linecap":"round"}));
   svg.appendChild(SC.ball);
 }
 
