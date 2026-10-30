@@ -124,6 +124,55 @@ public sealed class BallChecks(AppFixture app)
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
     /// <summary>
+    /// Routes are drawn with their corners rounded, and only drawn so: the line
+    /// still starts and ends on the authored points, and goes round each cut
+    /// close by rather than through it. Swept over every line of a play with
+    /// cuts in it, and it has to have looked at some corners to pass.
+    /// </summary>
+    [Theory]
+    [InlineData("p_05")]
+    [InlineData("p_22")]
+    public async Task RoutesAreDrawnWithRoundedCorners(string play)
+    {
+        var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0], settle: 350);
+        await page.EvaluateAsync($"openPlay('{play}')");
+        await page.WaitForTimeoutAsync(400);
+        await page.EvaluateAsync(Settle);
+        await page.WaitForTimeoutAsync(150);
+
+        var bad = await page.EvaluateAsync<string[]>("""
+            () => {
+              const out = [], d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+              let corners = 0;
+              S.play.paths.forEach((path, i) => {
+                const drawn = (SC.paths[i].line.getAttribute('points') || '').trim()
+                  .split(' ').map(q => q.split(',').map(Number));
+                const raw = path.pts.map(q => W2S(q[0], q[1]));
+                if (d(drawn[0], raw[0]) > 1 || d(drawn[drawn.length - 1], raw[raw.length - 1]) > 1)
+                  out.push(`${path.who}: the line does not start and end on its points`);
+                for (let j = 1; j < path.pts.length - 1; j++){
+                  const a = path.pts[j-1], v = path.pts[j], b = path.pts[j+1];
+                  const u = [a[0]-v[0], a[1]-v[1]], w = [b[0]-v[0], b[1]-v[1]];
+                  const cos = (u[0]*w[0] + u[1]*w[1]) / (Math.hypot(...u) * Math.hypot(...w));
+                  const turn = Math.PI - Math.acos(Math.max(-1, Math.min(1, cos)));
+                  if (turn < 0.25 || turn > 3.1) continue;
+                  corners++;
+                  const near = Math.min(...drawn.map(q => d(q, raw[j])));
+                  if (near < 1) out.push(`${path.who}: corner ${j} is drawn as a kink`);
+                  if (near > R_CUT * SCALE) out.push(`${path.who}: corner ${j} is rounded ${near.toFixed(1)}px off`);
+                }
+              });
+              if (!corners) out.push('no corners were looked at');
+              return out;
+            }
+            """);
+
+        await page.CloseAsync();
+        Assert.True(bad.Length == 0, string.Join("\n", bad));
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
     /// A play opens on its finished picture — every route drawn, the ball at
     /// the catch — with no tap. Line up goes back to the spots, and Run it
     /// plays it once and stops on that same last frame rather than looping:
