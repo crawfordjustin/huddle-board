@@ -90,18 +90,6 @@ public static class FiveOnFive
             },
         };
 
-    public static readonly IReadOnlyDictionary<string, string> Notes = new Dictionary<string, string>
-    {
-        ["DOUBLES"] =
-            "Your base look. One wide each side and a BACK, so the defense cannot tell run from pass and has to cover the whole width.",
-        ["EMPTY"] =
-            "Three receivers and nobody in the backfield. The SLOT is your motion man: he is the jet, the fake and the halfback pass.",
-        ["TRIO RIGHT"] =
-            "Everybody on one side. Three receivers at three depths against two defenders, and the other half of the field is the THROWER's to roll into.",
-        ["POWER RIGHT"] =
-            "Tight, with a BACK deep. Your run look and your goal line look, and where the pitch and the reverse come from.",
-    };
-
     private static readonly IReadOnlyList<Authored> Library =
     [
         // ------------------------------------------------------------ DOUBLES
@@ -905,25 +893,10 @@ public static class FiveOnFive
 
     private static Format? _format;
 
-    /// <summary>The 5-on-5 library, as the checker, the exporter and the paper read it.</summary>
+    /// <summary>The 5-on-5 library, as the checker and the exporter read it.</summary>
     public static Format Format => _format ??= Authoring.Build(
-        "5", 5, "f_", "5 on 5", Formations, SpotMap, Notes, Library,
+        "5", 5, "f_", "5 on 5", Formations, SpotMap, Library,
         Authoring.Weeks(
             "Game one. One run, one quick pass, one third down, one goal line. Master these four first.",
-            1, 2, 12, 22),
-        [
-            ("1st down, run zone", "51 Dive (1) or Fly Sweep (7)"),
-            ("2nd and short", "Sit Flat (15) or Power Pitch (19)"),
-            ("2nd and long", "Levels (14)"),
-            ("3rd and short", "Quick Out (12)"),
-            ("3rd and long", "Corner Sit (4) or Three Verts (11)"),
-            ("Rusher is winning", "Quick In (2) or Trio Flat (18)"),
-            ("Defense chases motion", "Fly Keep (8), then Fly Pass (9)"),
-            ("Defense crowds the middle", "Quick Toss (5) or Back Wheel (3)"),
-            ("Defense flies to the pitch", "Power Reverse (20)"),
-            ("Run has been working", "Fake Dive Post (6) or Power Fake Post (24)"),
-            ("No-run zone", "Four Spots (10) or Post Sit (17)"),
-            ("Inside the 5", "Corner Fade (22) or Power Dive (21)"),
-            ("Extra point", "Stairs (13)"),
-        ]);
+            1, 2, 12, 22));
 }

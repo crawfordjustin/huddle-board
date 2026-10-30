@@ -14,8 +14,8 @@ to children. Do not simplify the football. Simplify the explaining.
 `HuddleBoard.slnx` opens in Visual Studio. Four projects:
 
 ```
-src/HuddleBoard.Playbook    the play library, the checker, the build, the print
-                            documents. All the substance is here.
+src/HuddleBoard.Playbook    the play library, the checker, the build. All the
+                            substance is here.
 src/HuddleBoard.Build       the command line — this is what `make` used to be
 src/HuddleBoard.Web         the website: Razor Pages at /, the app at /app/
 tests/HuddleBoard.Tests     the verification suite, driving real Chromium
@@ -55,7 +55,6 @@ the root and once under `/app` (`StaticSite`'s `mount`), so both stay true.
 ```
 dotnet run --project src/HuddleBoard.Build -- build   # data -> dist/
 dotnet run --project src/HuddleBoard.Build -- check   # fast play-library check
-dotnet run --project src/HuddleBoard.Build -- print   # the paper PDFs
 dotnet run --project src/HuddleBoard.Build -- icons   # app icons from art/bookmark-icon.png
 dotnet run --project src/HuddleBoard.Build -- shots   # README screenshots
 dotnet test                                           # build, then every check
@@ -142,8 +141,8 @@ never hide a play. Setup shows how many are renamed and resets them all. This is
 also the one string in the app a coach types, so it is the one string that has to
 be escaped before it reaches markup — see `esc()`. `RenameChecks` holds all of
 it, including the survives-an-update part, against a real new build taken through
-the service worker. Custom names are per tablet and do not reach the printed
-playbook, which is built from source.
+the service worker. Custom names are per tablet, and the printed sheet is
+printed from the tablet, so it carries them.
 
 **A coach can keep notes on a play.** "ORANGE has to sell the fake", "only
 inside their 10" — a few lines of his own, there when he brings the play up.
@@ -164,7 +163,7 @@ deleted drawn play takes its note with it, and Setup's **Play notes** row
 each format's `notes`; `readSetup` accepts only a play that format has (or a
 drawn play in the same file) holding a string, and Import replaces them like
 everything else — so with any notes on the tablet Import arms on the first
-tap, as it does for drawn plays. Notes do not reach the printed playbook.
+tap, as it does for drawn plays. Notes do not reach the printed sheet.
 `NoteChecks` holds the sheet, the update, Start over and the clear;
 `SyncChecks` carries a note across two tablets and feeds it markup.
 
@@ -174,6 +173,18 @@ whatever height the words leave so the whole card is on screen at every size.
 Only the thumbnail does this — the rest of the row still adds and removes the
 play — and the preview has nothing that touches the deck. `LibraryChecks`
 holds it at the five sizes.
+
+**The deck prints as one sheet.** **Print**, in the library's header beside
+New play, puts the deck on paper as a quick-reference sheet to laminate
+(`printSheet`): every play in deck order, the tile's own picture (`thumbSVG`),
+the coach's name large, the kids' name and formation under it, and the RUN/PASS
+and situation tags. 2×2 up to four plays, 3×3 up to nine, 4×4 after that, Letter
+landscape, and a deck past sixteen runs on to a second page. It is built from
+the tablet, so renames and drawn plays print as they are; notes stay off. The
+browser's own print dialog does the rest — Save as PDF or a printer, no
+network. Print is disabled while the deck is empty. This replaced a build-time
+playbook, field cards and rotation sheet that were made from the shipped
+library and never reached a coach. `PrintChecks` holds it.
 
 **Shipped plays can be hidden.** Plenty of coaches use one or two of the
 shipped plays and draw the rest, so Setup's Your own tab has a **Shipped
@@ -325,8 +336,7 @@ either leg, a bend under 8° left alone — still a plant and a cut, not a
 kink, and not a spline that would turn OUT into an arc. `curveWalk` maps a raw
 fraction onto the curve through the middle of each rounding, so a handoff, a
 catch or a step boundary keeps the moment it had. The play screen, the
-thumbnails and the designer draw it; the print diagrams round the same way
-(`FieldDiagram.Round`). `BallChecks` holds that a line ends on its points and
+thumbnails, the printed sheet and the designer draw it. `BallChecks` holds that a line ends on its points and
 goes round its corners, not through them.
 
 **Tapping a kid shows his job step by step** (`kidSteps`). Line up, the snap
@@ -631,8 +641,7 @@ a tablet plays in is the league, not a customisation. The sync file is **v2**:
 settings, our side, and a `modes` section per format, each read against that
 format's library alone (a 5-on-5 id in the 7-on-7 section is not recognised).
 Import replaces every format; one the file does not carry goes back to shipped.
-A v1 file is from before formats and is read as the 6-on-6 section. Print emits
-a playbook, cards and rotation sheet per format, named `-5v5`, `-6v6`, `-7v7`.
+A v1 file is from before formats and is read as the 6-on-6 section.
 `FormatChecks` holds the switch and the isolation.
 
 ## Source layout
@@ -659,7 +668,7 @@ src/HuddleBoard.Playbook/
   Format.cs                     one division's library; Formats.Five/Six/Seven
   Authoring.cs                  one row per play, for the formats after the first
   FiveOnFive.cs, SevenOnSeven.cs  those two formats, whole: formations, spots,
-                                plays, texts, kid names, ball, weeks, script
+                                plays, texts, kid names, ball, weeks
   PlayTexts.cs                  what the tablet says, plays 1-14
   PlayTextsMore.cs              the same for 15-27
   Library.cs                    joins the two halves of each pair
@@ -672,7 +681,6 @@ src/HuddleBoard.Playbook/
                                 inline in the one file the app ships as
   JsonWriter.cs                 exact control over how the data is spelled
   Pipeline.cs, Workspace.cs     what "build" means, and where the repo is
-  Print/                        the paper playbook, cards and rotation sheet
 
 src/HuddleBoard.Build/          the CLI, plus the Playwright PDF and screenshot
                                 steps that need a browser
@@ -691,8 +699,7 @@ is at `|x| = 15.7`, the goal line at `y = 15`, in every format.
 
 To 5-on-5 or 7-on-7, append one `Authored` row to `FiveOnFive.cs` or
 `SevenOnSeven.cs` — geometry, text, kid name, ball and thrower all live in the
-row — and, if it belongs in the game script, a line in that format's script.
-Then `check` until clean. The steps below are for 6-on-6, whose library is
+row. Then `check` until clean. The steps below are for 6-on-6, whose library is
 still four parallel tables:
 
 1. Append to `Recent` in `PlaysMore.cs` — geometry, tagline, notes, mistake.
@@ -993,7 +1000,7 @@ classic route into quirks mode) and writes `LICENSE.txt` into `dist/deploy/`.
   (the passer takes the ball from the THROWER and nobody else), a pitch on a
   run, the flea flicker (decided against for now), a rollout that throws on the run
   (partway along, rather than from the end), editable per-kid instructions, and
-  printing or graduating a drawn play into the library.
+  graduating a drawn play into the library.
 - **Rewriting the app in Blazor.** The single HTML file is the product: it opens
   from a file, on a tablet, with no network and no runtime. A WASM runtime works
   against that, and every gotcha above would have to be re-solved.

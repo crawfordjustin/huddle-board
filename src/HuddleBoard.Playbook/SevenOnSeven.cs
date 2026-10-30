@@ -107,18 +107,6 @@ public static class SevenOnSeven
             },
         };
 
-    public static readonly IReadOnlyDictionary<string, string> Notes = new Dictionary<string, string>
-    {
-        ["PRO"] =
-            "Your base look. Two each side and a BACK, so the dive, the toss and the play-action all start from the same picture.",
-        ["FLOOD RIGHT"] =
-            "Three receivers to the right at three widths, a BACK, and one wide alone on the left. Built for flooding one side and rolling the THROWER into it.",
-        ["FIVE WIDE"] =
-            "Nobody in the backfield. Five receivers stretch the whole width; the SLOT LEFT is your jet man.",
-        ["HEAVY"] =
-            "Both TIGHTs in close and a BACK deep. Your run look, your goal line look, and where the pitch and the reverse come from.",
-    };
-
     private static readonly IReadOnlyList<Authored> Library =
     [
         // ---------------------------------------------------------------- PRO
@@ -1016,26 +1004,10 @@ public static class SevenOnSeven
 
     private static Format? _format;
 
-    /// <summary>The 7-on-7 library, as the checker, the exporter and the paper read it.</summary>
+    /// <summary>The 7-on-7 library, as the checker and the exporter read it.</summary>
     public static Format Format => _format ??= Authoring.Build(
-        "7", 7, "s_", "7 on 7", Formations, SpotMap, Notes, Library,
+        "7", 7, "s_", "7 on 7", Formations, SpotMap, Library,
         Authoring.Weeks(
             "Game one. One run, one quick pass, one third down, one goal line. Master these four first.",
-            1, 2, 9, 22),
-        [
-            ("1st down, run zone", "71 Dive (1) or Speed Sweep (13)"),
-            ("2nd and short", "Flood Sit (9) or Heavy Pitch (19)"),
-            ("2nd and long", "Sideline Flood (8)"),
-            ("3rd and short", "Flood Sit (9) — set the sit past the sticks"),
-            ("3rd and long", "Pro Smash (2) or Slot Post (12)"),
-            ("Rusher is winning", "Short Side (3) or Double In (17)"),
-            ("Defense chases motion", "Speed Keep (18), then Speed Pass (14)"),
-            ("Defense crowds the middle", "71 Toss (5) or Weakside Dive (10)"),
-            ("Defense flies to the pitch", "Heavy Reverse (20) or Pro Wheel (6)"),
-            ("Run has been working", "71 Fake Post (4) or Heavy Fake Post (24)"),
-            ("No-run zone", "Flood Spots (11) or All Spots (16)"),
-            ("Inside the 5", "Twin Fades (22) or Heavy Dive (21)"),
-            ("Extra point", "Roll Stairs (7)"),
-            ("Need a big play", "Five Verts (15)"),
-        ]);
+            1, 2, 9, 22));
 }
