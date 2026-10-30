@@ -25,7 +25,7 @@ public sealed class ResetChecks(AppFixture app) : IDisposable
     /// <summary>Everything a coach can change, in one readable line.</summary>
     private const string StateProbe = """
         () => [deck.slice().sort().join(','), renamedCount(), cfg.clockSecs,
-               cfg.funNames, cfg.showClock, ourSide].join('|')
+               cfg.funNames, cfg.showClock, cfg.view3d, ourSide].join('|')
         """;
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class ResetChecks(AppFixture app) : IDisposable
               setNames('p_01', 'POWER O', 'STAMPEDE');
               setNames('p_05', 'MESH', 'TANGLE');
               deck = DATA.plays.slice(0, 9).map(p => p.id); saveDeck();
-              cfg.clockSecs = 25; cfg.funNames = true; cfg.showClock = false; saveCfg();
+              cfg.clockSecs = 25; cfg.funNames = true; cfg.showClock = false; cfg.view3d = true; saveCfg();
               setOurSide('orange');
               logEvent('scratch'); flushLog();
               renderDeck();

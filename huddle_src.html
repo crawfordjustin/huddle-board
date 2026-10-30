@@ -440,6 +440,12 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   text-transform:uppercase;letter-spacing:.06em;padding:5px 14px;border-radius:9px;
   background:transparent;border:1.5px solid #3B443E;color:#E4E9E5;min-height:38px}
 .back:active{background:#242B26}
+.view3d{min-width:44px;min-height:38px;padding:5px 8px;flex:none;
+  border:1.5px solid #5C6C61;border-radius:9px;background:transparent;color:#E4E9E5;
+  font-family:var(--disp);font-size:16px}
+.view3d.on{background:#CBE8DA;color:#141A16;border-color:#CBE8DA}
+.view3d:focus-visible{outline:3px solid #FFC400;outline-offset:2px}
+.play .bar{grid-template-columns:auto minmax(0,1fr) auto}
 .titlewrap{grid-column:2;min-width:0;display:flex;align-items:baseline;gap:12px;
   justify-content:center}
 .titlewrap .kid{font-family:var(--disp);font-size:clamp(18px,2.8vw,34px);text-transform:uppercase;
@@ -806,10 +812,72 @@ let mAnim = 0;                       // 0..1 current mirror
 let mTarget = 0;
 
 function W2S(x, y){                    // players, routes, ball — these mirror
+  if (in3D()) return projectBoard(x * (1 - 2 * mAnim), y);
   return [CX + x * (1 - 2 * mAnim) * SCALE, (TOPY - y) * SCALE];
 }
 function F2S(x, y){                    // field paint — never moves
+  if (in3D()) return projectBoard(x, y);
   return [CX + x * SCALE, (TOPY - y) * SCALE];
+}
+// A fixed camera behind the offense. Only the play screen uses perspective;
+// the designer's pointer math, tutorial and printed pictures stay top-down.
+function in3D(){ return S.screen === "play" && cfg.view3d; }
+const BOARD_SIN = Math.sin(55 * Math.PI / 180), BOARD_COS = Math.cos(55 * Math.PI / 180);
+function boardPoint(x, y){
+  const dy = y - (TOPY + FIELD_BOT) / 2, depth = 60 + dy * BOARD_COS;
+  return [x * 60 / depth, -dy * BOARD_SIN * 60 / depth];
+}
+function projectBoard(x, y){
+  const p = boardPoint(x, y), v = SC && SC.board;
+  if (!v) return [CX + p[0] * SCALE, VB_H / 2 + p[1] * SCALE];
+  return [v.cx + p[0] * v.scale, v.cy + p[1] * v.scale];
+}
+function boardLabelTransform(x, y, dir){
+  // Lay the label's two axes along the ground: its words run down the
+  // sideline and its height runs across it. The camera supplies both the
+  // foreshortening and the slant, just as it does for the field paint.
+  const at = F2S(x, y), along = F2S(x, y - dir / SCALE), across = F2S(x - dir / SCALE, y);
+  return `matrix(${along[0]-at[0]} ${along[1]-at[1]} ${across[0]-at[0]} ${across[1]-at[1]} ${at[0]} ${at[1]})`;
+}
+function fitBoard(){
+  if (!SC || !in3D()) return;
+  // Reserve space in viewBox units for upright names and touch targets. Fit
+  // the out-of-bounds bands too, rather than clipping the near corners.
+  const corners = [[-18,FIELD_BOT],[18,FIELD_BOT],[-18,TOPY],[18,TOPY]].map(p => boardPoint(...p));
+  const xs = corners.map(p => p[0]), ys = corners.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const scale = Math.min((VB_W - 130) / (x1 - x0), (VB_H - 150) / (y1 - y0));
+  SC.board = {scale, cx: VB_W / 2 - (x0 + x1) / 2 * scale,
+              cy: VB_H / 2 - (y0 + y1) / 2 * scale};
+}
+function placeBoardNames(){
+  const players = Object.values(SC.players), placed = [];
+  const overlaps = (a,b) => a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+  const markers = players.map(p => ({x:p.at[0]-p.radius-3,y:p.at[1]-p.radius-3,
+                                    w:2*p.radius+6,h:2*p.radius+11}));
+  for (const p of players.slice().sort((a,b) => a.at[1]-b.at[1])){
+    const name = p.l1.textContent + "|" + p.l2.textContent;
+    if (!p.nameSize || p.nameSize.name !== name){
+      p.nameSize = {name, w:Math.max(p.l1.getComputedTextLength(), p.l2.getComputedTextLength())+6,
+                    h:LBL() * (p.l2.textContent ? 2 : 1)+5};
+    }
+    const {w,h} = p.nameSize, r = p.radius+8, [x,y] = p.at;
+    const options = [[0,r],[0,-r-h],[r+w/2,-h/2],[-r-w/2,-h/2],
+      [-w/2,r],[w/2,r],[-w/2,-r-h],[w/2,-r-h]];
+    const boxes = options.map(([dx,dy]) => ({x:x+dx-w/2,y:y+dy,w,h,dx,dy}));
+    const score = b => {
+      let n = b.x < 0 || b.x+w > VB_W || b.y < 0 || b.y+h > VB_H ? 10000 : 0;
+      for (const o of [...markers,...placed]) if (overlaps(b,o))
+        n += Math.min(b.x+w,o.x+o.w)-Math.max(b.x,o.x) + 100;
+      return n;
+    };
+    // Stable preference order: underneath, above, then beside. No per-frame
+    // layout reads: widths are measured only when a marker's words change.
+    const best = boxes.reduce((a,b) => score(b) < score(a) ? b : a);
+    p.l1.setAttribute("x", best.dx); p.l2.setAttribute("x", best.dx);
+    p.l1.setAttribute("y", best.dy+LBL()); p.l2.setAttribute("y", best.dy+2*LBL());
+    placed.push(best);
+  }
 }
 const pt  = p => W2S(p[0], p[1]).join(",");
 const fpt = p => F2S(p[0], p[1]).join(",");
@@ -1135,17 +1203,19 @@ addEventListener("pagehide", flushLog);
 // players is the division: how many are on the field, and so which library
 // the whole tablet reads. A tablet from before there was a choice is 6 on 6.
 const CFG_DEFAULTS = {v:1, clockSecs:40, warnAt:10, vibrate:true, showClock:true,
-                      funNames:false, players:6};
+                      funNames:false, players:6, view3d:false};
 // Every value a setting can take. Setup's buttons are drawn from this and a
 // setup file from another tablet is checked against it, so the two cannot drift.
 const CFG_CHOICES = {clockSecs:[25,30,40,45], warnAt:[5,10,15], vibrate:[true,false],
-                     showClock:[true,false], funNames:[true,false], players:FORMAT_IDS};
+                     showClock:[true,false], funNames:[true,false], players:FORMAT_IDS,
+                     view3d:[true,false]};
 let cfg = Object.assign({}, CFG_DEFAULTS);
 try {
   const saved = JSON.parse(localStorage.getItem("hb.settings") || "null");
   if (saved && saved.v === 1) cfg = Object.assign({}, CFG_DEFAULTS, saved);
 } catch(e){}
 if (!ALL.formats[cfg.players]) cfg.players = 6;
+cfg.view3d = cfg.view3d === true;
 function saveCfg(){ try { localStorage.setItem("hb.settings", JSON.stringify(cfg)); } catch(e){} }
 
 /* -------------------------------------------------------- custom names
@@ -1425,6 +1495,9 @@ function readSetup(text){
   for (const k of Object.keys(CFG_CHOICES)){
     // a v1 file never had a format to say; that is not something it got wrong
     if (k === "players" && o.v === 1) continue;
+    // Older exports predate the remembered view; they start in 2D without
+    // reporting a missing preference as an invalid value.
+    if (k === "view3d" && !Object.hasOwn(st, k)) continue;
     if (CFG_CHOICES[k].includes(st[k])) s.settings[k] = st[k]; else s.dropped++;
   }
   if (o.ourSide === "blue" || o.ourSide === "orange") s.ourSide = o.ourSide; else s.dropped++;
@@ -4595,7 +4668,7 @@ function openPlay(id){
           <span class="kid">${esc(nameOf(p).big)}</span>
           ${nameOf(p).small ? `<span class="coach">${esc(nameOf(p).small)}</span>` : ""}
         </div>
-        <div class="barright">${clockHTML()}<span class="chip">${esc(p.formation)}</span></div>
+        <div class="barright">${clockHTML()}<button class="view3d${cfg.view3d ? " on" : ""}" id="view3d" aria-label="3D view" aria-pressed="${cfg.view3d}">3D</button><span class="chip">${esc(p.formation)}</span></div>
       </div>
       <div class="stagewrap">
         <div class="fieldwrap">
@@ -4620,6 +4693,14 @@ function openPlay(id){
     renderDeck();
   };
   bindClock();
+  document.getElementById("view3d").onclick = () => {
+    cfg.view3d = !cfg.view3d; saveCfg();
+    const b = document.getElementById("view3d");
+    b.classList.toggle("on", cfg.view3d);
+    b.setAttribute("aria-pressed", String(cfg.view3d));
+    // Rebuild the picture, never the timeline or its playback origin.
+    buildScene();
+  };
   document.getElementById("stage").onclick = toggleStage;
   document.getElementById("mirror").onclick = () => {
     mTarget = mTarget ? 0 : 1; if (REDUCED) mAnim = mTarget; syncRail();
@@ -4922,6 +5003,9 @@ function callsHTML(calls, flip){
 const N = "http://www.w3.org/2000/svg";
 let SC = null;
 let fieldRO = null;
+if (document.fonts) document.fonts.addEventListener("loadingdone", () => {
+  if (SC) for (const p of Object.values(SC.players)) p.nameSize = null;
+});
 function mk(tag, attrs){
   const e = document.createElementNS(N, tag);
   for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -4963,6 +5047,9 @@ function buildScene(){
     if (!k || !isFinite(k)) return;
     SC.overX = Math.max(0, (b.width / k - VB_W) / 2);
     SC.overY = Math.max(0, (b.height / k - h) / 2);
+    SC.hitRadius = Math.max(24, 22 / k);
+    for (const p of Object.values(SC.players)) if (p.hit) p.hit.setAttribute("r", SC.hitRadius);
+    fitBoard();
   };
   measure();
   if (window.ResizeObserver){
@@ -4971,12 +5058,12 @@ function buildScene(){
     fieldRO.observe(svg);
   }
 
-  SC.base = mk("rect",{fill:"#F7F9F6"});
+  SC.base = mk(in3D() ? "polygon" : "rect",{fill:"#F7F9F6"});
   svg.appendChild(SC.base);
   SC.oob = {};
   ["blue","orange"].forEach(side => {
     const g = mk("g"); g.style.cursor = "pointer";
-    const r = mk("rect",{fill:"url(#oob-"+side+")"});
+    const r = mk(in3D() ? "polygon" : "rect",{fill:"url(#oob-"+side+")"});
     // dominant-baseline:central is what actually centres these. The text is
     // rotated 90°, so the baseline runs vertically and the glyphs would
     // otherwise hang off one side of the anchor point instead of straddling it.
@@ -5035,8 +5122,7 @@ function buildScene(){
   if (p.ball.mode !== "carry"){
     SC.throw = mk("polyline",{fill:"none",stroke:"#5B6472","stroke-width":5,
       "stroke-linejoin":"round","stroke-linecap":"round","stroke-dasharray":"13 9",
-      "marker-end":"url(#a-handoff)",opacity:0});
-    svg.appendChild(SC.throw);
+      "marker-end":"url(#a-handoff)","pointer-events":"none",opacity:0});
   }
 
   for (const key in p.spots){
@@ -5050,6 +5136,8 @@ function buildScene(){
     const shape = role === "wr" ? mk("circle",{r:12.5})
                 : mk(role === "snap" ? "rect" : "polygon", {});
     shape.setAttribute("stroke-width", 4);
+    const shadow = in3D() ? shape.cloneNode(false) : null;
+    const hit = in3D() ? mk("circle",{r:SC.hitRadius,fill:"transparent"}) : null;
     // No letters on the markers, in either stage. "W" and "SN" mean nothing to
     // a 7-year-old — he knows he is WIDE BLUE. Shape says what kind of job,
     // colour says which side, and the words underneath say it out loud.
@@ -5060,7 +5148,10 @@ function buildScene(){
       "paint-order":"stroke", stroke:"#F7F9F6", "stroke-width":3.5,
       "stroke-linejoin":"round"});
     const l1 = lbl(), l2 = lbl();
-    g.appendChild(halo); g.appendChild(shape);
+    if (hit) g.appendChild(hit);
+    g.appendChild(halo);
+    if (shadow) g.appendChild(shadow);
+    g.appendChild(shape);
     g.appendChild(l1); g.appendChild(l2);
     g.addEventListener("click", () => {
       if (S.screen === "designer") return;   // the designer reads its own taps
@@ -5070,8 +5161,11 @@ function buildScene(){
       if (S.screen !== "play"){ renderCalls(); syncRail(); }
     });
     svg.appendChild(g);
-    SC.players[key] = {g, shape, halo, l1, l2, role};
+    SC.players[key] = {g, shape, shadow, hit, halo, l1, l2, role};
   }
+  // A pass flies above the ground picture, so neither a route nor a player
+  // marker can cover its dashed flight line. The football goes above it.
+  if (SC.throw) svg.appendChild(SC.throw);
 
   // A football, not a yellow dot, and it points where it is going. The only job
   // this marker has is telling six seven-year-olds where the ball ends up, and
@@ -5115,8 +5209,12 @@ function frame(now){
   // field
   const bot = fieldBot(), VBH = vbH();
   const bt = F2S(-EDGE, 15), bb = F2S(EDGE, bot);
-  SC.base.setAttribute("x", bt[0]); SC.base.setAttribute("y", bt[1]);
-  SC.base.setAttribute("width", bb[0] - bt[0]); SC.base.setAttribute("height", bb[1] - bt[1]);
+  if (in3D()) SC.base.setAttribute("points",
+    [[-EDGE,bot],[EDGE,bot],[EDGE,15],[-EDGE,15]].map(fpt).join(" "));
+  else {
+    SC.base.setAttribute("x", bt[0]); SC.base.setAttribute("y", bt[1]);
+    SC.base.setAttribute("width", bb[0] - bt[0]); SC.base.setAttribute("height", bb[1] - bt[1]);
+  }
   const half = [[-EDGE,bot],[0,bot],[0,15],[-EDGE,15]];
   SC.washL.setAttribute("points", half.map(fpt).join(" "));
   SC.washR.setAttribute("points", half.map(q => fpt([-q[0], q[1]])).join(" "));
@@ -5140,6 +5238,21 @@ function frame(now){
   // out-of-bounds strips, sideline labels, parents badge
   [["blue",-1],["orange",1]].forEach(([nm,dir]) => {
     const o = SC.oob[nm];
+    if (in3D()){
+      o.r.setAttribute("points", [[dir*EDGE,bot],[dir*18,bot],[dir*18,15],[dir*EDGE,15]].map(fpt).join(" "));
+      const ours = ourSide === nm;
+      o.lbl.setAttribute("opacity", 0);
+      o.btxt.textContent = ours ? "OUR SIDE" : "THEIR SIDE";
+      o.badge.setAttribute("x", -70); o.badge.setAttribute("y", -17);
+      o.badge.setAttribute("width", 140); o.badge.setAttribute("height", 34);
+      o.badge.setAttribute("fill", ours ? "#F2F4F1" : "#1E2521");
+      o.badge.setAttribute("stroke", "#5C665F");
+      const transform = boardLabelTransform(dir * 16.85, 4.25, dir);
+      o.badge.setAttribute("transform", transform);
+      o.btxt.setAttribute("transform", transform);
+      o.btxt.setAttribute("fill", ours ? "#141A16" : "#B4BEB6");
+      return;
+    }
     const inner = F2S(dir * EDGE, 15)[0];
     // bleed into the letterbox so the strip runs to the edge of the screen —
     // and centre the labels on that whole visible band, not on the viewBox slice
@@ -5197,6 +5310,7 @@ function frame(now){
     // whose steps these are, who runs his
     const at = S.step && key === S.solo ? kidAt(p, tl, key, t) : [sp.x, sp.y];
     const c = W2S(at[0], at[1]);
+    P.at = c; P.radius = R * 1.24;
     P.g.setAttribute("transform", `translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})`);
 
     const sd = sideOf(key);
@@ -5222,6 +5336,13 @@ function frame(now){
     }
     P.shape.setAttribute("fill", fill);
     P.shape.setAttribute("stroke", stroke);
+    if (P.shadow){
+      for (const a of P.shape.attributes) P.shadow.setAttribute(a.name, a.value);
+      P.shadow.setAttribute("transform", "translate(0 5)");
+      P.shadow.setAttribute("fill", "#68766B");
+      P.shadow.setAttribute("stroke", "#526057");
+      P.shadow.setAttribute("pointer-events", "none");
+    }
 
     P.halo.setAttribute("r", R + 8);
     P.halo.setAttribute("opacity",
@@ -5246,6 +5367,21 @@ function frame(now){
     [P.l1, P.l2].forEach(t => t.setAttribute("fill", sd === "none" ? "#141A16" : stroke));
 
     P.g.setAttribute("opacity", S.solo ? (S.solo === key ? 1 : 0.22) : 1);
+  }
+
+  if (in3D()){
+    placeBoardNames();
+    // Paint far markers first, below the pass flight and the football,
+    // including during an individual kid's steps.
+    const keys = Object.keys(SC.players).sort((a,b) => {
+      const y = k => S.step && k === S.solo ? kidAt(p, tl, k, t)[1] : p.spots[k].y;
+      return y(b) - y(a);
+    });
+    for (let i = keys.length - 1, next = SC.throw || SC.ball; i >= 0; i--){
+      const g = SC.players[keys[i]].g;
+      if (g.nextSibling !== next) next.parentNode.insertBefore(g, next);
+      next = g;
+    }
   }
 
   // ball — nose first, so the shape itself says which way it is travelling.

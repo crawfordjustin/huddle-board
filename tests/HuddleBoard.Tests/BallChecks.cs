@@ -77,6 +77,14 @@ public sealed class BallChecks(AppFixture app)
         await page.EvaluateAsync($"openPlay('{play}')");
         await page.WaitForTimeoutAsync(400);
 
+        Assert.True(await page.EvaluateAsync<bool>("""
+            () => !SC.throw || (
+              [...Object.values(SC.players).map(p=>p.g), ...SC.paths.map(p=>p.line)].every(e=>
+                !!(e.compareDocumentPosition(SC.throw)&Node.DOCUMENT_POSITION_FOLLOWING)) &&
+              !!(SC.throw.compareDocumentPosition(SC.ball)&Node.DOCUMENT_POSITION_FOLLOWING) &&
+              getComputedStyle(SC.throw).pointerEvents==='none')
+            """), "The pass flight must draw above markers and routes, below the football, without blocking taps");
+
         foreach (var mirrored in new[] { false, true })
         {
             if (mirrored)

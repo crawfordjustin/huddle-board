@@ -161,6 +161,14 @@ dotnet test                                           # build, then full suite
    timeline-derived `kidSteps`, never separately authored instructions:
    Next, Back, Again replace the rail; All restores the play as tapped.
    Only his marker moves (`kidAt`) while everyone else holds position.
+   The play header's **3D** toggle changes only the projection, preserving
+   playback, mirror, Slow and individual steps. `cfg.view3d` defaults to 2D
+   and remembers the choice across plays, formats and reloads in `hb.settings`;
+   it syncs with settings and Start over resets it. Keep the fixed perspective and raised
+   shape markers in the existing SVG renderer, with upright player names,
+   sideline labels flat on the ground and field paint that never mirrors.
+   Designer, tutorial, previews and print stay 2D.
+   Preserve `ThreeDChecks` across all formats and five tablet sizes.
    Use the nine shapes plus LINE UP, MOTION, SNAP, TAKE IT, HAND OFF, THROW,
    CATCH and FAKE; a catch ends the receiver's last leg and a passer's run
    belongs to THROW. Preserve `BallChecks` and `StepChecks`.

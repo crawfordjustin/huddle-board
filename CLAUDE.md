@@ -277,6 +277,20 @@ coach lands opening the app before a game, the one moment an update costs
 nothing — and on no other screen, because the others are the ones turned
 around at the kids. `PwaChecks` walks the offer through both screens.
 
+**The play screen has an optional 3D board.** The header's **3D** toggle
+tilts the field into a fixed perspective behind the offense and raises the
+same shape markers. It changes the picture only: the timeline, ball chain,
+Slow, mirror and individual steps keep their place. A new tablet starts in 2D;
+the choice (`cfg.view3d`) stays across plays, formats and reloads until the coach
+switches it back. It lives in `hb.settings`, travels with sync and resets to 2D
+with Start over. Older setup files default to 2D. Player names stay upright;
+OUR SIDE / THEIR SIDE labels lie flat along the ground. The
+field paint never mirrors, and players retain their starting spots during a
+full replay. Only the selected kid moves in his steps, just as in 2D.
+The designer, tutorial, previews, thumbnails and printed sheets stay 2D.
+The projection lives in the existing SVG renderer, with no library or assets
+to fetch. `ThreeDChecks` covers the board across all formats and tablet sizes.
+
 **9. The ball is wherever the kid holding it is.** A play has one ball target,
 the kid who ends up with it, and for 23 plays that was the whole story: the
 football rode that kid's path from the snap. On REVERSE it put the ball in the
