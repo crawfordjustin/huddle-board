@@ -1769,6 +1769,21 @@ function checkPlay(p){
           `lines up at (${f1(origin[0])}, ${f1(origin[1])})`, [key]);
   }
 
+  // ---- motion: one kid at a time, and never toward the line. At the snap he
+  // has to be going sideways or back, so his motion stays behind the line and
+  // its last leg does not come forward.
+  const moving = p.paths.filter(q => q.type === "motion");
+  const movers = [...new Set(moving.map(q => q.who))];
+  if (movers.length > 1)
+    err("LEGAL/motion", `${movers.map(nm).join(" and ")} are both in motion — only one kid ` +
+        "may be moving at the snap", movers);
+  for (const path of moving){
+    const n = path.pts.length, last = path.pts[n-1], before = path.pts[Math.max(0, n-2)];
+    if (path.pts.some(q => q[1] > 0) || last[1] > before[1] + 0.05)
+      err("LEGAL/motion", `${nm(path.who)} is moving toward the line at the snap — motion goes ` +
+          "sideways or back", [path.who]);
+  }
+
   // ---- a handoff starts in the giver's hands and ends in the receiver's, at
   // the same moment
   for (const path of p.paths.filter(q => q.type === "handoff")){
@@ -1981,9 +1996,17 @@ function saneDesign(o, n = DATA.players){
     const r = routes[k];
     if (!base[k] || !r || !Array.isArray(r.pts) || r.pts.length > ROUTE_CAP) return null;
     if (!r.pts.every(q => isPt(q, 17, -8, 20))) return null;
-    if (r.pts.length) d.routes[k] = {pts: r.pts.map(q => [q[0], q[1]]),
-                                     end: r.end === "bar" ? "bar" : "arrow"};
+    if (!r.pts.length) continue;
+    d.routes[k] = {pts: r.pts.map(q => [q[0], q[1]]), end: r.end === "bar" ? "bar" : "arrow"};
+    // the first `motion` points are run before the snap, behind the line, and
+    // never by the two kids on the ball
+    if (r.motion == null) continue;
+    if (!Number.isInteger(r.motion) || r.motion < 1 || r.motion > r.pts.length
+        || k === "C" || k === "QB" || r.pts.slice(0, r.motion).some(q => q[1] > 0)) return null;
+    d.routes[k].motion = r.motion;
   }
+  // only one kid is moving at the snap
+  if (Object.values(d.routes).filter(r => r.motion).length > 1) return null;
   const b = o.ball;
   if (b && (b.mode === "pass" || b.mode === "carry") && base[b.who]){
     d.ball = {mode: b.mode, who: b.who};
@@ -2070,14 +2093,21 @@ const movedFrom = (d, k) => ydist(d.spots[k], [FORMATIONS[d.base][k].x, FORMATIO
    models: the point on the carrier's run that he reaches at the moment the
    thrower, walking straight at it from the snap, gets there too. A coach
    should never have to draw a handoff; this one passes the exchange rule by
-   construction. Null when the run never comes back within reach. */
+   construction. A runner going past at full speed — the jet man out of his
+   motion — is there before the thrower could be, so when they never meet
+   that way the thrower steps toward him as far as he gets in the time and
+   gives it at the first moment they are within a yard. Null when the run
+   never comes within reach at all. */
 function meetPoint(from, run){
   const {cum, total} = arcOf(run);
+  let passing = null;
   for (let s = 0; s <= total + 1e-9; s += 0.05){
-    const q = atDist(run, cum, s);
-    if (s >= ydist(from, q)) return q;
+    const q = atDist(run, cum, s), far = ydist(from, q);
+    if (s >= far) return q;
+    if (!passing && s > 0 && far - s <= 1)
+      passing = [from[0] + (q[0] - from[0]) * s / far, from[1] + (q[1] - from[1]) * s / far];
   }
-  return null;
+  return passing;
 }
 
 /* Where a pitch lands: a soft toss out in front of a runner who is already
@@ -2117,6 +2147,18 @@ function rollWords(pts){
   return {job: "drop back", teach: "Catch the snap and drop straight back to buy a count."};
 }
 
+/* What a kid's motion is called: MOTION, toward a colour, the word the
+   shipped plays use. The kid who takes the first handoff out of it is the
+   jet man, and the whole play is him being at full speed when he gets there. */
+function motionWords(pts, takes){
+  const dx = pts[pts.length-1][0] - pts[0][0], side = dx < 0 ? "blue" : "orange";
+  const to = Math.abs(dx) >= 1 ? ` to ${side}` : "";
+  return {job: `MOTION${to}`,
+          teach: `Start moving${to ? ` toward ${side}` : ""} on the coach's signal, before the snap, ` +
+                 "and keep going — the ball is snapped while you are moving." +
+                 (takes ? " Be at FULL SPEED when you pass the thrower." : "")};
+}
+
 /* The second exchange of a reverse: one runner handing to another, both on
    the move. Same model as the checker — everyone from the snap at 6 yd/s — so
    this is the first moment after the previous exchange that the two are
@@ -2146,9 +2188,17 @@ function compileDesign(d, num){
   const ball = d.ball, carry = !!ball && ball.mode === "carry", who = ball ? ball.who : "";
   const paths = [], calls = [], assign = {}, jobs = [];
   const name = k => base[k].name;
+  // what he runs from the snap: from his spot, or from where his motion left
+  // him, and the default rule — GO — when nothing was drawn after it
   const routeOf = k => {
-    const at = d.spots[k], r = d.routes[k];
-    return r ? [at, ...r.pts] : [at, [at[0], 10]];           // the default rule: GO
+    const r = d.routes[k], m = r && r.motion || 0;
+    const from = m ? r.pts[m-1] : d.spots[k], rest = r ? r.pts.slice(m) : [];
+    return rest.length ? [from, ...rest] : [from, [from[0], 10]];
+  };
+  // and what he runs before it
+  const motionOf = k => {
+    const r = d.routes[k];
+    return r && r.motion ? [d.spots[k].slice(), ...r.pts.slice(0, r.motion)] : null;
   };
   // Everyone who has the ball on a run, in order. One on a handoff or a
   // keeper; two or three on a reverse, each handing it to the next where the
@@ -2188,6 +2238,8 @@ function compileDesign(d, num){
   for (const k of keys){
     if (k === "QB" && !carriers.includes("QB")) continue;      // he throws, or hands it off
     const pts = routeOf(k), r = d.routes[k], c = carriers.indexOf(k), isCarrier = c >= 0;
+    const mpts = motionOf(k), mo = mpts ? motionWords(mpts, c === 0 && !keeps) : null;
+    if (mpts) paths.push({who: k, type: "motion", pts: mpts});
     const path = {who: k, type: isCarrier ? "run" : "route", pts};
     // the kid who throws it stops to throw, so his line ends in a bar
     if ((r && r.end === "bar" && !isCarrier) || k === passer) path.end = "bar";
@@ -2199,7 +2251,7 @@ function compileDesign(d, num){
     const prev = c > 0 ? carriers[c-1] : null, next = isCarrier ? carriers[c+1] : null;
     const did = k === passer ? `${sh.job}, stop, throw it to ${name(who)}`
               : next ? `${sh.job}, then hand it off` : prev ? `take it from ${name(prev)} and ${sh.job}` : sh.job;
-    const job = (shift ? lineupWords(d, k) + ", then " : "") + did;
+    const job = (shift ? lineupWords(d, k) + ", then " : "") + (mo ? mo.job + ", then " : "") + did;
     if (r || shift || isCarrier || k === who){
       calls.push([name(k), job]); jobs.push(k);
     } else lazy++;
@@ -2212,7 +2264,7 @@ function compileDesign(d, num){
                                      : k === passer ? ` Stop before you reach the line, set your feet, and ` +
                                               `throw it to ${name(who)}. Run it like it is a run until you stop.` : "")
                 : sh.word ? SHAPE_TEACH[sh.word] : "Run the line the coach drew for you.";
-    assign[k] = (shift ? lineupWords(d, k) + ". " : "") +
+    assign[k] = (shift ? lineupWords(d, k) + ". " : "") + (mo ? `${mo.job}. ${mo.teach} Then ` : "") +
       (r || isCarrier ? `${sh.job}. ${teach}` : DEFAULT_JOB) +
       (k === who && !carry ? ` The ball is coming to you${passer ? ` from ${name(passer)}, not the thrower` : ""}.` : "");
   }
@@ -2303,9 +2355,8 @@ function forgetPlays(ids){
    what a coach wants is "22 DIVE, but the slot goes the other way", not a
    blank field. Everyone stands where the play puts him and runs the line it
    draws, and the ball goes to the same kids in the same order. What the
-   designer cannot draw does not come across: a kid in motion lines up on his
-   spot and runs the motion as the start of his line, after the snap rather
-   than before it; a fake handoff is gone (his run stays, as a route); and
+   designer cannot draw does not come across: a fake handoff is gone (his run
+   stays, as a route); and
    the exchanges are placed again where the two kids meet, as every drawn
    handoff is. A drawn play copies as the drawing it already is. The names
    come along to be changed; the tagline does not, because it describes the
@@ -2321,11 +2372,14 @@ function designFrom(p){
              coachName: coachNameOf(p), kidName: kidNameOf(p), tagline: "",
              category: p.category, complexity: p.complexity, created: 0};
   for (const k of Object.keys(fm)) d.spots[k] = [p.spots[k].x, p.spots[k].y];
-  for (const path of p.paths){
+  // his motion first, then whatever he runs from the snap
+  const lines = p.paths.filter(q => q.type !== "handoff")
+    .sort((a, b) => (b.type === "motion") - (a.type === "motion"));
+  for (const path of lines){
     const k = path.who;
-    if (path.type === "handoff") continue;
     const r = d.routes[k] || (d.routes[k] = {pts: [], end: "arrow"});
     r.pts.push(...path.pts.slice(1).map(q => [q[0], q[1]]));
+    if (path.type === "motion") r.motion = r.pts.length;
     if (path.end === "bar") r.end = "bar";
   }
   const b = p.ball, legs = (b.legs || []).map(l => l.who);
@@ -3925,7 +3979,7 @@ function openDesigner(id, base, from){
   if (!src && !from) for (const k of Object.keys(FORMATIONS[base]))
     d.spots[k] = [FORMATIONS[base][k].x, FORMATIONS[base][k].y];
   // a copy is work already, so leaving it unsaved asks first
-  DZ = {d, id, tool: "route", sel: null, armed: false, handing: false, drag: null, preview: false, dirty: !!from,
+  DZ = {d, id, tool: "route", sel: null, armed: false, motion: false, handing: false, drag: null, preview: false, dirty: !!from,
         mode: d.ball ? d.ball.mode : "pass", msg: "", findings: []};
   logEvent("designer_open", {play: id || (from ? "copy" : "new"), base: d.base});
   renderDesigner();
@@ -3975,7 +4029,7 @@ function renderDesigner(){
     const d = DZ.d, base = FORMATIONS[d.base];
     for (const k of Object.keys(base)) d.spots[k] = [base[k].x, base[k].y];
     d.routes = {}; d.ball = null;
-    Object.assign(DZ, {sel: null, armed: false, handing: false, drag: null, preview: false,
+    Object.assign(DZ, {sel: null, armed: false, motion: false, handing: false, drag: null, preview: false,
                        tool: "route", mode: "pass", msg: "Back to " + d.base + ". Everybody is on his spot."});
     // a new play started over is a new play again; a saved one has changed
     DZ.dirty = !!DZ.id;
@@ -4013,12 +4067,18 @@ const clampRoute = q => [Math.max(-15.5, Math.min(15.5, snapHalf(q[0]))),
                          Math.max(FIELD_BOT, Math.min(18, snapHalf(q[1])))];
 // whoever throws a pass throws from behind the line, so his line cannot be
 // drawn past it — the THROWER rolling out, or the kid he gave it to; on a
-// keeper the THROWER is a ball carrier like any other
-const clampFor = (key, q) => {
-  const at = clampRoute(q), b = DZ.d.ball;
+// keeper the THROWER is a ball carrier like any other. Motion is behind the
+// line too: point i of his route is motion while it is one of his first few,
+// or while he is drawing it.
+const clampFor = (key, q, i) => {
+  const at = clampRoute(q), b = DZ.d.ball, r = DZ.d.routes[key];
   if (!(b && b.mode === 'carry') && key === (b && b.via ? b.via[0] : 'QB')) at[1] = Math.min(at[1], 0);
+  if (r && i < (r.motion || 0) || (DZ.motion && key === DZ.sel && i === (r ? r.pts.length : 0)))
+    at[1] = Math.min(at[1], 0);
   return at;
 };
+// the one kid in motion, if anyone is
+const moverOf = d => Object.keys(d.routes).find(k => d.routes[k].motion) || null;
 /* How close a tap has to be to count as landing on something. Picking a kid
    is generous, because a kid is all there is to tap. While a leg is being
    drawn the field is what a coach is aiming at, so a tap only lands on a
@@ -4080,7 +4140,7 @@ function dzDown(e){
             "a rollout, Take back the handoff so he throws it himself."
           : "On a handoff the thrower's job is the exchange, and it is drawn for you. To draw " +
             "him a rollout make it a pass, or a keeper: Ball, then Run, then tap him.";
-      else { DZ.sel = k; DZ.armed = false; }
+      else { DZ.sel = k; DZ.armed = false; DZ.motion = false; }
     };
     if (!DZ.sel){
       if (kid) pick(kid);
@@ -4093,7 +4153,8 @@ function dzDown(e){
         if (r.pts.length >= ROUTE_CAP) DZ.msg = "That is as many points as one route takes.";
         else {
           d.routes[DZ.sel] = r;
-          r.pts.push(clampFor(DZ.sel, q)); DZ.dirty = true; DZ.armed = false;
+          r.pts.push(clampFor(DZ.sel, q, r.pts.length)); DZ.dirty = true; DZ.armed = false;
+          if (DZ.motion) r.motion = r.pts.length;
           grab({kind: "pt", key: DZ.sel, i: r.pts.length - 1});   // and drag it into place
         }
       }
@@ -4154,7 +4215,7 @@ function dzMove(e){
     // first leg comes out of the kid
     if (ydist(q, g.at) < 0.75) return;
     const r = d.routes[g.key] || (d.routes[g.key] = {pts: [], end: "arrow"});
-    if (!r.pts.length) r.pts.push(clampFor(g.key, q));
+    if (!r.pts.length){ r.pts.push(clampFor(g.key, q, 0)); if (DZ.motion) r.motion = 1; }
     Object.assign(g, {kind: "pt", i: r.pts.length - 1});
   }
   if (g.kind === "kid"){
@@ -4162,10 +4223,10 @@ function dzMove(e){
     if (now[0] === was[0] && now[1] === was[1]) return;
     // his route comes with him: moving a kid is not a reason to redraw his job
     const r = d.routes[g.key];
-    if (r) r.pts = r.pts.map(p => clampFor(g.key, [p[0] + now[0] - was[0], p[1] + now[1] - was[1]]));
+    if (r) r.pts = r.pts.map((p, i) => clampFor(g.key, [p[0] + now[0] - was[0], p[1] + now[1] - was[1]], i));
     d.spots[g.key] = now;
   } else {
-    const r = d.routes[g.key], now = clampFor(g.key, q), was = r.pts[g.i];
+    const r = d.routes[g.key], now = clampFor(g.key, q, g.i), was = r.pts[g.i];
     if (now[0] === was[0] && now[1] === was[1]) return;
     r.pts[g.i] = now;
   }
@@ -4190,7 +4251,8 @@ function dzNextLeg(q){
   const on = DZ.tool === "route" && DZ.sel && DZ.armed && !DZ.preview && !dzRingAt(q)
           && !dzKidAt(q, HIT_ON);
   ghost.setAttribute("opacity", on ? 1 : 0);
-  if (on) ghost.setAttribute("points", [dzRouteEnd(), clampFor(DZ.sel, q)].map(fpt).join(" "));
+  const r = DZ.d.routes[DZ.sel];
+  if (on) ghost.setAttribute("points", [dzRouteEnd(), clampFor(DZ.sel, q, r ? r.pts.length : 0)].map(fpt).join(" "));
 }
 
 function dzPreview(on){
@@ -4241,6 +4303,8 @@ function dzRefresh(){
     : DZ.tool === "ball" && DZ.handing ? `Tap the kid ${S.play.spots[DZ.d.ball.who].name} hands it to`
     : DZ.tool === "ball" ? (DZ.mode === "pass" ? "Tap the kid the ball is thrown to"
                                                : "Tap the kid who carries it")
+    : DZ.sel && DZ.motion ? (DZ.armed ? "Tap where his motion goes · tap Motion again when he is set"
+                                      : "Tap the dotted circle to draw his motion, before the snap")
     : DZ.sel && DZ.armed ? "Tap where this leg ends · tap the circle again to cancel"
     : DZ.sel ? (DZ.d.routes[DZ.sel] ? "Tap the dotted circle for another leg · drag a point to move it"
                                     : "Tap the dotted circle to start his route")
@@ -4260,8 +4324,12 @@ function dzOverlay(p){
     "stroke-linejoin": "round", "stroke-linecap": "round"}, attrs)));
   const hot = new Set(DZ.findings.filter(f => f.level === "error").flatMap(f => f.keys));
   for (const path of p.paths){
-    const drawn = !!d.routes[path.who] || path.type !== "route";
-    if (path.type === "handoff")
+    const r = d.routes[path.who];
+    const drawn = path.type !== "route" || (!!r && r.pts.length > (r.motion || 0));
+    if (path.type === "motion")
+      line(path.pts, {stroke: "#C9700D", "stroke-width": 5, "stroke-dasharray": "16 11",
+                      "marker-end": "url(#a-motion)"});
+    else if (path.type === "handoff")
       line(path.pts, {stroke: "#5B6472", "stroke-width": 5, "stroke-dasharray": "13 9",
                       "marker-end": "url(#a-handoff)"});
     else if (!drawn)                               // the default rule, shown as a ghost
@@ -4300,7 +4368,7 @@ function dzOverlay(p){
     if (r) r.pts.forEach((q, i) => {
       const s = F2S(q[0], q[1]);
       g.appendChild(mk("circle", {cx: s[0], cy: s[1], r: i === r.pts.length - 1 ? 10 : 7.5,
-        fill: "#fff", stroke: "#1B5E3A", "stroke-width": 4, class: "dzpt"}));
+        fill: "#fff", stroke: i < (r.motion || 0) ? "#C9700D" : "#1B5E3A", "stroke-width": 4, class: "dzpt"}));
     });
     // the next leg starts here, said with a ring rather than left for a coach
     // to guess at: dotted and pulsing while it is waiting to be tapped, solid
@@ -4310,7 +4378,7 @@ function dzOverlay(p){
       fill: DZ.armed ? "rgba(27,94,58,.16)" : "rgba(27,94,58,.05)", stroke: "#1B5E3A",
       "stroke-width": DZ.armed ? 4 : 3, "stroke-dasharray": DZ.armed ? "" : "6 6",
       class: DZ.armed ? "dznext armed" : "dznext"}));
-    g.appendChild(mk("polyline", {id: "dz-next", fill: "none", stroke: "#1B5E3A",
+    g.appendChild(mk("polyline", {id: "dz-next", fill: "none", stroke: DZ.motion ? "#C9700D" : "#1B5E3A",
       "stroke-width": 4, "stroke-dasharray": "8 8", "stroke-linecap": "round", opacity: 0}));
   }
 }
@@ -4325,7 +4393,11 @@ function dzRail(){
     sub = `<button class="rbtn sub" id="dz-undo" ${r ? "" : "disabled"}>Undo<small>last point</small></button>
       <button class="rbtn sub" id="dz-clear" ${r ? "" : "disabled"}>Clear<small>back to GO</small></button>
       <button class="rbtn sub" id="dz-end" ${r ? "" : "disabled"}>${stop ? "Stop" : "Arrow"}<small>${stop
-        ? "turns around" : "keeps going"}</small></button>`;
+        ? "turns around" : "keeps going"}</small></button>` +
+      // the two kids on the ball never go in motion
+      (DZ.sel === "C" || DZ.sel === "QB" ? "" :
+      `<button class="rbtn sub ${DZ.motion || (r && r.motion) ? "on" : ""}" id="dz-motion">Motion<small>${
+        DZ.motion ? "then tap again" : r && r.motion ? "take it off" : "before the snap"}</small></button>`);
   } else if (t === "ball"){
     const run = !!d.ball && d.ball.mode === "carry", via = d.ball ? (d.ball.via || []) : [];
     sub = `<button class="rbtn sub ${DZ.mode === "pass" ? "on" : ""}" data-mode="pass">Pass<small>throw it</small></button>
@@ -4349,7 +4421,7 @@ function dzRail(){
        ${d.ball ? "" : "disabled"}>${DZ.preview ? "Stop" : "Preview"}<small>${DZ.preview
        ? "back to drawing" : "run it"}</small></button>`;
   rail.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => {
-    DZ.tool = b.dataset.tool; DZ.msg = ""; DZ.preview = false; DZ.armed = false; DZ.handing = false;
+    DZ.tool = b.dataset.tool; DZ.msg = ""; DZ.preview = false; DZ.armed = false; DZ.handing = false; DZ.motion = false;
     dzRefresh(); });
   rail.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
     DZ.mode = b.dataset.mode; DZ.msg = ""; DZ.handing = false;
@@ -4366,8 +4438,39 @@ function dzRail(){
   });
   const on = (id, act) => { const b = document.getElementById(id);
     if (b) b.onclick = () => { act(); DZ.dirty = true; DZ.msg = ""; DZ.armed = false; dzRefresh(); }; };
-  on("dz-undo", () => { const r = d.routes[DZ.sel]; r.pts.pop(); if (!r.pts.length) delete d.routes[DZ.sel]; });
-  on("dz-clear", () => { delete d.routes[DZ.sel]; });
+  on("dz-undo", () => {
+    const r = d.routes[DZ.sel];
+    r.pts.pop();
+    if (r.motion > r.pts.length) r.motion = r.pts.length;
+    if (!r.motion) delete r.motion;
+    if (!r.pts.length) delete d.routes[DZ.sel];
+  });
+  on("dz-clear", () => { delete d.routes[DZ.sel]; DZ.motion = false; });
+  /* Motion is the start of his line, run before the snap. Tapping Motion
+     makes the legs he has so far, and the ones drawn next, his motion; a
+     second tap says he is set, and what is drawn after that he runs from the
+     snap. On a kid who already has motion, the tap takes it off and the legs
+     stay as his route. One kid at a time, behind the line, as the rule says. */
+  const mb = document.getElementById("dz-motion");
+  if (mb) mb.onclick = () => {
+    const r = d.routes[DZ.sel], mover = moverOf(d);
+    DZ.msg = ""; DZ.armed = false;
+    if (DZ.motion){
+      DZ.motion = false;
+      if (r && r.motion) DZ.msg = "He is set. Now draw what he runs from the snap.";
+    } else if (r && r.motion){
+      delete r.motion; DZ.dirty = true;
+      DZ.msg = "No motion: he runs all of it after the snap.";
+    } else if (mover)
+      DZ.msg = `Only one kid can be moving at the snap. Take ${FORMATIONS[d.base][mover].name}'s motion off first.`;
+    else if (r && r.pts.some(q => q[1] > 0))
+      DZ.msg = "His line already goes past the line of scrimmage. Clear it, and draw his motion first.";
+    else {
+      DZ.motion = true;
+      if (r){ r.motion = r.pts.length; DZ.dirty = true; }
+    }
+    dzRefresh();
+  };
   on("dz-end", () => { const r = d.routes[DZ.sel]; r.end = r.end === "bar" ? "arrow" : "bar"; });
   for (const [id, kind] of [["dz-hand", "hand"], ["dz-pitch", "pitch"]]){
     const b = document.getElementById(id);

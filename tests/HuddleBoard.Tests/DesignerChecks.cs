@@ -188,6 +188,21 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
             """);
         Assert.Contains("SAFE/collide", collide);
 
+        // nor on motion: a second kid moving, or one coming forward at the snap
+        var motion = await page.EvaluateAsync<string[]>("""
+            (() => {
+              const p = JSON.parse(JSON.stringify(DATA.plays.find(q => q.num === 2)));
+              const two = JSON.parse(JSON.stringify(p));
+              two.paths.push({who: "X", type: "motion", pts: [[-11, 0], [-12.5, -1]]});
+              two.paths.find(q => q.who === "X").pts[0] = [-12.5, -1];
+              p.paths.find(q => q.type === "motion").pts.push([-1.5, -0.5]);
+              return [...checkPlay(two), ...checkPlay(p)].filter(f => f.rule === "LEGAL/motion").map(f => f.msg);
+            })()
+            """);
+        Assert.Equal(2, motion.Length);
+        Assert.Contains("both in motion", motion[0]);
+        Assert.Contains("toward the line", motion[1]);
+
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
@@ -594,6 +609,98 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
     }
 
     /// <summary>
+    /// JET SWEEP, drawn: the slot goes in motion before the snap, and the
+    /// THROWER hands it to him on the move. The motion is its own path, so
+    /// the snap waits for it and he is at the end of it when the ball is
+    /// snapped; the handoff is placed on the run he makes from there. Motion
+    /// stays behind the line, one kid at a time, comes off with a tap, and
+    /// survives storage.
+    /// </summary>
+    [Fact]
+    public async Task AKidCanGoInMotionBeforeTheSnap()
+    {
+        var (page, errors) = await OpenDesignerAsync(Desk, "TRIPS LEFT");
+
+        await TapAsync(page, -7.5, 0);                             // SLOT BLUE
+        await page.ClickAsync("#dz-motion");
+        Assert.True(await page.EvaluateAsync<bool>("DZ.motion"));
+        await TapAsync(page, -7.5, 0);
+        await TapAsync(page, -4.5, 2);                             // past the line: held behind it
+        Assert.Equal(new[] { -4.5, 0 }, await page.EvaluateAsync<double[]>("DZ.d.routes.Y.pts[0]"));
+        await page.ClickAsync("#dz-undo");
+        await TapAsync(page, -7.5, 0);
+        await TapAsync(page, -4.5, -1.5);
+        await TapAsync(page, -4.5, -1.5);
+        await TapAsync(page, -1.5, -1.5);
+        await page.ClickAsync("#dz-motion");                       // he is set
+        Assert.False(await page.EvaluateAsync<bool>("DZ.motion"));
+        await TapAsync(page, -1.5, -1.5);
+        await TapAsync(page, 3, -1.5);
+        await TapAsync(page, 3, -1.5);
+        await TapAsync(page, 8, -0.5);
+        await TapAsync(page, 8, -0.5);
+        await TapAsync(page, 11.5, 6.5);
+        Assert.Equal(2, await page.EvaluateAsync<int>("DZ.d.routes.Y.motion"));
+
+        await ToolAsync(page, "ball");
+        await page.ClickAsync("[data-mode=\"carry\"]");
+        await TapAsync(page, -7.5, 0);
+
+        Assert.Equal(0, await ErrorCountAsync(page));
+        Assert.Equal("[[-7.5,0],[-4.5,-1.5],[-1.5,-1.5]]", await page.EvaluateAsync<string>(
+            "JSON.stringify(S.play.paths.find(p => p.type === 'motion' && p.who === 'Y').pts)"));
+        Assert.Equal(new[] { -1.5, -1.5 }, await page.EvaluateAsync<double[]>(
+            "S.play.paths.find(p => p.type === 'run' && p.who === 'Y').pts[0]"));
+        Assert.Equal("QB>Y", await page.EvaluateAsync<string>(
+            "S.play.paths.filter(p => p.type === 'handoff').map(p => p.who + '>' + p.to).join()"));
+        Assert.Contains("MOTION to orange, then CARRY to orange", await CallsAsync(page));
+        Assert.Contains("FULL SPEED", await page.EvaluateAsync<string>("S.play.assign.Y"));
+
+        // the snap waits for the motion, and he is at the end of it when it comes
+        var snap = await page.EvaluateAsync<double[]>("""
+            (() => {
+              const tl = buildTimeline(S.play), at = kidAt(S.play, tl, "Y", tl.tSnap);
+              return [tl.tSnap - HOLD, at[0], at[1]];
+            })()
+            """);
+        Assert.True(snap[0] > 600, $"the snap comes {snap[0]} ms after the hold");
+        Assert.Equal(-1.5, snap[1], 1);
+        Assert.Equal(-1.5, snap[2], 1);
+
+        // one kid at a time
+        await ToolAsync(page, "route");
+        await TapAsync(page, -4, 0);                               // SLOT ORANGE
+        await page.ClickAsync("#dz-motion");
+        Assert.Contains("Only one kid", await page.InnerTextAsync("#dz-line"));
+        Assert.False(await page.EvaluateAsync<bool>("DZ.motion"));
+
+        // it survives storage; two kids moving, or motion past the line, does not
+        Assert.True(await page.EvaluateAsync<bool>("""
+            (() => {
+              const d = saneDesign(Object.assign({}, DZ.d, {id: "u_jetmotion"}));
+              const two = JSON.parse(JSON.stringify(DZ.d));
+              two.id = "u_twomotion"; two.routes.Z = {pts: [[-4, -1]], end: "arrow", motion: 1};
+              const far = JSON.parse(JSON.stringify(DZ.d));
+              far.id = "u_farmotion"; far.routes.Y.pts[0] = [-4.5, 1];
+              return !!d && d.routes.Y.motion === 2 && !saneDesign(two) && !saneDesign(far);
+            })()
+            """));
+
+        // a tap takes it off, and the legs stay his, run from the snap
+        await TapAsync(page, -7.5, 0);
+        await page.ClickAsync("#dz-motion");
+        Assert.True(await page.EvaluateAsync<bool>(
+            "!DZ.d.routes.Y.motion && !S.play.paths.some(p => p.type === 'motion')"));
+        Assert.Equal(5, await page.EvaluateAsync<int>("DZ.d.routes.Y.pts.length"));
+        // and his line already crosses the line of scrimmage, so it cannot all become motion
+        await page.ClickAsync("#dz-motion");
+        Assert.Contains("Clear it", await page.InnerTextAsync("#dz-line"));
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
     /// JET PASS, drawn: the THROWER hands it to the back, the back runs to
     /// orange, stops behind the line and throws it to the wide orange. The
     /// handoff is placed for the coach, the ball rides the back's run and
@@ -686,8 +793,9 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
     /// <summary>
     /// Every shipped play in every format turns back into a drawing the
     /// designer can open and save: the same kids, the ball to the same kids in
-    /// the same order, every route still drawn. Motion and fake handoffs do not
-    /// come across, so this holds what does.
+    /// the same order, every route still drawn, and a kid in motion still in
+    /// motion, on the same points. Fake handoffs do not come across, so this
+    /// holds what does.
     /// </summary>
     [Fact]
     public async Task EveryShippedPlayCopiesIntoADrawing()
@@ -712,6 +820,9 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
                   for (const path of p.paths)
                     if (path.type === "route" && !clean.routes[path.who]) out.push(p.id + " lost " + path.who);
                   if (c.formation !== p.formation) out.push(p.id + " moved somebody: " + c.formation);
+                  const motion = q => JSON.stringify(q.paths.filter(m => m.type === "motion")
+                    .map(m => [m.who, m.pts.map(pt => pt.map(Number))]));
+                  if (motion(c) !== motion(p)) out.push(p.id + " motion " + motion(c) + " not " + motion(p));
                   const e = errorsIn(c);
                   if (e.length) out.push(p.id + " " + e.map(f => f.rule + ": " + f.msg).join("; "));
                 }
@@ -978,7 +1089,7 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         // the fullest the rail gets: a kid selected with a route drawn, and the ball tool
         await RouteAsync(page, (-9, 0), (-9, 5));
         foreach (var sel in new[] { "[data-tool=\"move\"]", "[data-tool=\"route\"]", "[data-tool=\"ball\"]",
-                                    "#dz-undo", "#dz-clear", "#dz-end", "#dz-prev" })
+                                    "#dz-undo", "#dz-clear", "#dz-end", "#dz-motion", "#dz-prev" })
             await OnScreen(sel);
         await ToolAsync(page, "ball");
         await OnScreen("[data-mode=\"pass\"]");

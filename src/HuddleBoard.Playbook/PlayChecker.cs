@@ -363,6 +363,28 @@ public static class PlayChecker
             }
         }
 
+        // ---- motion: one kid at a time, and never toward the line. At the
+        // snap he has to be going sideways or back, so his motion stays behind
+        // the line and its last leg does not come forward.
+        var moving = p.Paths.Where(q => q.Type == PathType.Motion).ToList();
+        if (moving.Select(q => q.Who).Distinct().Count() > 1)
+        {
+            rep.Err(num, "LEGAL/motion",
+                $"{string.Join(" and ", moving.Select(q => q.Who).Distinct())} are both in motion — " +
+                "only one kid may be moving at the snap");
+        }
+
+        foreach (var path in moving)
+        {
+            var last = path.Pts[^1];
+            var before = path.Pts.Count > 1 ? path.Pts[^2] : last;
+            if (path.Pts.Any(pt => pt.Y > 0) || last.Y > before.Y + 0.05)
+            {
+                rep.Err(num, "LEGAL/motion",
+                    $"{path.Who} is moving toward the line at the snap — motion goes sideways or back");
+            }
+        }
+
         // ---- a handoff starts in the giver's hands and ends in the receiver's,
         // at the same moment. Two lines crossing on paper is not an exchange if
         // one kid is not there yet, and on a reverse the second exchange is the

@@ -180,8 +180,8 @@ filled in to be changed; Save makes it one of the coach's own (rule 13), into
 the deck, and the original is untouched. A drawn play copies as the drawing
 it is. A shipped one is turned back into a drawing: every spot and line as
 shipped, the ball to the same kids in the same order. What the designer
-cannot draw does not come across. Motion becomes the start of the kid's line
-after the snap, so he still lines up on his spot. A fake handoff is dropped,
+cannot draw does not come across. Motion comes across as motion, on the
+same points (rule 13). A fake handoff is dropped,
 though the faker's run stays as a route. A route's delay is dropped, and the
 exchanges are placed again by `meetPoint`/`meetRunning`. The tagline is
 left blank because it described the original. `DesignerChecks` holds that
@@ -569,6 +569,27 @@ line's end. While the play is a pass, his points are held behind the line
 (`clampFor`), because a forward pass from past it is a flag. On a keeper he
 is a carrier like anyone else; on a handoff to somebody else his line is the
 exchange and is not his to draw.
+
+A kid can go in **motion** before the snap — the jet man of JET SWEEP and
+the reverses. With him picked, **Motion** on the Route rail makes the legs he
+has so far, and the ones drawn next, his motion, drawn as the play screen
+draws it (orange, dashed); a second tap says he is set, and what is drawn
+after that he runs from the snap. On a kid who already has motion the tap
+takes it off and the legs stay his route. The design stores it as
+`route.motion`, how many of his first points are motion, so moving him,
+dragging a point and Undo all keep working on one line; `compileDesign`
+splits it into a real `motion` path and the run from its end, so the
+timeline, the steps, the thumbnails and the checker see what they see on a
+shipped play. The rule is the league's: **one kid at a time, never toward the
+line.** `clampFor` holds his motion points behind it, Motion refuses a
+second kid, `saneDesign` refuses both, and `LEGAL/motion` — in both
+checkers, because shipped plays have motion too — errors on two kids moving
+or a last leg that comes forward. The SNAPPER and the THROWER never go in
+motion. A carrier out of motion is going past at full speed, often before
+the THROWER could walk to him, so `meetPoint` falls back to the thrower
+stepping toward him and giving it the first moment they are within a yard.
+`DesignerChecks` draws JET SWEEP, reads where he is at the snap, and holds
+that every shipped play with motion copies with it.
 
 A **reverse** is a chain of carriers: Ball, Run, the first carrier, then
 **Hand off** and the next one, up to three (`VIA_CAP`). The design stores them
@@ -1029,8 +1050,7 @@ classic route into quirks mode) and writes `LICENSE.txt` into `dist/deploy/`.
 - **Coach-authored plays in the shipped library.** The designer (rule 13)
   draws plays that live on one tablet and its sync partners; the library
   itself still grows by editing `PlaysMore.cs`. Not yet in the designer, and
-  the obvious next steps: pre-snap motion
-  (REVERSE and JET REVERSE start with it), a reverse that ends in a throw
+  the obvious next steps: a reverse that ends in a throw
   (the passer takes the ball from the THROWER and nobody else), a pitch on a
   run, the flea flicker (decided against for now), a rollout that throws on the run
   (partway along, rather than from the end), editable per-kid instructions, and
