@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://huddle-board-fpbhaphyawg7cfc0.westus3-01.azurewebsites.net
+      url: https://kidsflaghuddle.org
 
     steps:
       # Full history, because the version's last number is counted from it.

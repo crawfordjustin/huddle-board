@@ -360,7 +360,7 @@ that `environment:` line from the job breaks the login outright; the branch
 restriction lives in the GitHub environment's deployment policy. There are no
 Azure secrets in the repository and publish profiles do not work here.
 The workflow deploys pushes to `master` to Linux App Service `huddle-board`
-(`rg-default`, westus3), publishing for `linux-x64` and using `dotnet publish src/HuddleBoard.Web` in the same
+(`rg-default`, westus3, served at https://kidsflaghuddle.org), publishing for `linux-x64` and using `dotnet publish src/HuddleBoard.Web` in the same
 step that exports `HB_VERSION`, then deploying with `clean: true`. Keep the
 publish package small; preserve the platform-specific native asset trimming.
 The host needs .NET 10 and Always On; if .NET 10 becomes unavailable, publish

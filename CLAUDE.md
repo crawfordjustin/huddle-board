@@ -982,8 +982,8 @@ whole sweep cannot pass vacuously.
 
 ## Deploy
 
-The live site is the published **HuddleBoard.Web**: the pages at `/` and the
-app at `/app/` (see "The app lives at `/app/`" above). From Visual Studio,
+The live site is https://kidsflaghuddle.org, the published **HuddleBoard.Web**:
+the pages at `/` and the app at `/app/` (see "The app lives at `/app/`" above). From Visual Studio,
 right-click **HuddleBoard.Web** → **Publish** → Azure App Service. Publishing
 runs the build first and stages `dist/deploy/` into `wwwroot/app/`, and the host
 applies the response rules itself.
