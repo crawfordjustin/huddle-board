@@ -74,6 +74,27 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.MapRazorPages();
 
+// The Play Store app is a Trusted Web Activity: Chrome opening /app/ with no
+// address bar. Chrome hides the bar only once this file, at the root of the
+// origin and not under /app/, names the Android package and the certificate
+// that signed it. It is served from here rather than from wwwroot because
+// static files skip anything under a dot-folder. The fingerprint is Play App
+// Signing's SHA-256 (Play Console → App integrity), which is public; until it
+// is filled in the app still runs, with an address bar across the top.
+app.MapGet("/.well-known/assetlinks.json", () => Results.Json(new[]
+{
+    new
+    {
+        relation = new[] { "delegate_permission/common.handle_all_urls" },
+        target = new
+        {
+            @namespace = "android_app",
+            package_name = "org.kidsflaghuddle.huddleboard",
+            sha256_cert_fingerprints = Array.Empty<string>(),
+        },
+    },
+}));
+
 // When the site grows an API, it goes here, under one prefix the app's paths
 // and the pages can never collide with:
 // var api = app.MapGroup("/api");

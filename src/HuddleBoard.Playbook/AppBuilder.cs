@@ -184,6 +184,10 @@ public static class AppBuilder
         j.Pair("name", "Huddle Board");
         j.Pair("short_name", "Huddle Board");
         j.Pair("description", "Sideline play tool for 6U to 8U flag football: 5, 6 or 7 on the field.");
+        // The install's identity. Chrome already derived it from start_url, so
+        // spelling it out changes nothing for a tablet that has it installed;
+        // it only keeps the identity if start_url ever moves.
+        j.Pair("id", "./");
         j.Pair("start_url", "./");
         j.Pair("scope", "./");
         j.Pair("display", "fullscreen");
