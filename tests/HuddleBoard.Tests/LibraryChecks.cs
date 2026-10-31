@@ -39,12 +39,12 @@ public sealed class LibraryChecks(AppFixture app)
         Assert.InRange(await Rows(), 1, all - 1);
 
         await page.ClickAsync("[data-kind=\"all\"]");
-        await page.ClickAsync("[data-cat=\"GOAL LINE\"]");
+        await AppFixture.PickSituationAsync(page, "#lsituation", "GOAL LINE");
         await page.WaitForTimeoutAsync(300);
         var goalLine = await Rows();
         Assert.InRange(goalLine, 1, all - 1);
 
-        await page.ClickAsync("[data-cat=\"all\"]");
+        await AppFixture.PickSituationAsync(page, "#lsituation", "all");
         await page.WaitForTimeoutAsync(200);
         await page.FillAsync("#lq", "wheel");
         await page.WaitForTimeoutAsync(350);
@@ -67,15 +67,15 @@ public sealed class LibraryChecks(AppFixture app)
 
         // toggling a play while filtered must not drop the filter
         await page.ClickAsync("#lonly");
-        await page.ClickAsync("[data-cat=\"RUN ZONE\"]");
+        await AppFixture.PickSituationAsync(page, "#lsituation", "RUN ZONE");
         await page.WaitForTimeoutAsync(300);
         var before = await Rows();
         await page.EvalOnSelectorAsync(".lrow", "e=>e.click()");
         await page.WaitForTimeoutAsync(350);
         Assert.Equal(before, await Rows());
         Assert.True(
-            await page.EvalOnSelectorAsync<bool>("[data-cat=\"RUN ZONE\"]",
-                "e=>e.classList.contains('on')"),
+            await page.EvalOnSelectorAsync<bool>("#lsituation",
+                "e=>e.dataset.value === 'RUN ZONE' && e.classList.contains('on')"),
             "adding a play while filtered dropped the filter");
 
         await page.CloseAsync();
@@ -98,12 +98,12 @@ public sealed class LibraryChecks(AppFixture app)
         var rows = await page.EvaluateAsync<int>("() => document.querySelectorAll('.lrow').length");
         Assert.Equal(100, rows);
 
-        await page.ClickAsync("[data-cat=\"GOAL LINE\"]");
+        await AppFixture.PickSituationAsync(page, "#lsituation", "GOAL LINE");
         await page.WaitForTimeoutAsync(400);
         Assert.InRange(await page.EvaluateAsync<int>("() => document.querySelectorAll('.lrow').length"),
             1, 99);
 
-        await page.ClickAsync("[data-cat=\"all\"]");
+        await AppFixture.PickSituationAsync(page, "#lsituation", "all");
         await page.WaitForTimeoutAsync(300);
         var ms = await page.EvaluateAsync<double>("""
             () => {const t=performance.now();

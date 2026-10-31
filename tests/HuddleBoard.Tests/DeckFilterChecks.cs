@@ -20,6 +20,81 @@ public sealed class DeckFilterChecks(AppFixture app)
     private static string DeckOf(int n) =>
         $"deck = DATA.plays.slice(0,{n}).map(p => p.id); saveDeck(); renderDeck();";
 
+    private static async Task CheckTouchPickerAsync(Microsoft.Playwright.IPage page, string id)
+    {
+        await page.ClickAsync(id);
+        Assert.True(await page.Locator(".sitoption").CountAsync() > 1);
+        Assert.True(await page.EvalOnSelectorAllAsync<bool>(".sitoption", """
+            es => es.every(e => { const r = e.getBoundingClientRect(); return r.height >= 56 && r.width >= 200; })
+            """));
+        foreach (var option in new[] { page.Locator(".sitoption").First, page.Locator(".sitoption").Last })
+        {
+            await option.ScrollIntoViewIfNeededAsync();
+            Assert.True(await option.EvaluateAsync<bool>("""
+                e => { const r = e.getBoundingClientRect(), list = e.parentElement.getBoundingClientRect();
+                  return r.top >= list.top - 1 && r.bottom <= list.bottom + 1 && r.left >= 0 && r.right <= innerWidth; }
+                """));
+        }
+        Assert.True(await page.Locator("#sit-cancel").EvaluateAsync<bool>("""
+            e => { const r = e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }
+            """));
+        await page.Keyboard.PressAsync("Escape");
+        Assert.Equal(0, await page.Locator("#sitsheet").CountAsync());
+        Assert.Equal(id[1..], await page.EvaluateAsync<string>("document.activeElement.id"));
+        Assert.Equal("false", await page.GetAttributeAsync(id, "aria-expanded"));
+    }
+
+    [Theory]
+    [MemberData(nameof(AppFixture.AllSizes), MemberType = typeof(AppFixture))]
+    public async Task SituationDropdownKeepsFiltersOnOneLine(string label, int width, int height)
+    {
+        foreach (var players in new[] { 5, 6, 7 })
+        {
+            var (page, errors) = await app.OpenAppAsync(new Viewport(label, width, height), players: players);
+            await page.EvaluateAsync("deck = DATA.plays.map(p => p.id); renderDeck()");
+            Assert.Equal(1, await page.Locator("#dfilt .fsituation").CountAsync());
+            Assert.Equal(0, await page.Locator("#dfilt button[data-cat]").CountAsync());
+            Assert.True(await page.EvaluateAsync<bool>("""
+                () => {
+                  const f = document.querySelector('#dfilt'), r = f.getBoundingClientRect();
+                  const controls = [...f.querySelectorAll('button, select')];
+                  const first = controls[0].getBoundingClientRect();
+                  return controls.length === 4 && controls.every(e => {
+                    const b = e.getBoundingClientRect();
+                    const cs = getComputedStyle(e), ctx = document.createElement('canvas').getContext('2d');
+                    ctx.font = cs.font;
+                    const minimum = e.classList.contains('fsituation')
+                      ? ctx.measureText(e.querySelector('.sitlabel').textContent).width
+                        + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 12
+                      : 40;
+                    return Math.abs(b.top - first.top) <= 1 && b.left >= r.left - 1
+                      && b.right <= r.right + 1 && b.right <= innerWidth
+                      && b.width >= minimum;
+                  });
+                }
+                """), $"{label}, {players}: deck filters wrap or overflow: " + await page.EvaluateAsync<string>("""
+                  JSON.stringify([...document.querySelectorAll('#dfilt, #dfilt button, #dfilt select, .dh-right')]
+                    .map(e => ({text:e.textContent.trim(), rect:e.getBoundingClientRect().toJSON()})))
+                  """));
+            await CheckTouchPickerAsync(page, "#dsituation");
+            await AppFixture.PickSituationAsync(page, "#dsituation", "GOAL LINE");
+            Assert.Equal("GOAL LINE", await page.GetAttributeAsync("#dsituation", "data-value"));
+            Assert.True(await page.Locator(".tile").CountAsync() > 0);
+            await page.ClickAsync("#ham");
+            await page.ClickAsync("#edit");
+            Assert.Equal(1, await page.Locator("#lfilt .fsituation").CountAsync());
+            await CheckTouchPickerAsync(page, "#lsituation");
+            await AppFixture.PickSituationAsync(page, "#lsituation", "GOAL LINE");
+            Assert.True(await page.Locator(".lrow").CountAsync() > 0);
+            Assert.True(await page.EvalOnSelectorAllAsync<bool>(".lrow .catchip.situation",
+                "es => es.length > 0 && es.every(e => e.textContent.trim() === 'GOAL LINE')"));
+            await page.ClickAsync("#lfilt [data-kind=pass]");
+            Assert.Equal("GOAL LINE", await page.GetAttributeAsync("#lsituation", "data-value"));
+            await page.CloseAsync();
+            Assert.Empty(errors);
+        }
+    }
+
     [Fact]
     public async Task TheBarNarrowsTheDeckAndSaysHowMuchOfItIsShowing()
     {
@@ -33,8 +108,8 @@ public sealed class DeckFilterChecks(AppFixture app)
         Assert.Equal(14, await Tiles());
         Assert.Equal("14 PLAYS", (await Count()).ToUpperInvariant());
 
-        // a situation chip leaves only that situation
-        await page.ClickAsync("#dfilt [data-cat=\"GOAL LINE\"]");
+        // a situation selection leaves only that situation
+        await AppFixture.PickSituationAsync(page, "#dsituation", "GOAL LINE");
         await page.WaitForTimeoutAsync(400);
         var shown = await Tiles();
         Assert.InRange(shown, 1, 13);
@@ -52,7 +127,7 @@ public sealed class DeckFilterChecks(AppFixture app)
             "the Pass filter let a run through");
 
         // back to everything
-        await page.ClickAsync("#dfilt [data-cat=\"all\"]");
+        await AppFixture.PickSituationAsync(page, "#dsituation", "all");
         await page.ClickAsync("#dfilt [data-kind=\"all\"]");
         await page.WaitForTimeoutAsync(400);
         Assert.Equal(14, await Tiles());
@@ -74,7 +149,7 @@ public sealed class DeckFilterChecks(AppFixture app)
         await page.WaitForTimeoutAsync(400);
 
         await page.ClickAsync("#dfilt [data-kind=\"run\"]");
-        await page.ClickAsync("#dfilt [data-cat=\"GOAL LINE\"]");
+        await AppFixture.PickSituationAsync(page, "#dsituation", "GOAL LINE");
         await page.WaitForTimeoutAsync(400);
 
         Assert.Equal(0, await page.Locator(".tile").CountAsync());
@@ -128,7 +203,7 @@ public sealed class DeckFilterChecks(AppFixture app)
         await page.EvaluateAsync(DeckOf(14));
         await page.WaitForTimeoutAsync(400);
 
-        await page.ClickAsync("#dfilt [data-cat=\"GOAL LINE\"]");
+        await AppFixture.PickSituationAsync(page, "#dsituation", "GOAL LINE");
         await page.WaitForTimeoutAsync(400);
         Assert.InRange(await page.Locator(".tile").CountAsync(), 1, 13);
 

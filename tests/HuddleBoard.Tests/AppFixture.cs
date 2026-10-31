@@ -115,6 +115,13 @@ public sealed class AppFixture : IAsyncLifetime
         await page.WaitForSelectorAsync($".settab.on[data-tab=\"{tab}\"]");
     }
 
+    public static async Task PickSituationAsync(IPage page, string id, string value)
+    {
+        await page.ClickAsync(id);
+        await page.ClickAsync($"#sitsheet [data-situation=\"{value}\"]");
+        await page.WaitForSelectorAsync("#sitsheet", new() { State = WaitForSelectorState.Detached });
+    }
+
     /// <summary>
     /// A tablet set to <paramref name="players"/> on the field before the app
     /// boots, the way Setup leaves it. Written only when nothing is there yet,

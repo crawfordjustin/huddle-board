@@ -45,13 +45,12 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
    menu on its right. Change plays lives in the menu with Setup and Exit. */
 .decktop{flex:none;display:flex;align-items:center;justify-content:space-between;
   gap:clamp(14px,2.2vw,32px)}
-.decktop .dfilt{flex:1 1 0;min-width:0;padding:0}
+.decktop .dfilt{flex:1 1 0;min-width:0;padding:0;flex-wrap:nowrap}
+.dfilt button{flex:none}
 .decktop .dh-right{flex:none;margin-left:auto;align-self:flex-start}
-/* A phone is narrower than the clock, the count and the menu put together, so
-   sharing one bar squeezed the chips into a column a word wide and pushed the
-   menu off the edge. There the bar becomes two: the clock side first, wrapping
-   onto itself if it must, and the chips across the full width under it. */
-@media (max-width:640px){
+/* Narrow tablets and phones need a full-width filter row below the clock and
+   menu, so the situation picker keeps room for its selected name. */
+@media (max-width:960px){
   .decktop{flex-wrap:wrap;row-gap:6px}
   .decktop .dh-right{order:-1;flex:1 1 100%;flex-wrap:wrap;justify-content:flex-end;row-gap:6px}
   .decktop .dfilt{flex:1 1 100%;gap:5px}
@@ -162,8 +161,8 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .seg button.on{background:var(--green);border-color:var(--green-2);color:#fff}
 .seg button:active{transform:scale(.96)}
 
-/* filter bar, on the library and on the deck. Wraps rather than scrolling
-   sideways: a filter you cannot see is a filter nobody uses. */
+/* Both screens share run/pass buttons and one situation dropdown. The library
+   can wrap its search and deck controls; the deck keeps its filters on one line. */
 .lfilt,.dfilt{flex:none;display:flex;flex-wrap:wrap;align-items:center;
   gap:clamp(5px,.8vw,9px);padding:clamp(8px,1.2vh,14px) 0 clamp(2px,.6vh,6px)}
 /* on the deck the bar is chrome above the plays, so it sits a size down and
@@ -176,9 +175,21 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .fchip .n{font-size:.82em;color:#6E7A72;font-variant-numeric:tabular-nums}
 .fchip.on{background:var(--green);border-color:var(--green-2);color:#fff}
 .fchip.on .n{color:#CBE8DA}
-/* a situation chip lights up in its own colour, matching the row's edge bar */
-.fchip[data-cat].on{background:var(--cat);border-color:var(--cat);color:#fff}
-.fchip[data-cat="all"].on{background:var(--green);border-color:var(--green-2)}
+/* One situation picker keeps the filter bar compact as the library grows. */
+.fsituation{max-width:100%;min-width:0;font-family:var(--disp)}
+.fsituation .sitlabel{overflow:hidden;text-overflow:ellipsis}
+.fsituation .sitarrow{margin-left:auto}
+.fsituation.on{background:var(--cat);border-color:var(--cat);color:#fff}
+.sheet.situationpick{width:min(460px,100%);display:flex;flex-direction:column;overflow:hidden}
+.sitlist{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;margin-bottom:12px}
+.sitoption{width:100%;min-height:56px;display:flex;align-items:center;gap:12px;padding:12px 16px;
+  margin-bottom:8px;border:1.5px solid #526057;border-left:5px solid var(--cat);border-radius:9px;
+  background:#141A16;color:#EDF0EC;font-family:var(--disp);font-size:20px;text-align:left;
+  text-transform:uppercase;letter-spacing:.04em}
+.sitoption .n{margin-left:auto;color:#A3AFA6}
+.sitoption.on{background:var(--cat);border-color:var(--cat);color:#fff}
+.sitoption.on .n{color:#fff}
+.situationpick h2,.situationpick .sheetbtns{flex:none}
 .fchip:active{transform:scale(.96)}
 .fchip:focus-visible{outline:3px solid #5FBF8F;outline-offset:2px}
 .lsep{width:1.5px;align-self:stretch;background:#39433C;margin:0 clamp(2px,.4vw,6px)}
@@ -2924,8 +2935,8 @@ function tourSlides(){
     {title: "Your deck", sub: "Ready for game day. Useful at practice.", art: tourTile(p),
      text: `<p>Every tile is one play. The bar says <b>run</b> or <b>pass</b>; the chips say
        the situation and how much it asks of the team; and the little field is the play itself.</p>
-       <p>The chips along the top narrow the deck the same way &mdash; tap <b>PASS</b> and
-       <b>GOAL LINE</b> when you need one fast. Tap a tile to open it.</p>`},
+       <p>The filters along the top narrow the deck the same way &mdash; tap <b>PASS</b> and
+       pick <b>GOAL LINE</b> from the situation dropdown when you need one fast. Tap a tile to open it.</p>`},
     {title: "Turn it around", sub: "The whole play, then line them up", art: tourField(), field: p,
      text: `<p>On game day, turn the tablet toward the kids. A play opens finished: every route
        drawn and the ball where it ends up, with
@@ -3123,9 +3134,53 @@ function deckFilterHTML(all, cats){
     ${chip(deckF.kind === "run",  'data-kind="run"',  "Run",  deckCount(all, {kind:"run"}))}
     ${chip(deckF.kind === "pass", 'data-kind="pass"', "Pass", deckCount(all, {kind:"pass"}))}
     <span class="lsep"></span>
-    ${chip(deckF.cat === "all", 'data-cat="all"', "All situations", null)}
-    ${cats.map(k => chip(deckF.cat === k, `data-cat="${k}"`, k, deckCount(all, {cat:k}),
-                         `style="--cat:${CAT[k]}"`)).join("")}`;
+    ${situationFilterHTML("dsituation", deckF.cat, k => deckCount(all, {cat:k}))}`;
+}
+
+function situationLabel(selected, count){
+  return `<span class="sitlabel">${esc(selected === "all" ? "All situations" : selected)}</span>` +
+    (selected === "all" ? "" : `<span class="n">${count(selected)}</span>`) +
+    `<span class="sitarrow" aria-hidden="true">&#9662;</span>`;
+}
+function situationFilterHTML(id, selected, count){
+  return `<button id="${id}" class="fchip fsituation ${selected === "all" ? "" : "on"}"
+    data-value="${esc(selected)}" aria-label="Situation: ${esc(selected === "all" ? "All situations" : selected)}"
+    aria-haspopup="dialog" aria-expanded="false" style="--cat:${CAT[selected] || "var(--green)"}">
+    ${situationLabel(selected, count)}</button>`;
+}
+function openSituationFilter(id, cats, selected, count, pick){
+  closeRename();
+  const trigger = document.getElementById(id), w = document.createElement("div");
+  w.id = "sitsheet"; w.className = "sheetwrap";
+  w.innerHTML = `<div class="sheet situationpick" role="dialog" aria-modal="true" aria-labelledby="sittitle">
+    <h2 id="sittitle">Choose situation</h2>
+    <div class="sitlist">${["all", ...cats].map(k => `<button class="sitoption ${k === selected ? "on" : ""}"
+      data-situation="${esc(k)}" aria-pressed="${k === selected}" style="--cat:${CAT[k] || "var(--green)"}">
+      <span>${esc(k === "all" ? "All situations" : k)}</span><span class="n">${count(k)}</span></button>`).join("")}</div>
+    <div class="sheetbtns"><button class="sbtn" id="sit-cancel">Cancel</button></div></div>`;
+  const dismiss = () => {
+    closeRename();
+    const b = document.getElementById(id);
+    if (b){ b.setAttribute("aria-expanded", "false"); b.focus(); }
+  };
+  w.querySelectorAll("[data-situation]").forEach(b => b.onclick = () => {
+    const value = b.dataset.situation;
+    dismiss(); pick(value);
+    document.getElementById(id)?.focus();
+  });
+  w.querySelector("#sit-cancel").onclick = dismiss;
+  w.onclick = e => { if (e.target === w) dismiss(); };
+  w.onkeydown = e => {
+    if (e.key === "Escape"){ e.stopPropagation(); dismiss(); }
+    if (e.key === "Tab"){
+      const buttons = [...w.querySelectorAll("button")], first = buttons[0], last = buttons.at(-1);
+      if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    }
+  };
+  document.body.appendChild(w); trigger.setAttribute("aria-expanded", "true");
+  const active = w.querySelector(".sitoption.on");
+  active.focus({preventScroll:true}); active.scrollIntoView({block:"nearest"});
 }
 
 function bindDeckFilters(){
@@ -3138,8 +3193,9 @@ function bindDeckFilters(){
     };
     f.querySelectorAll("[data-kind]").forEach(b =>
       b.onclick = () => pick("kind", b.dataset.kind));
-    f.querySelectorAll("[data-cat]").forEach(b =>
-      b.onclick = () => pick("cat", b.dataset.cat));
+    document.getElementById("dsituation").onclick = () => openSituationFilter("dsituation",
+      CAT_ORDER.filter(k => inDeck().some(p => p.category === k)), deckF.cat,
+      k => deckCount(inDeck(), {cat:k}), value => pick("cat", value));
   }
   const clear = document.getElementById("dclear");
   if (clear) clear.onclick = () => { deckF = {kind:"all", cat:"all"}; renderDeck(); };
@@ -3495,7 +3551,6 @@ function libCount(over){
 }
 
 function libFilterHTML(){
-  const cats = CAT_ORDER.filter(k => shownPlays().some(p => p.category === k));
   const chip = (on, attr, label, n, extra) =>
     `<button class="fchip ${on ? "on" : ""}" ${attr} ${extra || ""}>${label}` +
     (n === null ? "" : `<span class="n">${n}</span>`) + `</button>`;
@@ -3508,9 +3563,7 @@ function libFilterHTML(){
     <span class="lsep"></span>
     ${chip(libF.deckOnly, 'id="lonly"', "In deck", deck.length)}
     <span class="lsep"></span>
-    ${chip(libF.cat === "all", 'data-cat="all"', "All situations", null)}
-    ${cats.map(k => chip(libF.cat === k, `data-cat="${k}"`, k, libCount({cat:k}),
-                         `style="--cat:${CAT[k]}"`)).join("")}`;
+    ${situationFilterHTML("lsituation", libF.cat, k => libCount({cat:k}))}`;
 }
 
 /* --------------------------------------------------------- rename sheet
@@ -3519,7 +3572,7 @@ function libFilterHTML(){
    a play name in the middle of a huddle. */
 function closeRename(){
   for (const id of ["rensheet", "pnsheet", "fmsheet", "dzsheet", "prevsheet", "welsheet", "hidesheet",
-                    "ntsheet", "ordersheet"]){
+                    "ntsheet", "ordersheet", "sitsheet"]){
     const w = document.getElementById(id);
     if (w) w.remove();
   }
@@ -4116,11 +4169,14 @@ function renderLibrary(welcome){
     set('[data-kind="run"]',  libCount({kind:"run"}));
     set('[data-kind="pass"]', libCount({kind:"pass"}));
     set('#lonly', deck.length);
-    CAT_ORDER.forEach(k => set(`[data-cat="${CSS.escape(k)}"]`, libCount({cat:k})));
+    const situation = f.querySelector(".fsituation");
+    situation.innerHTML = situationLabel(libF.cat, k => libCount({cat:k}));
+    situation.dataset.value = libF.cat;
+    situation.setAttribute("aria-label", `Situation: ${libF.cat === "all" ? "All situations" : libF.cat}`);
+    situation.classList.toggle("on", libF.cat !== "all");
+    situation.style.setProperty("--cat", CAT[libF.cat] || "var(--green)");
     f.querySelectorAll("[data-kind]").forEach(b =>
       b.classList.toggle("on", b.dataset.kind === libF.kind));
-    f.querySelectorAll("[data-cat]").forEach(b =>
-      b.classList.toggle("on", b.dataset.cat === libF.cat));
     const only = document.getElementById("lonly");
     if (only) only.classList.toggle("on", libF.deckOnly);
     drawPacks();
@@ -4205,8 +4261,9 @@ function renderLibrary(welcome){
     q.addEventListener("input", () => { libF.q = q.value; drawCounts(); drawRows(); });
     f.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => {
       libF.kind = b.dataset.kind; drawCounts(); drawRows(); });
-    f.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
-      libF.cat = b.dataset.cat; drawCounts(); drawRows(); });
+    document.getElementById("lsituation").onclick = () => openSituationFilter("lsituation",
+      CAT_ORDER.filter(k => shownPlays().some(p => p.category === k)), libF.cat,
+      k => libCount({cat:k}), value => { libF.cat = value; drawCounts(); drawRows(); });
     document.getElementById("lonly").onclick = () => {
       libF.deckOnly = !libF.deckOnly; drawCounts(); drawRows(); };
   };

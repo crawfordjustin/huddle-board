@@ -241,8 +241,8 @@ of that, including the log.
 
 **7. The deck answers the same two questions the library does.** On the sideline
 the thought is "I need a goal line play", not "I need play 13", so the deck
-carries the same run/pass and situation chips the library has, with the same
-`.fchip` styling — two screens should not teach two controls for one idea. Every
+carries the same run/pass buttons and situation dropdown the library has, with
+the same `.fchip` styling — two screens should not teach two controls for one idea. Every
 tile shows its situation at every column count; it used to be hidden the moment
 the grid went past two columns, which is every deck size big enough to have to
 hunt through.
@@ -252,6 +252,17 @@ persisted would have a coach pick the tablet up next week, see two plays and
 think his deck had been eaten — so the header count reads "2 of 14" whenever a
 filter is on, and going back through the intro clears it. `DeckFilterChecks`
 holds all of that.
+
+Situations share one picker button rather than a button per situation, so
+they cannot wrap into another row above the plays. Both screens offer All
+situations and show each situation's matching count; the selected situation
+keeps its category color. Counts follow the other filters and library search.
+The button opens an in-app sheet with situation rows at least 56px tall, rather
+than relying on native dropdown items whose touch size the app cannot control.
+The rows scroll while Cancel stays visible; Escape and tapping outside cancel,
+and choosing a row applies immediately and restores focus to the picker button.
+At 960px wide or below, the deck gives the filters a full-width row beneath
+the clock and menu so the dropdown keeps room for the selected name.
 
 The deck defaults to six plays per page, so growing a playbook never shrinks
 every card into a lookalike. Swipe horizontally between pages; Previous/Next
