@@ -19,14 +19,19 @@ h1{font-size:clamp(36px,5vw,60px)}
 h2{font-size:clamp(24px,2.6vw,30px)}
 img{max-width:100%;height:auto}
 
-.bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;
-  padding:12px clamp(16px,4vw,48px);background:var(--oob);color:#fff}
-.brand{display:inline-flex;align-items:center;gap:10px;white-space:nowrap;
-  font:700 26px/1 var(--disp);color:#fff;text-decoration:none;letter-spacing:.02em}
-.brand img{display:block;flex:none;width:40px;height:40px;border-radius:8px}
-.bar nav{display:flex;align-items:center;gap:clamp(12px,2vw,24px)}
-.bar nav a{color:#fff;text-decoration:none;font-weight:600}
-.bar nav a:not(.go):hover{text-decoration:underline}
+.bar{background:var(--surface);border-bottom:1px solid var(--hair)}
+.bar-inner{max-width:1200px;margin:0 auto;padding:20px clamp(16px,4vw,48px);
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:inline-flex;align-items:center;gap:12px;white-space:nowrap;
+  color:var(--green-2);text-decoration:none}
+.brand img{display:block;flex:none;width:48px;height:48px;border-radius:10px}
+.brand-text{display:flex;flex-direction:column;gap:5px}
+.brand-name{font:700 30px/1 var(--disp);letter-spacing:.025em;text-transform:uppercase}
+.brand-description{font:600 10px/1.2 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.bar nav{display:flex;align-items:center;gap:clamp(20px,3vw,36px)}
+.bar nav a{color:var(--ink-2);text-decoration:none;font-size:16px;font-weight:600}
+.bar nav a:not(.go):hover{color:var(--green);text-decoration:underline;text-underline-offset:5px}
+.bar nav .go{display:inline-flex;align-items:center;gap:16px;min-height:44px;font-size:18px}
 
 .go{display:inline-block;background:var(--green);border:2px solid var(--green-2);color:#fff;
   font:700 18px/1 var(--disp);letter-spacing:.04em;text-transform:uppercase;text-decoration:none;
@@ -70,5 +75,14 @@ main{max-width:1200px;margin:0 auto;padding:clamp(24px,5vw,64px) clamp(16px,4vw,
   .hero,.feature{grid-template-columns:1fr}
   .points{grid-template-columns:1fr}
   .bar nav a:not(.go){display:none}
-  .brand{font-size:22px}
+  .bar-inner{padding-top:16px;padding-bottom:16px}
+  .brand-name{font-size:26px}
+}
+@media (max-width:400px){
+  .bar-inner{gap:12px}
+  .brand{gap:8px}
+  .brand img{width:36px;height:36px;border-radius:8px}
+  .brand-name{font-size:21px}
+  .brand-description{font-size:8px;letter-spacing:.1em}
+  .bar nav .go{gap:6px;padding:10px;font-size:14px}
 }

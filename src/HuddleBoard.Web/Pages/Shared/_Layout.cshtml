@@ -13,15 +13,18 @@
 </head>
 <body>
 <header class="bar">
+  <div class="bar-inner">
   <a class="brand" href="/">
-    <img src="~/img/icon-192.png" asp-append-version="true" alt="" width="40" height="40">
-    <span>Huddle Board</span>
+    <img src="~/img/icon-192.png" asp-append-version="true" alt="" width="48" height="48">
+    <span class="brand-text"><span class="brand-name">Huddle Board</span><span class="brand-description">Youth flag football</span></span>
   </a>
-  <nav>
+  <nav aria-label="Main navigation">
+    <a href="/#install">Use offline</a>
     <a href="/about">About</a>
     @* /app/ with the slash, always: see Program.cs *@
-    <a class="go" href="/app/">Open Huddle Board</a>
+    <a class="go" href="/app/">Open app <span aria-hidden="true">↗</span></a>
   </nav>
+  </div>
 </header>
 <main>
 @RenderBody()
