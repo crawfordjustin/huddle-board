@@ -5016,7 +5016,12 @@ function buildScene(){
   const svg = document.getElementById("field");
   svg.innerHTML = "";
   const defs = mk("defs");
-  [["route","#232B26"],["run","#127A4D"],["motion","#C9700D"],["handoff","#5B6472"],
+  // Yellow catches the eye; a dark edge separates it from white markers.
+  // Exchanges and passes keep the same dashed picture for ball movement.
+  const ballInk = in3D() ? "#FFFF00" : "#5B6472";
+  const ballWidth = in3D() ? 6.5 : 5;
+  const ballEdge = in3D() ? "drop-shadow(0 0 1px #253555) drop-shadow(0 0 1px #253555)" : "none";
+  [["route","#232B26"],["run","#127A4D"],["motion","#C9700D"],["handoff",ballInk],
    ["fake","#127A4D"]].forEach(([k,c]) => {
     const m = mk("marker",{id:"a-"+k,viewBox:"0 0 10 10",refX:8.4,refY:5,markerWidth:5,
       markerHeight:5,orient:"auto-start-reverse"});
@@ -5035,6 +5040,18 @@ function buildScene(){
     defs.appendChild(hp);
   });
   svg.appendChild(defs);
+
+  // Quiet, self-contained turf: no image request or animated noise filter.
+  // Keep it light enough that the dark routes still read in outdoor light.
+  if (in3D()){
+    const turf = mk("pattern",{id:"grass",width:48,height:48,patternUnits:"userSpaceOnUse"});
+    turf.appendChild(mk("rect",{width:48,height:48,fill:"#88AD69"}));
+    turf.appendChild(mk("path",{d:"M3 9l2-4m8 18l-1-5m14-6l2-4m12 24l-2-5M8 43l1-4m15 5l-2-4m12-19l2-4",
+      fill:"none",stroke:"#547E42","stroke-width":1,"stroke-opacity":.28}));
+    turf.appendChild(mk("path",{d:"M7 17l1-3m12-7l-1-4m17 9l2-3M4 31l2-3m15 6l1-4m19 15l-1-4m-9-4l2-3",
+      fill:"none",stroke:"#D1DDA6","stroke-width":1,"stroke-opacity":.35}));
+    defs.appendChild(turf);
+  }
 
   SC = {washL:null, washR:null, yard:[], side:{}, los:null, paths:[], players:{},
         ball:null, ballAng:0, overX:0, overY:0};
@@ -5058,8 +5075,13 @@ function buildScene(){
     fieldRO.observe(svg);
   }
 
-  SC.base = mk(in3D() ? "polygon" : "rect",{fill:"#F7F9F6"});
+  SC.base = mk(in3D() ? "polygon" : "rect",{fill:in3D() ? "url(#grass)" : "#F7F9F6"});
   svg.appendChild(SC.base);
+  SC.mow = [];
+  if (in3D()) for (const y of [-5,5]){
+    const band = mk("polygon",{fill:"#315C2B","fill-opacity":.1,"pointer-events":"none"});
+    svg.appendChild(band); SC.mow.push({band,y});
+  }
   SC.oob = {};
   ["blue","orange"].forEach(side => {
     const g = mk("g"); g.style.cursor = "pointer";
@@ -5083,7 +5105,7 @@ function buildScene(){
   });
   SC.goal = mk("polygon",{fill:"#1B5E3A","fill-opacity":.14});
   SC.goalT = mk("text",{"text-anchor":"middle","font-size":30,"font-weight":700,
-    fill:"#1B5E3A","letter-spacing":6,
+    fill:in3D() ? "#FFFFFF" : "#1B5E3A","letter-spacing":6,
     "font-family":"Barlow Condensed, Arial Narrow, sans-serif"});
   SC.goalT.textContent = "GOAL";
   SC.washL = mk("polygon",{fill:"#1D6FD0","fill-opacity":.075});
@@ -5091,9 +5113,9 @@ function buildScene(){
   svg.appendChild(SC.washL); svg.appendChild(SC.washR);
   svg.appendChild(SC.goal); svg.appendChild(SC.goalT);
 
-  [5,10].forEach(() => { const l = mk("line",{stroke:"#C8D0C9","stroke-width":2,
-    "stroke-dasharray":"7 9"}); SC.yard.push(l); svg.appendChild(l); });
-  SC.los = mk("line",{stroke:"#8A948C","stroke-width":4}); svg.appendChild(SC.los);
+  [5,10].forEach(() => { const l = mk("line",{stroke:in3D() ? "#FFFFFF" : "#C8D0C9","stroke-width":2,
+    "stroke-dasharray":in3D() ? "none" : "7 9"}); SC.yard.push(l); svg.appendChild(l); });
+  SC.los = mk("line",{stroke:in3D() ? "#FFFFFF" : "#8A948C","stroke-width":4}); svg.appendChild(SC.los);
   SC.side.blue = mk("line",{stroke:"#1D6FD0","stroke-width":11,"stroke-linecap":"round"});
   SC.side.orange = mk("line",{stroke:"#E4610F","stroke-width":11,"stroke-linecap":"round"});
   svg.appendChild(SC.side.blue); svg.appendChild(SC.side.orange);
@@ -5101,28 +5123,30 @@ function buildScene(){
   const p = S.play;
   p.paths.forEach((path, i) => {
     const g = {};
-    const col = {route:"#232B26",run:"#127A4D",motion:"#C9700D",handoff:"#5B6472",
+    const col = {route:"#232B26",run:"#127A4D",motion:"#C9700D",handoff:ballInk,
                  fake:"#127A4D"}[path.type];
     g.line = mk("polyline",{fill:"none",stroke:col,
-      "stroke-width": 5,
+      "stroke-width": path.type === "handoff" ? ballWidth : 5,
       "stroke-linejoin":"round","stroke-linecap":"round",
       "stroke-dasharray": (path.type === "motion" ? "16 11" : path.type === "handoff" ? "13 9"
                           : path.type === "fake" ? "17 11" : "")});
     if ((path.end || "arrow") !== "bar") g.line.setAttribute("marker-end", `url(#a-${path.type})`);
     else g.bar = mk("line",{stroke:col,"stroke-width":5,"stroke-linecap":"round"});
+    if (path.type === "handoff") g.line.style.filter = ballEdge;
     svg.appendChild(g.line); if (g.bar) svg.appendChild(g.bar);
     SC.paths.push(g);
   });
-  // The throw. A handoff already leaves a dashed grey line behind the ball, so
+  // The throw. A handoff already leaves a dashed line behind the ball, so
   // a pass leaves the same one: one picture for "this is where the ball goes",
   // whether it is handed or thrown. It draws out under the ball as it flies
   // and stays put after the catch, because the ball alone was too easy to
   // miss on a screen with six routes on it.
   SC.throw = null;
   if (p.ball.mode !== "carry"){
-    SC.throw = mk("polyline",{fill:"none",stroke:"#5B6472","stroke-width":5,
+    SC.throw = mk("polyline",{fill:"none",stroke:ballInk,"stroke-width":ballWidth,
       "stroke-linejoin":"round","stroke-linecap":"round","stroke-dasharray":"13 9",
       "marker-end":"url(#a-handoff)","pointer-events":"none",opacity:0});
+    SC.throw.style.filter = ballEdge;
   }
 
   for (const key in p.spots){
@@ -5215,6 +5239,8 @@ function frame(now){
     SC.base.setAttribute("x", bt[0]); SC.base.setAttribute("y", bt[1]);
     SC.base.setAttribute("width", bb[0] - bt[0]); SC.base.setAttribute("height", bb[1] - bt[1]);
   }
+  for (const {band,y} of SC.mow)
+    band.setAttribute("points", [[-EDGE,y],[EDGE,y],[EDGE,y+5],[-EDGE,y+5]].map(fpt).join(" "));
   const half = [[-EDGE,bot],[0,bot],[0,15],[-EDGE,15]];
   SC.washL.setAttribute("points", half.map(fpt).join(" "));
   SC.washR.setAttribute("points", half.map(q => fpt([-q[0], q[1]])).join(" "));
