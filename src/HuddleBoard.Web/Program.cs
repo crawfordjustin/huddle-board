@@ -28,6 +28,7 @@ app.Logger.LogInformation("serving the app from {Root}", appRoot);
 
 var contentTypes = new FileExtensionContentTypeProvider();
 contentTypes.Mappings[".webmanifest"] = "application/manifest+json";
+contentTypes.Mappings[".vtt"] = "text/vtt";
 
 var appFiles = new PhysicalFileProvider(appRoot);
 
@@ -61,6 +62,7 @@ app.UseStaticFiles(new StaticFileOptions
 // same reason the app's has to.
 app.UseStaticFiles(new StaticFileOptions
 {
+    ContentTypeProvider = contentTypes,
     OnPrepareResponse = ctx =>
     {
         var headers = ctx.Context.Response.Headers;

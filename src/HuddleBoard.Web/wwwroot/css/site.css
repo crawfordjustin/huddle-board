@@ -46,6 +46,12 @@ main{max-width:1200px;margin:0 auto;padding:clamp(24px,5vw,64px) clamp(16px,4vw,
 .shot{border-radius:12px;box-shadow:0 12px 32px rgba(20,26,22,.18);background:var(--oob)}
 
 .hero{display:grid;grid-template-columns:1fr 1.2fr;gap:clamp(24px,4vw,56px);align-items:center}
+.walkthrough{margin-top:clamp(48px,7vw,88px)}
+.walkthrough video{display:block;width:100%;height:auto;aspect-ratio:16/9;
+  border-radius:12px;background:var(--oob);box-shadow:0 12px 32px rgba(20,26,22,.18)}
+.walkthrough details{margin-top:16px}
+.walkthrough summary{cursor:pointer}
+.walkthrough details p{max-width:760px}
 .points{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin:clamp(48px,7vw,88px) 0}
 .points article{background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:20px}
 .points p{margin:0;color:var(--ink-2)}
