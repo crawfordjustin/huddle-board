@@ -586,7 +586,7 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 }
 
 /* ------------------------------------------------------------- tutorial
-   Four slides between START and the deck, once. The app grew past what one
+   Seven slides between START and the deck, once. The app grew past what one
    sentence on the intro could carry — chips, mirror, tap-a-kid, the menu —
    and a coach opening it cold in a parking lot should not have to find those
    by poking. Each slide is the real thing on the left (a tile, a play, the
@@ -657,6 +657,7 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .tourfield{width:min(100%,720px);aspect-ratio:1140/672;position:relative;
   border-radius:12px;border:1.5px solid #39433C;overflow:hidden;background:var(--oob)}
 .tourfield #field{width:100%;height:100%;display:block;overflow:visible}
+.tourfield .view3d{position:absolute;top:8px;right:8px}
 /* the menu, drawn open and in place instead of over the tiles, with a clock
    beside it — the two things in the top bar a coach reaches for between plays */
 .tourmenu{display:flex;align-items:flex-start;gap:clamp(14px,2vw,28px);
@@ -2854,9 +2855,11 @@ function tourMenu(){
 /* An empty svg#field the real buildScene()/frame() loop draws into and
    animates — see startTourField(). Same viewBox ratio as thumbSVG's, on
    purpose, so it fills exactly the box the old static picture used to. */
-function tourField(){
+function tourField(showView = false){
   return `<div class="tourfield"><svg id="field" viewBox="0 0 ${VB_W} ${VB_H}"
-    preserveAspectRatio="xMidYMid meet"></svg></div>`;
+    preserveAspectRatio="xMidYMid meet"></svg>${showView
+      ? `<button class="view3d" aria-label="3D view" aria-pressed="false" tabindex="-1">3D</button>`
+      : ""}</div>`;
 }
 /* A slice of the real pack strip from Change plays — the actual .pack
    buttons, the actual weeks, actual play counts. Inert: .tourart already
@@ -2896,6 +2899,11 @@ function tourSlides(){
        <p>This one is running on a loop so you can see it before you ever open a
        play. <b>MIRROR</b> swaps the players to the other side &mdash; the field stays put
        &mdash; so every play is two looks.</p>`},
+    {title: "Try the 3D view", sub: "Same play, a different view", art: tourField(true), field: p,
+     text: `<p>On the play screen, tap <b>3D</b> in the top bar for a tilted field
+       with raised player markers. Tap it again to return to the flat <b>2D</b> view.</p>
+       <p>Switch views any time: playback, <b>MIRROR</b>, <b>SLOW</b> and a player's
+       steps stay as they are. The tablet remembers your choice for the next play.</p>`},
     {title: "One kid at a time", sub: "Blue and orange, never left and right", art: tourMarkers(),
      text: `<p>Tap any player on the field and the screen shows only his job. Nobody out
        there is a letter: a circle is a receiver, a diamond a back, the hexagon throws

@@ -495,7 +495,7 @@ across two tablets and feeds it markup.
 
 **12. The first START goes through the tutorial, once.** The app grew past
 what one sentence on the intro could carry — chips, mirror, tap-a-kid, packs,
-Setup, the menu — so a fresh tablet's first START lands on six slides
+Setup, the menu — so a fresh tablet's first START lands on seven slides
 (`renderTour`) on its way to the deck, after one question:
 **how many players does your team put on the field?** (`renderAskPlayers`).
 It comes first because every screen after it, the tutorial's first tile
@@ -504,7 +504,7 @@ its format's base formation drawn, so the count is something a coach sees. It
 is asked whenever the tutorial is about to run for the first time — a fresh
 tablet, or one after Start over, with the kept answer lit — and never from the
 menu's Tutorial, because that coach has answered. The slides themselves are: the coach's own first tile, that play
-running, the marker shapes, a week of the pack strip, a slice of Setup, and
+running, the 3D toggle explained beside a 2D field, the marker shapes, a week of the pack strip, a slice of Setup, and
 the menu, each beside a few sentences. Every picture is the real thing drawn
 by the real code (`tourTile`, `tourField`, `tourMarkers`, `tourPacks`,
 `tourSettings`, `tourMenu`), so a slide cannot drift from the screen it
@@ -516,7 +516,7 @@ stop the moment the slide changes. The tile on the first slide is also
 larger than the deck grid ever shows one, because this is the one screen
 where a single play gets the whole box to itself. It is the coach's screen
 and never the one turned around at the kids, so text is fine there. The title
-row says TUTORIAL in the deck's own heading size, with "1 of 6" and the way
+row says TUTORIAL in the deck's own heading size, with "1 of 7" and the way
 out — **Skip tutorial**, or **Close** from the menu — in the top right where
 Settings keeps its Done; a small "How it works" up there was not enough for a
 coach to tell he was in a walkthrough rather than the app, or that he was

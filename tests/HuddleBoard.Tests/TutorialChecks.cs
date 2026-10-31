@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace HuddleBoard.Tests;
 
 /// <summary>
-/// The tutorial: six slides between the first START and the deck, once, and
+/// The tutorial: seven slides between the first START and the deck, once, and
 /// in the menu after that.
 /// </summary>
 /// <remarks>
@@ -79,6 +79,14 @@ public sealed class TutorialChecks(AppFixture app)
             var g = JsonSerializer.Deserialize<Layout>(await page.EvaluateAsync<string>(Measure))!;
             slides++;
             Assert.Equal(slides, g.Slide);
+            if (slides == 3)
+            {
+                Assert.Equal("Try the 3D view", await page.InnerTextAsync(".toursay h1"), ignoreCase: true);
+                Assert.Equal("3D", await page.InnerTextAsync(".tourart .view3d"));
+                Assert.True(await page.EvaluateAsync<bool>(
+                    "tourFieldOn && !in3D() && !cfg.view3d && Object.keys(SC.players).length === DATA.players"),
+                    "the 3D explanation must use the real 2D tutorial field without changing the saved view");
+            }
 
             // the way off the screen is on the screen, and big enough for a thumb
             Assert.True(g.NextTop >= 0 && g.NextBottom <= g.Height,
@@ -99,7 +107,7 @@ public sealed class TutorialChecks(AppFixture app)
             await page.ClickAsync("#tournext");
             await page.WaitForTimeoutAsync(150);
         }
-        Assert.Equal(6, slides);
+        Assert.Equal(7, slides);
 
         // the first time through, the way out is the play library — where a new coach chooses
         await page.ClickAsync("#tournext");
