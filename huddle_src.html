@@ -2887,13 +2887,14 @@ function tourSettings(){
 function tourSlides(){
   const p = inDeck()[0] || shownPlays()[0] || DATA.plays[0];
   return [
-    {title: "Your deck", sub: "The plays you carry into this game", art: tourTile(p),
+    {title: "Your deck", sub: "Ready for game day. Useful at practice.", art: tourTile(p),
      text: `<p>Every tile is one play. The bar says <b>run</b> or <b>pass</b>; the chips say
        the situation and how much it asks of the team; and the little field is the play itself.</p>
        <p>The chips along the top narrow the deck the same way &mdash; tap <b>PASS</b> and
        <b>GOAL LINE</b> when you need one fast. Tap a tile to open it.</p>`},
     {title: "Turn it around", sub: "The whole play, then line them up", art: tourField(), field: p,
-     text: `<p>A play opens finished: every route drawn and the ball where it ends up, with
+     text: `<p>On game day, turn the tablet toward the kids. A play opens finished: every route
+       drawn and the ball where it ends up, with
        every job on the strip underneath. <b>LINE UP</b> puts everybody back on his spot;
        <b>RUN IT</b> plays it once from the snap, and <b>REPLAY</b> plays it again.</p>
        <p>This one is running on a loop so you can see it before you ever open a
@@ -2905,9 +2906,10 @@ function tourSlides(){
        <p>Switch views any time: playback, <b>MIRROR</b>, <b>SLOW</b> and a player's
        steps stay as they are. The tablet remembers your choice for the next play.</p>`},
     {title: "One kid at a time", sub: "Blue and orange, never left and right", art: tourMarkers(),
-     text: `<p>Tap any player on the field and the screen shows only his job. Nobody out
-       there is a letter: a circle is a receiver, a diamond a back, the hexagon throws
-       and the square snaps, each in his colour.</p>
+     text: `<p>At practice, tap a player to teach his job with <b>NEXT</b>, <b>BACK</b> and
+       <b>AGAIN</b>. Only he moves. Use the same steps for a quick reminder between plays.</p>
+       <p>A circle is a receiver, a diamond a back, the hexagon throws and the square
+       snaps, each in his colour.</p>
        <p>Every route is one of nine shapes &mdash; GO, OUT, IN, SIT, CORNER, POST, WHEEL,
        SWING, CARRY &mdash; and a kid with no job runs GO.</p>`},
     {title: "Start from a plan", sub: "Week 1 is ready; the rest are yours", art: tourPacks(),
