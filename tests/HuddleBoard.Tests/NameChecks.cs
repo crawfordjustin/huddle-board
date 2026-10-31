@@ -45,14 +45,21 @@ public sealed class NameChecks(AppFixture app)
 
     private const string EveryTileReachable = """
         () => {
-          const g = document.querySelector('.tiles');
-          g.scrollTop = g.scrollHeight;                 // scroll to the end
-          const gr = g.getBoundingClientRect();
-          const last = [...g.querySelectorAll('.tile')].pop().getBoundingClientRect();
-          const okBottom = last.bottom <= gr.bottom + 2;
-          g.scrollTop = 0;
-          const first = g.querySelector('.tile').getBoundingClientRect();
-          return okBottom && first.top >= gr.top - 2;
+          const strip = document.querySelector('.deckpages');
+          const pages = [...strip.querySelectorAll('.tiles')];
+          const width = strip.getBoundingClientRect().width;
+          const ok = pages.length > 0 && pages.every((g, i) => {
+            strip.scrollLeft = i * width;
+            const r = strip.getBoundingClientRect();
+            const tiles = [...g.querySelectorAll('.tile')];
+            return tiles.length > 0 && tiles.length <= 6 && tiles.every(t => {
+              const b = t.getBoundingClientRect();
+              return b.top >= r.top - 2 && b.bottom <= r.bottom + 2
+                && b.left >= r.left - 2 && b.right <= r.right + 2;
+            });
+          });
+          strip.scrollLeft = 0;
+          return ok;
         }
         """;
 
@@ -103,7 +110,7 @@ public sealed class NameChecks(AppFixture app)
         Assert.True(deck.Length == 0, "clipped in the deck: " + string.Join(", ", deck));
         Assert.True(library.Length == 0, "clipped in the library: " + string.Join(", ", library));
         Assert.True(titleBar.Length == 0, "clipped in the title bar: " + string.Join(", ", titleBar));
-        Assert.True(reachable, "the last tile in the deck cannot be scrolled to");
+        Assert.True(reachable, "a deck page has an unreachable tile");
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
 }

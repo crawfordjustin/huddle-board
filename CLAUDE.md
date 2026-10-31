@@ -253,6 +253,15 @@ think his deck had been eaten — so the header count reads "2 of 14" whenever a
 filter is on, and going back through the intro clears it. `DeckFilterChecks`
 holds all of that.
 
+The deck shows at most six plays per page, so growing a playbook never shrinks
+every card into a lookalike. Swipe horizontally between pages; Previous/Next
+buttons and a page count give the same navigation without a gesture. Landscape
+uses up to three columns and portrait up to two. Returning from a play or
+resizing keeps the page; changing the deck, format or filter starts at page one.
+The page is memory only and clears at the intro. The header still counts the
+whole filtered deck, and every play stays in deck order. `DeckPageChecks` holds
+the navigation, touch swipe and six-play cap across all formats and tablet sizes.
+
 The deck has no title row. It is the screen a coach picks plays from, so every
 line of chrome above the tiles is a row of plays he cannot see. The chips sit on
 the left of one top bar and the clock, the count and the menu on its right.
