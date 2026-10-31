@@ -998,12 +998,14 @@ new build.
 ### The pipeline
 
 `.github/workflows/deploy.yml` deploys every push to `master` to the
-`huddleboard` App Service (`rg-default`, westus2, Windows). It runs `check`,
+`huddle-board` App Service (`rg-default`, westus3, Linux, plan `asp-linux`). It
+runs `check`,
 then `dotnet publish src/HuddleBoard.Web` in the same step that exports
 `HB_VERSION` (publish runs `build`, so it inherits the version), and deploys the
-publish folder with `clean: true` — the old static app sat at the root of
-`wwwroot`, and a stale `/index.html` there would still be served. Nothing in
-`dist/` is committed, so CI builds it from source.
+publish folder with `clean: true` and an explicit startup command,
+`dotnet HuddleBoard.Web.dll`, rather than leaving the platform to guess which
+assembly in the folder is the site. Nothing in `dist/` is committed, so CI
+builds it from source.
 
 **Keep the package small.** The first publish was 157 MB zipped and the deploy
 failed with "not enough space on the disk": a portable publish carries
@@ -1013,22 +1015,20 @@ packages' `.pdb` files (`DropPackageSymbols`), which brings it to about 13 MB.
 The site never draws with Skia — only `build` does, and a published site does
 not run it.
 
-**That runtime is `win-x86`, and it has to match the worker.** The App Service
-runs a 32-bit worker process (`use32BitWorkerProcess`; the Free plan allows
-nothing else). A RID-specific publish compiles the site's own assembly for that
-platform, so a `win-x64` publish is x64-only and a 32-bit worker cannot load it:
-the deploy reports success and every request is *500.30 — ASP.NET Core app
-failed to start*. Moving to a 64-bit worker means changing the app's Platform
-setting and the workflow's `-r` together. To reproduce locally, run the publish
-with the 32-bit `dotnet` under `C:\Program Files (x86)\dotnet`.
+**That runtime is `linux-x64`, and it has to match the host.** A RID-specific
+publish compiles the site for that platform. The site used to run on a Windows
+App Service (`huddleboard`, westus2) with a 32-bit worker, where the workflow
+had to publish `win-x86`: a `win-x64` publish reported a successful deploy and
+then answered every request with *500.30 — ASP.NET Core app failed to start*.
+Moving hosts again means changing the app and the workflow's `-r` together.
 
-The App Service runs the **.NET 10 stack on Windows with Always On**. A static
-site never cold-started; an ASP.NET one does after idling, and the first open
-before a game should not be the slow one. Both are one-time settings on the app,
-not in the workflow:
+The App Service runs the **.NET 10 stack on Linux (`DOTNETCORE|10.0`) with
+Always On**. A static site never cold-started; an ASP.NET one does after
+idling, and the first open before a game should not be the slow one. Both are
+one-time settings on the app, not in the workflow:
 
 ```
-az webapp config set -g rg-default -n huddleboard --net-framework-version v10.0 --always-on true
+az webapp config set -g rg-default -n huddle-board --linux-fx-version "DOTNETCORE|10.0" --always-on true
 ```
 
 If the plan ever stops offering .NET 10, publish self-contained instead
@@ -1051,7 +1051,7 @@ it is the same build.
 
 Auth is OIDC, so there is no Azure credential in this repository. The Entra app
 registration `huddle-board-github-deploy` holds a federated credential and holds
-Website Contributor scoped to the `huddleboard` site alone — not the resource
+Website Contributor scoped to the `huddle-board` site alone — not the resource
 group, not the subscription. GitHub stores only three identifiers, as repository
 *variables* — `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` —
 because they are not secrets and a failed login is easier to read unmasked.

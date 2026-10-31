@@ -6,8 +6,8 @@
 # application/manifest+json, and no-cache on index.html and sw.js. Miss the
 # second and tablets never see a new build.
 #
-# The App Service has to run the .NET 10 stack with Always On, so the first
-# open before a game is not a cold start.
+# The App Service is Linux and has to run the .NET 10 stack (DOTNETCORE|10.0)
+# with Always On, so the first open before a game is not a cold start.
 #
 # Nothing in dist/ is committed, so CI builds it from source on every run.
 name: Deploy
@@ -31,14 +31,14 @@ permissions:
   id-token: write
 
 env:
-  AZURE_WEBAPP_NAME: huddleboard
+  AZURE_WEBAPP_NAME: huddle-board
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://huddleboard-hacueydwe7aubxg8.westus2-01.azurewebsites.net
+      url: https://huddle-board-fpbhaphyawg7cfc0.westus3-01.azurewebsites.net
 
     steps:
       # Full history, because the version's last number is counted from it.
@@ -75,18 +75,15 @@ jobs:
       #
       # One runtime, because a portable publish carries SkiaSharp's native
       # binaries for every platform and the package outgrew the app's disk. And
-      # win-x86, not x64, because the App Service runs a 32-bit worker (the
-      # Free plan allows nothing else) and a win-x64 publish compiles the site
-      # as x64-only, which a 32-bit worker cannot load: every request was
-      # "500.30 - ASP.NET Core app failed to start". Change this only together
-      # with the app's "Platform" setting.
+      # linux-x64, because the App Service is Linux. (It used to be a Windows
+      # app on a 32-bit worker, which is why this once said win-x86.)
       - name: Publish the site
         run: |
           base=$(git log -1 --format=%H -- version.txt)
           n=$(git rev-list --count --first-parent "$base"..HEAD)
           export HB_VERSION="$(tr -d '[:space:]' < version.txt).$n"
           echo "building $HB_VERSION"
-          dotnet publish src/HuddleBoard.Web -c Release -r win-x86 --self-contained false -o publish
+          dotnet publish src/HuddleBoard.Web -c Release -r linux-x64 --self-contained false -o publish
 
       # These three are identifiers, not credentials, so they are repository
       # variables rather than secrets — a failed login is far easier to read
@@ -98,11 +95,13 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      # clean, because the old static app sat at the root of wwwroot, and a
-      # stale /index.html left there would still be served as the old app.
+      # clean, so a file a previous deploy left in wwwroot is never served.
+      # The startup command is spelled out rather than left to the platform's
+      # guess, because the publish folder holds more than one assembly.
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: publish
           clean: true
+          startup-command: dotnet HuddleBoard.Web.dll
