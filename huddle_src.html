@@ -2488,7 +2488,7 @@ loadMode(cfg.players);
 
 /* ---------------------------------------------------- play thumbnail */
 /* same proportions and the same surround / field logic as the full-size
-   view, so a tile reads as a small version of the real thing — on a pale
+   view, so a tile reads as a small version of the real thing — on a grass
    green field with faint yard lines and hashes, so it reads as football
    before it reads as a diagram. The marks stay faint: routes do the work. */
 const TH = {s:9.5, w:346, h:204, cx:173, top:15, edge:15.7, botY:-6.5};
@@ -2499,7 +2499,7 @@ function thumbSVG(p){
   o.push(`<rect x="0" y="0" width="${TH.w}" height="${TH.h}" rx="7" fill="#173A28"/>`);
   const f0 = tx(-TH.edge, TH.top), f1 = tx(TH.edge, TH.botY);
   o.push(`<rect x="${f0[0]}" y="${f0[1]}" width="${f1[0]-f0[0]}" height="${f1[1]-f0[1]}"
-    fill="#E2EEE0"/>`);
+    fill="#A4C66A"/>`);
   [-5, 5, 10].forEach(yv => {
     const a = tx(-TH.edge, yv), b = tx(TH.edge, yv);
     o.push(`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#fff"
@@ -2514,7 +2514,7 @@ function thumbSVG(p){
   const g0 = tx(-TH.edge, 15), g1 = tx(TH.edge, 13.3);
   o.push(`<rect x="${g0[0]}" y="${g0[1]}" width="${g1[0]-g0[0]}" height="${g1[1]-g0[1]}"
     fill="#1B5E3A" fill-opacity=".14"/>`);
-  // inset slightly so the whole stroke lands on the light field and survives
+  // inset slightly so the whole stroke lands on the field and survives
   // being scaled down to a library row
   [["#1D6FD0",-(TH.edge-0.22)],["#E4610F",TH.edge-0.22]].forEach(([c,xv]) => {
     const a = tx(xv,TH.top), b = tx(xv,TH.botY);
@@ -2523,9 +2523,9 @@ function thumbSVG(p){
   });
   const l1 = tx(-TH.edge,0), l2 = tx(TH.edge,0);
   o.push(`<line x1="${l1[0]}" y1="${l1[1]}" x2="${l2[0]}" y2="${l2[1]}"
-    stroke="#9DB3A1" stroke-width="2"/>`);
-  const col = {route:"#232B26", run:"#127A4D", fake:"#127A4D",
-               motion:"#C9700D", handoff:"#7C877F"};
+    stroke="#58733F" stroke-width="2"/>`);
+  const col = {route:"#232B26", run:"#14532D", fake:"#14532D",
+               motion:"#C9700D", handoff:"#505C54"};
   p.paths.forEach(pa => {
     const dash = pa.type === "motion" ? '4 3' : pa.type === "fake" ? '5 3'
                : pa.type === "handoff" ? '3 2' : '';
