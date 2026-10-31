@@ -19,9 +19,11 @@ h1{font-size:clamp(36px,5vw,60px)}
 h2{font-size:clamp(24px,2.6vw,30px)}
 img{max-width:100%;height:auto}
 
-.bar{display:flex;align-items:center;justify-content:space-between;gap:16px;
+.bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;
   padding:12px clamp(16px,4vw,48px);background:var(--oob);color:#fff}
-.brand{font:700 26px/1 var(--disp);color:#fff;text-decoration:none;letter-spacing:.02em}
+.brand{display:inline-flex;align-items:center;gap:10px;white-space:nowrap;
+  font:700 26px/1 var(--disp);color:#fff;text-decoration:none;letter-spacing:.02em}
+.brand img{display:block;flex:none;width:40px;height:40px;border-radius:8px}
 .bar nav{display:flex;align-items:center;gap:clamp(12px,2vw,24px)}
 .bar nav a{color:#fff;text-decoration:none;font-weight:600}
 .bar nav a:not(.go):hover{text-decoration:underline}
