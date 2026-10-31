@@ -5021,10 +5021,20 @@ function buildScene(){
   const ballInk = in3D() ? "#FFFF00" : "#5B6472";
   const ballWidth = in3D() ? 6.5 : 5;
   const ballEdge = in3D() ? "drop-shadow(0 0 1px #253555) drop-shadow(0 0 1px #253555)" : "none";
-  [["route","#232B26"],["run","#127A4D"],["motion","#C9700D"],["handoff",ballInk],
+  const routeInk = in3D() ? "#101410" : "#232B26";
+  const carryInk = in3D() ? "#7CFA70" : "#127A4D";
+  [["route",routeInk],["run",carryInk],["motion","#C9700D"],["handoff",ballInk],
    ["fake","#127A4D"]].forEach(([k,c]) => {
-    const m = mk("marker",{id:"a-"+k,viewBox:"0 0 10 10",refX:8.4,refY:5,markerWidth:5,
-      markerHeight:5,orient:"auto-start-reverse"});
+    // Seat the shaft inside the smaller triangle so its round cap cannot
+    // poke through the tip. Keep the route's endpoint and direction intact.
+    const m = mk("marker",{id:"a-"+k,viewBox:"0 0 10 10",refX:6,refY:5,markerWidth:2.5,
+      markerHeight:2.5,orient:"auto-start-reverse"});
+    if (in3D() && k === "run"){
+      m.setAttribute("markerUnits", "userSpaceOnUse");
+      m.setAttribute("markerWidth", 12.5); m.setAttribute("markerHeight", 12.5);
+      // The thicker carrier shaft needs more overlap at this fixed tip size.
+      m.setAttribute("refX", 4);
+    }
     m.appendChild(mk("path",{d:"M0 0 L10 5 L0 10 z",fill:c}));
     defs.appendChild(m);
   });
@@ -5121,18 +5131,28 @@ function buildScene(){
   svg.appendChild(SC.side.blue); svg.appendChild(SC.side.orange);
 
   const p = S.play;
+  // Follow the real possession chain, including reverses and a back's pass.
+  // A fake exchange or decoy run must not wear the carrier's colour.
+  const carrying = new Set((S.tl.ball.legs || []).flatMap(l => [l.pathIdx,l.handoff]));
+  if (S.tl.ball.mode === "carry") carrying.add(S.tl.ball.pathIdx);
   p.paths.forEach((path, i) => {
     const g = {};
-    const col = {route:"#232B26",run:"#127A4D",motion:"#C9700D",handoff:ballInk,
-                 fake:"#127A4D"}[path.type];
+    const carrier = in3D() && carrying.has(i);
+    const kind = in3D() ? (carrier ? "run" : path.type === "motion" ? "motion" : "route") : path.type;
+    const col = {route:routeInk,run:carryInk,motion:"#C9700D",handoff:ballInk,
+                 fake:"#127A4D"}[kind];
+    const width = carrier || path.type === "handoff" ? ballWidth : 5;
     g.line = mk("polyline",{fill:"none",stroke:col,
-      "stroke-width": path.type === "handoff" ? ballWidth : 5,
+      "stroke-width": width,
       "stroke-linejoin":"round","stroke-linecap":"round",
       "stroke-dasharray": (path.type === "motion" ? "16 11" : path.type === "handoff" ? "13 9"
                           : path.type === "fake" ? "17 11" : "")});
-    if ((path.end || "arrow") !== "bar") g.line.setAttribute("marker-end", `url(#a-${path.type})`);
-    else g.bar = mk("line",{stroke:col,"stroke-width":5,"stroke-linecap":"round"});
-    if (path.type === "handoff") g.line.style.filter = ballEdge;
+    if ((path.end || "arrow") !== "bar") g.line.setAttribute("marker-end", `url(#a-${kind})`);
+    else g.bar = mk("line",{stroke:col,"stroke-width":width,"stroke-linecap":"round"});
+    if (carrier){
+      g.line.style.filter = ballEdge;
+      if (g.bar) g.bar.style.filter = ballEdge;
+    }
     svg.appendChild(g.line); if (g.bar) svg.appendChild(g.bar);
     SC.paths.push(g);
   });
@@ -5308,7 +5328,7 @@ function frame(now){
     const prog = running ? Math.max(0, Math.min(1, (t - seg.start) / seg.dur)) : 0;
     let op = 0;
     if (prog > 0){
-      op = p.jobs.includes(path.who) ? 1 : 0.34;
+      op = in3D() || p.jobs.includes(path.who) ? 1 : 0.34;
       if (S.solo) op = (path.who === S.solo) ? 1 : 0.07;
     }
     g.line.setAttribute("opacity", op);
