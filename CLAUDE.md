@@ -44,6 +44,14 @@ root's `/index.html`, because cache names are per origin and the `/app/`
 worker's `huddle-*` caches must survive it. Nothing registers it; it only ever
 arrives as an update.
 
+The Play Store app is a Trusted Web Activity, package
+`org.kidsflaghuddle.huddleboard`, opening `https://kidsflaghuddle.org/app/`.
+Chrome drops its address bar only when `/.well-known/assetlinks.json` — at the
+origin's root, so `Program.cs` maps it rather than serving a dot-folder from
+`wwwroot` — names that package and Play App Signing's SHA-256 fingerprint. The
+manifest spells out `"id": "./"`, the identity Chrome already derived from
+`start_url`, so installs keep it if `start_url` ever moves.
+
 `dist/deploy/` and `HuddleBoard-deploy.zip` are unchanged: still a complete
 static site for anyone hosting the app alone. Publish stages the app into
 `wwwroot/app/` and leaves the static-host config (`web.config`, `_headers`, …)
