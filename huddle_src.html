@@ -160,6 +160,7 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   background:#1A211D;border:1.5px solid #39433C;color:#A3AFA6}
 .seg button.on{background:var(--green);border-color:var(--green-2);color:#fff}
 .seg button:active{transform:scale(.96)}
+.fchip.setsupport{flex:none;min-height:52px;text-decoration:none}
 
 /* Both screens share run/pass buttons and one situation dropdown. The library
    can wrap its search and deck controls; the deck keeps its filters on one line. */
@@ -3456,6 +3457,9 @@ function renderSettings(tab){
       Every play shown, every clock start, stamped to the millisecond.`,
      `<div class="seg"><button id="logexp">Export</button>
       <button id="logclr">Clear</button></div>`],
+    ["tablet", "Support Huddle Board", `Help with hosting and continued development. Support is always optional;
+      every feature is free. Opens Ko-fi in a new tab and needs an internet connection.`,
+     `<a class="fchip setsupport" href="https://ko-fi.com/justincrawford" target="_blank" rel="noopener noreferrer">Support on Ko-fi</a>`],
     ["tablet", "Start over", `Puts this tablet back the way it came, in every format &mdash; the ${DATA.defaultDeck.length}-play
       starting deck, every play's shipped name, every hidden play shown, every week's shipped deck and name, and every setting
       except how many are on the field. The game log, the plays you drew and your play notes are left alone;
