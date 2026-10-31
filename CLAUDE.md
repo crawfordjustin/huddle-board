@@ -262,6 +262,16 @@ The page is memory only and clears at the intro. The header still counts the
 whole filtered deck, and every play stays in deck order. `DeckPageChecks` holds
 the navigation and touch swipe across all formats and tablet sizes.
 
+**Order plays**, in the deck menu, opens a numbered list of the whole deck,
+including plays outside the current filter. Move up and Move down have large
+tap targets; the list scrolls while Save and Cancel stay on screen. Edits are
+a working copy until Save; Cancel, Escape and tapping outside discard them.
+`hb.deck` itself holds the order, per format, so pages, filters, print and sync
+all agree. Adding a play appends it. Saved weeks keep order too: `sameDeck`
+compares each position, so saving a reordered shipped week is a real override.
+`DeckOrderChecks` covers ordering at all five sizes and in all three formats,
+reloads, week saving, print and sync.
+
 The play library uses the same horizontal pages and navigation, keeping its
 rows, thumbnails, pencils and deck selection controls. Filters and search cover
 the entire library and start on page one. Toggling a row, renaming and closing a
@@ -292,7 +302,7 @@ row of its own and the whole deck was already on screen; with the bar there
 anyway, an empty left half is just wasted space.)
 **Change plays** is in the hamburger with Setup and Exit, because changing the
 deck is something a coach does between series, not with six kids waiting.
-`MenuChecks` holds the three items and that the menu is the last thing in the
+`MenuChecks` holds the menu items and that the menu is the last thing in the
 bar. **Exit** goes back to the intro, and on an installed launch
 (`isInstalled()`, which unlike `isImmersive()` does not count a tab made full
 screen) it also closes the app's window. The intro is drawn first, so a close

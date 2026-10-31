@@ -351,6 +351,20 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .hrow.off .hstate{background:#2B332E;color:#A3AFA6}
 .hrow:active{transform:scale(.99)}
 
+/* Order the whole deck in a scrolling list; the actions stay on screen. */
+.sheet.deckorder{width:min(760px,100%);display:flex;flex-direction:column;overflow:hidden}
+.orderlist{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;
+  margin-bottom:16px}
+.orderrow{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #39433C}
+.ordernum{flex:none;min-width:2ch;color:#A3AFA6;text-align:right}
+.ordername{flex:1;min-width:0;overflow-wrap:anywhere;color:#EDF0EC}
+.ordername b,.ordername span{display:block}
+.ordername span{font-size:13px;color:#A3AFA6;margin-top:3px}
+.orderrow button{flex:none;width:48px;min-height:48px;border:1.5px solid #526057;
+  border-radius:9px;font-size:24px;color:#EDF0EC;background:#141A16}
+.orderrow button:disabled{opacity:.3}
+.deckorder h2,.deckorder .sheetnote,.deckorder .sheetbtns{flex:none}
+
 /* the rename sheet — the only place in the app a coach types */
 .sheetwrap{position:fixed;inset:0;z-index:60;display:flex;align-items:center;
   justify-content:center;padding:clamp(14px,3vh,32px);background:rgba(9,13,11,.72)}
@@ -1158,8 +1172,7 @@ function storedDeck(n){
 }
 function loadDeck(){ deck = storedDeck(DATA.players); }
 function saveDeck(){ try { localStorage.setItem(myKey("hb.deck"), JSON.stringify(deck)); } catch(e){} }
-const byNum = (a,b) => a.num - b.num;
-const inDeck = () => DATA.plays.filter(p => deck.includes(p.id) && !isHidden(p)).sort(byNum);
+const inDeck = () => deck.map(id => DATA.plays.find(p => p.id === id)).filter(p => p && !isHidden(p));
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ------------------------------------------------------------ event log
@@ -1287,7 +1300,7 @@ function loadPackSaves(){ packSaves = storedById("hb.packs", DATA.players); }
 function savePackSaves(){
   try { localStorage.setItem(myKey("hb.packs"), JSON.stringify({v:1, byId:packSaves})); } catch(e){}
 }
-const sameDeck = (a, b) => a.length === b.length && a.every(id => b.includes(id));
+const sameDeck = (a, b) => a.length === b.length && a.every((id, i) => id === b[i]);
 const knownPlay = id => typeof id === "string" && !hidden.has(id) && DATA.plays.some(p => p.id === id);
 /* A week's name is the coach's too — "Week 3" is the build's word for it, and
    by week three it is PLAYOFFS or SEAHAWKS or whatever the team calls that
@@ -2866,6 +2879,7 @@ function tourMenu(){
       <span class="cnum">${cfg.clockSecs}</span></div>` : ""}
     <div class="menu">
       <button tabindex="-1">Change plays</button>
+      <button tabindex="-1">Order plays</button>
       <button tabindex="-1">Setup</button>
       <button tabindex="-1" class="on">Tutorial</button>
       <button tabindex="-1">Exit</button>
@@ -2946,7 +2960,7 @@ function tourSlides(){
     {title: "Between series", sub: "The clock and the menu", art: tourMenu(),
      text: `<p>The clock counts down from the whistle and buzzes at the warning. Tap it to
        start it; the &times; beside it stops it.</p>
-       <p>The menu is where all of that lives &mdash; <b>Change plays</b>, <b>Setup</b>, and
+       <p>The menu is where all of that lives &mdash; <b>Change plays</b>, <b>Order plays</b>, <b>Setup</b>, and
        <b>Tutorial</b> to bring this back &mdash; because none of it is something you do
        with ${(KIDS[DATA.players] || DATA.players + "").toLowerCase()} kids waiting.</p>`},
   ];
@@ -3174,6 +3188,7 @@ function renderDeck(){
               aria-expanded="false"><i></i><i></i><i></i></button>
             <div class="menu" id="menu" role="menu" hidden>
               <button id="edit" role="menuitem">Change plays</button>
+              <button id="order" role="menuitem" ${all.length < 2 ? "disabled" : ""}>Order plays</button>
               <button id="setup" role="menuitem">Setup</button>
               <button id="tour" role="menuitem">Tutorial</button>
               <button id="exit" role="menuitem">Exit</button>
@@ -3221,6 +3236,7 @@ function renderDeck(){
     </div>`;
   bindDeckFilters();
   document.getElementById("edit").onclick = () => { closeMenu(); renderLibrary(); };
+  document.getElementById("order").onclick = () => { closeMenu(); openDeckOrder(); };
   const dlib = document.getElementById("dlib");
   if (dlib) dlib.onclick = () => { logEvent("empty_deck_library"); renderLibrary(); };
   const ham = document.getElementById("ham");
@@ -3503,10 +3519,70 @@ function libFilterHTML(){
    a play name in the middle of a huddle. */
 function closeRename(){
   for (const id of ["rensheet", "pnsheet", "fmsheet", "dzsheet", "prevsheet", "welsheet", "hidesheet",
-                    "ntsheet"]){
+                    "ntsheet", "ordersheet"]){
     const w = document.getElementById(id);
     if (w) w.remove();
   }
+}
+function openDeckOrder(){
+  closeRename();
+  const ordered = inDeck().map(p => p.id);
+  if (ordered.length < 2) return;
+  const w = document.createElement("div");
+  w.className = "sheetwrap";
+  w.id = "ordersheet";
+  w.innerHTML = `<div class="sheet deckorder" role="dialog" aria-modal="true" aria-labelledby="ordertitle">
+    <h2 id="ordertitle">Order plays &middot; ${ordered.length} plays</h2>
+    <p class="sheetnote">Move plays up or down. This is your whole deck, including plays outside the current filter.
+      Save keeps this order on your tablet. Save deck in the library keeps it in a week.</p>
+    <div class="orderlist" role="list" aria-label="Deck order"></div>
+    <div class="sheetbtns"><button class="sbtn" id="order-cancel">Cancel</button>
+      <button class="sbtn go" id="order-save" disabled>Save</button></div></div>`;
+  const list = w.querySelector(".orderlist"), save = w.querySelector("#order-save");
+  const draw = () => {
+    list.innerHTML = ordered.map((id, i) => {
+      const p = DATA.plays.find(x => x.id === id);
+      return `<div class="orderrow" role="listitem" data-id="${id}">
+        <span class="ordernum">${i + 1}</span>
+        <span class="ordername"><b>${esc(nameOf(p).big)}</b><span>${esc(nameOf(p).small)}</span></span>
+        <button data-move="-1" aria-label="Move ${esc(nameOf(p).big)} up" ${i ? "" : "disabled"}>&uarr;</button>
+        <button data-move="1" aria-label="Move ${esc(nameOf(p).big)} down" ${i < ordered.length - 1 ? "" : "disabled"}>&darr;</button>
+      </div>`;
+    }).join("");
+    save.disabled = sameDeck(ordered, deck);
+  };
+  const dismiss = () => { closeRename(); document.getElementById("ham")?.focus(); };
+  list.onclick = e => {
+    const b = e.target.closest("[data-move]");
+    if (!b || b.disabled) return;
+    const id = b.closest(".orderrow").dataset.id, i = ordered.indexOf(id), d = Number(b.dataset.move);
+    [ordered[i], ordered[i + d]] = [ordered[i + d], ordered[i]];
+    const scroll = list.scrollTop;
+    draw();
+    list.scrollTop = scroll;
+    const row = list.children[i + d];
+    const focus = row.querySelector(`[data-move="${d}"]:not(:disabled)`) || row.querySelector("button:not(:disabled)");
+    focus.focus({preventScroll:true});
+    row.scrollIntoView({block:"nearest"});
+  };
+  w.querySelector("#order-cancel").onclick = dismiss;
+  save.onclick = () => {
+    deck = ordered.slice(); saveDeck();
+    logEvent("deck_ordered", {deck: deck.slice()});
+    closeRename(); renderDeck(); document.getElementById("ham").focus();
+  };
+  w.onclick = e => { if (e.target === w) dismiss(); };
+  w.onkeydown = e => {
+    if (e.key === "Escape"){ e.stopPropagation(); dismiss(); }
+    if (e.key === "Tab"){
+      const buttons = [...w.querySelectorAll("button:not(:disabled)")];
+      const first = buttons[0], last = buttons.at(-1);
+      if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    }
+  };
+  draw(); document.body.appendChild(w);
+  w.querySelector("button:not(:disabled)").focus();
 }
 /* The week's name — one box, the same sheet shape as a play's. Empty it to go
    back to the shipped name; Reset does the same in one tap. */

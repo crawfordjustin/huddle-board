@@ -48,6 +48,9 @@ serve the app on localhost — that is the way to exercise the install prompt,
 offline caching and browser storage, none of which work from a local file.
 **HuddleBoard.Build** has a launch profile per verb.
 
+**Order plays** in the deck menu lets you move plays up or down and save their
+order. Saved weeks, tablet sync and printing keep that order.
+
 **Print** on the Change plays screen prints the deck as one quick-reference
 sheet, through the browser's own print dialog. The first test run downloads
 Chromium for Playwright.
