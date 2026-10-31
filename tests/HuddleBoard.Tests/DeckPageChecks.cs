@@ -56,14 +56,20 @@ public sealed class DeckPageChecks(AppFixture app)
         }
     }
 
-    [Fact]
-    public async Task NativeTouchSwipeChangesPagesWithoutOpeningAPlay()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NativeTouchSwipeChangesPagesWithoutOpeningAPlay(bool library)
     {
         var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[0]);
         await page.EvaluateAsync("deck = DATA.plays.slice(0, 14).map(p => p.id); renderDeck()");
+        if (library) await page.EvaluateAsync("renderLibrary()");
+        var before = await page.EvaluateAsync<string>("JSON.stringify(deck)");
+        var strip = library ? "#lib" : "#deckpages";
+        var prefix = library ? "l" : "d";
         var cdp = await page.Context.NewCDPSessionAsync(page);
         await cdp.SendAsync("Emulation.setTouchEmulationEnabled", new() { ["enabled"] = true });
-        var box = (await page.Locator("#deckpages").BoundingBoxAsync())!;
+        var box = (await page.Locator(strip).BoundingBoxAsync())!;
         var y = box.Y + box.Height / 2;
         async Task Touch(string type, float x) => await cdp.SendAsync("Input.dispatchTouchEvent", new()
         {
@@ -77,12 +83,13 @@ public sealed class DeckPageChecks(AppFixture app)
             await page.WaitForTimeoutAsync(20);
         }
         await Touch("touchEnd", 0);
-        await page.WaitForFunctionAsync("deckPage === 1");
-        Assert.Equal("deck", await page.EvaluateAsync<string>("S.screen"));
+        await page.WaitForFunctionAsync($"document.querySelector('{strip} > :nth-child(2)').inert === false");
+        Assert.Equal(library ? "library" : "deck", await page.EvaluateAsync<string>("S.screen"));
+        Assert.Equal(before, await page.EvaluateAsync<string>("JSON.stringify(deck)"));
         await page.WaitForTimeoutAsync(400);
-        await page.ClickAsync("#dprev");
-        await page.WaitForFunctionAsync("deckPage === 0");
-        Assert.True(await page.IsDisabledAsync("#dprev"));
+        await page.ClickAsync($"#{prefix}prev");
+        await page.WaitForFunctionAsync($"document.querySelector('{strip} > :first-child').inert === false");
+        Assert.True(await page.IsDisabledAsync($"#{prefix}prev"));
         await page.CloseAsync();
         Assert.Empty(errors);
     }

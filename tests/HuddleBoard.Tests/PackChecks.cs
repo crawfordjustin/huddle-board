@@ -81,7 +81,7 @@ public sealed class PackChecks(AppFixture app)
 
         // one play off the pack and it is no longer that pack
         var stray = PlayLibrary.All.First(p => !Week1.Plays.Contains(p.Num));
-        await page.ClickAsync($".lrow[data-id=\"p_{stray.Num:00}\"]");
+        await page.ClickAsync($".lrow[data-id=\"p_{stray.Num:00}\"] .lmark");
         await page.WaitForTimeoutAsync(300);
         Assert.Equal(0, await page.Locator("#packs .pack.on").CountAsync());
         Assert.DoesNotContain(Week1.Blurb, await page.InnerTextAsync("#lnote"));

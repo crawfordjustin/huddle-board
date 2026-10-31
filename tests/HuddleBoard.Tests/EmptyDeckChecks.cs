@@ -21,7 +21,7 @@ public sealed class EmptyDeckChecks(AppFixture app)
         await page.WaitForSelectorAsync(".lrow");
         foreach (var n in PlayPacks.Starting)
         {
-            await page.ClickAsync($".lrow[data-id=\"p_{n:00}\"]");
+            await page.ClickAsync($".lrow[data-id=\"p_{n:00}\"] .lmark");
             await page.WaitForTimeoutAsync(120);
         }
         Assert.Equal(0, await page.EvaluateAsync<int>("deck.length"));

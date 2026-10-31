@@ -107,11 +107,12 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   letter-spacing:.05em;text-align:left;padding:10px 16px;min-height:48px;border-radius:8px;
   color:#D5DCD7;width:100%}
 .menu button:active{background:#2F3833}
-.deckpages{flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;
+.deckpages,.libpages{flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;
   scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;
   touch-action:pan-x;padding-top:clamp(10px,1.8vh,20px)}
-.deckpages::-webkit-scrollbar{display:none}
+.deckpages::-webkit-scrollbar,.libpages::-webkit-scrollbar{display:none}
 .deckpages>.tiles{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always}
+.libpages>.lib{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always;padding-top:0}
 .decknav{flex:none;display:flex;align-items:center;justify-content:center;gap:16px;padding-top:8px;color:#D5DCD7}
 .decknav button{min-width:48px;min-height:44px;border:1.5px solid #3B443E;border-radius:9px;font-size:24px}
 .decknav button:disabled{opacity:.3;cursor:default}
@@ -234,46 +235,49 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .lempty{grid-column:1/-1;align-self:start;display:flex;align-items:center;gap:14px;
   color:#8A968C;font-size:clamp(13px,2vh,18px);padding:clamp(14px,2.5vh,28px) 4px}
 
-/* one column on a narrow tablet: two columns of long play names at 800px wide
-   leaves each name about 200px, which is not enough as the library grows. */
-@media (max-width:860px){ .lib{grid-template-columns:1fr !important} }
+/* Library pages use the deck's card proportions. The picture and name share
+   the body; the pencil and selection stay in their own thumb-sized strip. */
 .lib{flex:1;display:grid;grid-template-columns:1fr 1fr;
   grid-auto-rows:minmax(clamp(52px,7vh,96px),1fr);
   gap:clamp(6px,1vh,11px) clamp(10px,1.6vw,22px);
   padding-top:clamp(10px,1.6vh,18px);min-height:0;
-  overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  overflow-y:auto;overscroll-behavior:auto contain;scrollbar-width:thin;
   scrollbar-gutter:stable}
 /* out of the deck = dark card, in the deck = light card. Readable either way,
    which dimming with opacity was not. */
-.lrow{display:flex;align-items:center;gap:clamp(8px,1vw,14px);text-align:left;
+.lrow{display:flex;flex-direction:column;align-items:stretch;gap:clamp(5px,.8vh,9px);text-align:left;
   background:#262E29;border:1.5px solid #333D36;border-radius:10px;
-  padding:0 clamp(10px,1.1vw,15px) 0 0;overflow:hidden;position:relative;
+  padding:clamp(7px,1vh,12px) clamp(9px,1vw,14px) clamp(7px,1vh,12px) clamp(16px,1.7vw,24px);
+  overflow:hidden;position:relative;
   transition:background .12s ease,border-color .12s ease}
-.lrow::before{content:"";width:clamp(7px,.8vw,11px);align-self:stretch;background:var(--cat);
-  flex:none}
+.lrow::before{content:"";position:absolute;inset:0 auto 0 0;width:clamp(6px,.7vw,9px);background:var(--cat)}
+.lbody{flex:1;min-height:0;min-width:0;display:flex;align-items:center;gap:clamp(8px,1vw,14px)}
+.lfoot{flex:none;display:flex;align-items:center;gap:clamp(5px,.7vw,10px);min-height:44px}
+.lcontrols{display:flex;gap:6px;flex:none;margin-left:auto}
+.lib.stack .lbody{flex-direction:column;align-items:stretch}
+.lib.stack .lname{flex:none}
+.lib.stack .lthumb{order:-1;width:auto;flex:1;justify-content:center}
 .lrow.on{background:var(--surface);border-color:#5FBF8F}
 .lrow:active{transform:scale(.99)}
-.lnum{font-family:var(--disp);font-size:clamp(15px,2.4vh,22px);font-weight:700;color:#6E7A72;
-  min-width:22px;text-align:center;font-variant-numeric:tabular-nums;flex:none;
-  padding-left:clamp(4px,.5vw,8px)}
+.lnum{font-family:var(--disp);font-size:clamp(12px,1.8vh,17px);font-weight:700;color:#89968D;
+  text-align:center;font-variant-numeric:tabular-nums;flex:none}
 .lname{flex:1;min-width:0}
-.lname b{display:block;font-family:var(--disp);font-size:clamp(15px,2.4vw,27px);
+.lname b{display:block;font-family:var(--disp);font-size:clamp(22px,3vw,38px);
   text-transform:uppercase;line-height:1;letter-spacing:.01em;color:#C9D2CB;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  white-space:normal;overflow-wrap:anywhere}
 .lname i{display:block;font-style:normal;font-size:clamp(9px,1.4vh,12px);color:#7E8A81;
   font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-top:3px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  white-space:normal}
 .lcat{font-size:clamp(7px,1.1vh,9.5px);font-weight:700;letter-spacing:.1em;text-transform:uppercase;
   color:#fff;background:var(--cat);padding:4px 8px;border-radius:4px;white-space:nowrap;flex:none}
-.lthumb{flex:none;width:clamp(78px,8.6vw,126px);display:flex;align-items:center;
+.lthumb{flex:none;width:var(--lthumbw,60%);min-height:0;align-self:stretch;display:flex;align-items:center;
   border-radius:8px;cursor:zoom-in}
 .lthumb .thumbsvg{width:100%}
 .lthumb:active{transform:scale(.96)}
 .lthumb:focus-visible{outline:3px solid #5FBF8F;outline-offset:2px}
-.lmeta{width:clamp(54px,6.2vw,78px);display:flex;flex-direction:column;align-items:center;
-  gap:4px;flex:none}
+.lmeta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;min-width:0}
 .lkind{font-family:var(--disp);font-size:clamp(11px,1.8vh,16px);font-weight:700;
-  letter-spacing:.1em;text-transform:uppercase;text-align:center}
+  letter-spacing:.08em;text-transform:uppercase}
 .lkind.run{color:#5FBF8F} .lkind.pass{color:var(--pass-lt)}
 .lcomplexity{font-size:clamp(6.5px,1vh,9px);font-weight:700;letter-spacing:.08em;
   text-transform:uppercase;color:#fff;background:var(--complex);padding:2px 5px;border-radius:4px;
@@ -283,13 +287,13 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .lrow.on .lname i{color:var(--ink-2)}
 .lrow.on .lkind.run{color:var(--run)}
 .lrow.on .lkind.pass{color:var(--pass)}
-.lmark{font-size:clamp(15px,2.4vh,21px);font-weight:700;width:30px;height:30px;flex:none;
+.lmark{font-size:clamp(18px,2.6vh,24px);font-weight:700;width:44px;height:44px;flex:none;
   display:flex;align-items:center;justify-content:center;border-radius:8px;
   background:#39433C;color:#A3AFA6}
 .lrow.on .lmark{background:var(--green);color:#fff}
 /* the pencil. Big enough for a thumb in a glove, quiet enough that the row
    still reads as one tap target for adding the play to the deck. */
-.lren{font-size:clamp(13px,2vh,18px);width:34px;height:34px;flex:none;
+.lren{font-size:clamp(16px,2vh,20px);width:44px;height:44px;flex:none;
   display:flex;align-items:center;justify-content:center;border-radius:8px;
   color:#7E8A81;background:transparent;border:1.5px solid #39433C;cursor:pointer;
   line-height:1}
@@ -392,7 +396,7 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
   .tile .kid{font-size:min(60px, 12.5cqi)}
   .thumb{width:52cqi}
   .lrow{container-type:inline-size}
-  .lname b{font-size:min(27px, 9cqi)}
+  .lname b{font-size:min(38px, 11cqi)}
 }
 /* the picture is what a coach reads; the words are the caption. layoutTiles()
    sizes the thumb from the card's real height, so it is never a strip floating
@@ -1213,12 +1217,12 @@ addEventListener("pagehide", flushLog);
 // players is the division: how many are on the field, and so which library
 // the whole tablet reads. A tablet from before there was a choice is 6 on 6.
 const CFG_DEFAULTS = {v:1, clockSecs:40, warnAt:10, vibrate:true, showClock:true,
-                      funNames:false, players:6, view3d:false};
+                      funNames:false, players:6, view3d:false, deckPageSize:6, libraryPageSize:6};
 // Every value a setting can take. Setup's buttons are drawn from this and a
 // setup file from another tablet is checked against it, so the two cannot drift.
 const CFG_CHOICES = {clockSecs:[25,30,40,45], warnAt:[5,10,15], vibrate:[true,false],
                      showClock:[true,false], funNames:[true,false], players:FORMAT_IDS,
-                     view3d:[true,false]};
+                     view3d:[true,false], deckPageSize:[4,6,8], libraryPageSize:[4,6,8]};
 let cfg = Object.assign({}, CFG_DEFAULTS);
 try {
   const saved = JSON.parse(localStorage.getItem("hb.settings") || "null");
@@ -1226,6 +1230,9 @@ try {
 } catch(e){}
 if (!ALL.formats[cfg.players]) cfg.players = 6;
 cfg.view3d = cfg.view3d === true;
+for (const k of ["deckPageSize", "libraryPageSize"]){
+  if (!CFG_CHOICES[k].includes(cfg[k])) cfg[k] = CFG_DEFAULTS[k];
+}
 function saveCfg(){ try { localStorage.setItem("hb.settings", JSON.stringify(cfg)); } catch(e){} }
 
 /* -------------------------------------------------------- custom names
@@ -1507,7 +1514,7 @@ function readSetup(text){
     if (k === "players" && o.v === 1) continue;
     // Older exports predate the remembered view; they start in 2D without
     // reporting a missing preference as an invalid value.
-    if (k === "view3d" && !Object.hasOwn(st, k)) continue;
+    if (["view3d", "deckPageSize", "libraryPageSize"].includes(k) && !Object.hasOwn(st, k)) continue;
     if (CFG_CHOICES[k].includes(st[k])) s.settings[k] = st[k]; else s.dropped++;
   }
   if (o.ourSide === "blue" || o.ourSide === "orange") s.ourSide = o.ourSide; else s.dropped++;
@@ -2707,6 +2714,7 @@ function refit(){
   clearTimeout(fitT);
   fitT = setTimeout(() => {
     if (S.screen === "deck") renderDeck();      // column count may have changed
+    else if (S.screen === "library") fitLibraryPages();
     else fitNames();
   }, 90);
 }
@@ -3036,27 +3044,42 @@ addEventListener("keydown", e => { if (e.key === "Escape") closeMenu(); });
    deck had been eaten. It resets when the app goes back to the intro, and the
    count in the header always says how many of how many are showing. */
 let deckF = {kind:"all", cat:"all"};
-const DECK_PAGE_SIZE = 6;
 let deckPage = 0, deckPageKey = "";
 
-function bindDeckPages(){
-  const strip = document.getElementById("deckpages");
+function pageNav(prefix, count, label){
+  return count > 1 ? `<nav class="decknav" aria-label="${label} navigation">
+    <button id="${prefix}prev" aria-label="Previous page">&#8249;</button>
+    <span id="${prefix}page" aria-live="polite"></span>
+    <button id="${prefix}next" aria-label="Next page">&#8250;</button>
+  </nav>` : "";
+}
+
+// Both screens use native horizontal scrolling, snapping and touch cancellation.
+function bindPlayPages(id, prefix, current, screen, remember){
+  const strip = document.getElementById(id);
   const pages = [...strip.children];
   const width = () => strip.getBoundingClientRect().width;
-  strip.scrollLeft = deckPage * width();
-  const prev = document.getElementById("dprev"), next = document.getElementById("dnext");
+  strip.scrollLeft = current * width();
+  const prev = document.getElementById(prefix + "prev"), next = document.getElementById(prefix + "next");
   const paint = () => {
-    if (!strip.isConnected || S.screen !== "deck") return;
-    deckPage = Math.max(0, Math.min(pages.length - 1, Math.round(strip.scrollLeft / width())));
+    if (!strip.isConnected || S.screen !== screen) return;
+    current = Math.max(0, Math.min(pages.length - 1, Math.round(strip.scrollLeft / width())));
+    remember(current);
     // Off-screen plays stay out of the keyboard order and accessibility tree.
-    pages.forEach((p, i) => { p.inert = i !== deckPage; });
+    pages.forEach((p, i) => { p.inert = i !== current; });
     if (!prev) return;
-    prev.disabled = deckPage === 0;
-    next.disabled = deckPage === pages.length - 1;
-    document.getElementById("dpage").textContent = `Page ${deckPage + 1} of ${pages.length}`;
+    prev.disabled = current === 0;
+    next.disabled = current === pages.length - 1;
+    const counter = document.getElementById(prefix + "page");
+    const text = `Page ${current + 1} of ${pages.length}`;
+    if (counter.textContent !== text) counter.textContent = text;
   };
-  const move = delta => strip.scrollTo({left:(deckPage + delta) * width(),
+  const move = delta => strip.scrollTo({left:(current + delta) * width(),
     behavior:matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth"});
+  // Library filters rebuild the pages inside the same strip. Retire its old
+  // listener so it cannot refer to a removed counter or a previous result set.
+  if (strip.pageScroll) strip.removeEventListener("scroll", strip.pageScroll);
+  strip.pageScroll = paint;
   strip.addEventListener("scroll", paint, {passive:true});
   if (prev){ prev.onclick = () => move(-1); next.onclick = () => move(1); }
   strip.onkeydown = e => {
@@ -3119,17 +3142,18 @@ function renderDeck(){
   // the same way — one chip lit with nothing to switch to teaches nothing.
   const cats = CAT_ORDER.filter(k => all.some(p => p.category === k));
   const showFilters = all.length > 0 && (cats.length > 1 || all.some(isRun) !== all.every(isRun));
-  const key = JSON.stringify([cfg.players, deckF, list.map(p => p.id)]);
+  const key = JSON.stringify([cfg.players, cfg.deckPageSize, deckF, list.map(p => p.id)]);
   if (key !== deckPageKey){ deckPage = 0; deckPageKey = key; }
   const pages = [];
-  for (let i = 0; i < list.length; i += DECK_PAGE_SIZE) pages.push(list.slice(i, i + DECK_PAGE_SIZE));
+  for (let i = 0; i < list.length; i += cfg.deckPageSize) pages.push(list.slice(i, i + cfg.deckPageSize));
   if (!pages.length) pages.push([]);
   deckPage = Math.min(deckPage, pages.length - 1);
   const roomFor = Math.max(1, Math.min(3, Math.floor(innerWidth / 340)));
   // A short deck in portrait is one column: two-up there makes cards taller
   // than wide, and a field is wider than tall, so half of every card was blank.
   const tall = innerHeight > innerWidth;
-  const want = list.length <= 4 ? (tall ? 1 : 2) : tall ? 2 : 3;
+  const perPage = Math.min(cfg.deckPageSize, list.length);
+  const want = perPage <= 4 ? (tall ? 1 : 2) : tall ? 2 : 3;
   const cols = Math.min(want, roomFor);
   const compact = cols > 2;
   app.innerHTML = `
@@ -3160,7 +3184,7 @@ function renderDeck(){
       <div class="deckpages" id="deckpages" tabindex="0" role="region" aria-label="Play deck pages">
       ${pages.map((page, index) => `<div class="tiles ${compact ? "compact" : ""}"
         role="group" aria-label="Page ${index + 1} of ${pages.length}"
-        style="--cols:${cols};grid-template-rows:repeat(${Math.max(1, Math.ceil(Math.min(DECK_PAGE_SIZE, list.length) / cols))},minmax(0,1fr))">
+        style="--cols:${cols};grid-template-rows:repeat(${Math.max(1, Math.ceil(Math.min(cfg.deckPageSize, list.length) / cols))},minmax(0,1fr))">
         ${page.map(p => `
         <button class="tile ${isRun(p) ? "run" : "pass"}" data-id="${p.id}"
           style="--cat:${CAT[p.category]}">
@@ -3187,11 +3211,7 @@ function renderDeck(){
          </div>`}
       </div>`).join("")}
       </div>
-      ${pages.length > 1 ? `<nav class="decknav" aria-label="Deck navigation">
-        <button id="dprev" aria-label="Previous page">&#8249;</button>
-        <span id="dpage" aria-live="polite"></span>
-        <button id="dnext" aria-label="Next page">&#8250;</button>
-      </nav>` : ""}
+      ${pageNav("d", pages.length, "Deck")}
       <div class="decknote">${list.length
         ? `Tap a play to see it whole &rarr; line them up &rarr; run it. Tap any player to show
            that kid his own job. Every play mirrors, so this is really
@@ -3230,7 +3250,7 @@ function renderDeck(){
   app.querySelectorAll(".tile").forEach(b =>
     b.addEventListener("click", () => openPlay(b.dataset.id)));
   fitDeck();
-  bindDeckPages();
+  bindPlayPages("deckpages", "d", deckPage, "deck", n => { deckPage = n; });
 }
 
 function seg(key, opts){
@@ -3323,6 +3343,10 @@ function renderSettings(tab){
      seg("vibrate", [[true,"On"],[false,"Off"]])],
     ["game", "Play names", "BULLDOZER or 22 DIVE. Fun names stick with the kids; real names are what you say to another coach.",
      seg("funNames", [[true,"Fun"],[false,"Real"]])],
+    ["game", "Deck plays per page", "Fewer plays make each card larger. Swipe to see the next page.",
+     seg("deckPageSize", CFG_CHOICES.deckPageSize.map(n => [n, n]))],
+    ["game", "Library plays per page", "Choose how many plays to browse at once. Swipe between pages; filters and search cover the whole library.",
+     seg("libraryPageSize", CFG_CHOICES.libraryPageSize.map(n => [n, n]))],
     ["yours", "Your own names", `${renamedCount()} play${renamedCount() === 1 ? "" : "s"} renamed on this
       tablet in ${here}. Rename any play from Change plays in the menu &mdash; tap the pencil on its row. Your names
       are kept through an update; Reset all puts every shipped name back.`,
@@ -3848,28 +3872,90 @@ function openLibraryWelcome(){
   ok.focus();
 }
 
+function fitLibraryPages(){
+  const count = Math.min(cfg.libraryPageSize, document.querySelectorAll(".lib .lrow").length);
+  const tall = innerHeight > innerWidth;
+  const want = count <= 4 ? (tall ? 1 : 2) : tall ? 2 : count <= 6 ? 3 : 4;
+  const cols = Math.max(1, Math.min(want, Math.floor(innerWidth / (want === 4 ? 250 : 340))));
+  document.querySelectorAll(".libpages > .lib").forEach(g => {
+    g.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`;
+    g.style.gridTemplateRows = `repeat(${Math.max(1, Math.ceil(count / cols))},minmax(0,1fr))`;
+    fitLibraryCards(g);
+  });
+}
+
+function fitLibraryCards(grid){
+  const cards = [...grid.querySelectorAll(".lrow")];
+  if (!cards.length) return;
+  const names = cards.map(t => t.querySelector(".lname b"));
+  const subs = cards.map(t => t.querySelector(".lname i"));
+  const fit = () => {
+    names.forEach(e => fitText(e, 13, 2));
+    subs.forEach(e => fitText(e, 8, 2));
+  };
+  grid.classList.remove("stack");
+  grid.style.removeProperty("--lthumbw");
+  const body = cards[0].querySelector(".lbody"), gap = parseFloat(getComputedStyle(body).gap) || 0;
+  const w = body.clientWidth, h = body.clientHeight, aspect = TH.w / TH.h;
+  let side = Math.max(0, Math.min(h * aspect, .6 * (w - gap)));
+  grid.classList.add("stack");
+  fit();
+  const words = Math.max(...cards.map(t => t.querySelector(".lname").offsetHeight));
+  const stacked = Math.min(w, (h - words - gap) * aspect);
+  if (stacked <= side * 1.1){
+    grid.classList.remove("stack");
+    grid.style.setProperty("--lthumbw", Math.floor(side) + "px");
+  }
+  fit();
+  // A full-length coach name gets room for its two lines, even at eight-up
+  // with the wider offline font. The picture yields width before words clip.
+  while (!grid.classList.contains("stack") && side > 40 &&
+         names.some(e => lineCount(e) > 2 || e.scrollWidth > e.clientWidth + .5)){
+    side = Math.max(40, side - 8);
+    grid.style.setProperty("--lthumbw", Math.floor(side) + "px");
+    fit();
+  }
+  // A long custom name must also fit the card's height, using one size per page.
+  const spills = () => cards.some(t => {
+    const box = t.querySelector(".lbody").getBoundingClientRect();
+    const name = t.querySelector(".lname").getBoundingClientRect();
+    return name.top < box.top - 1 || name.bottom > box.bottom + 1;
+  });
+  let px = Math.min(...names.map(e => parseFloat(getComputedStyle(e).fontSize)));
+  while (px > 11 && spills()){
+    px--;
+    names.forEach(e => { e.style.fontSize = px + "px"; });
+  }
+}
+
 function renderLibrary(welcome){
   S.screen = "library";
   libF = {q:"", kind:"all", cat:"all", deckOnly:false};
+  let libPage = 0, libPageKey = "";
 
   const rowHTML = p => {
     const on = deck.includes(p.id), nm = nameOf(p);
-    return `<button class="lrow ${on ? "on" : ""}" data-id="${p.id}"
+    return `<button class="lrow ${on ? "on" : ""}" data-id="${p.id}" aria-pressed="${on}"
               style="--cat:${CAT[p.category]}">
-      <span class="lnum ${p.custom ? "mine" : ""}">${p.custom ? "&#9733;" : p.num}</span>
+      <span class="lbody">
       <span class="lname"><b>${esc(nm.big)}</b><i>${p.problems ? `<em class="lfix">Needs fixing</em> &middot; ` : ""}${nm.small ? esc(nm.small) + " &middot; " : ""}${esc(p.formation)}</i></span>
       <span class="lthumb" data-prev="${p.id}" role="button" tabindex="0"
         aria-label="Show ${esc(nm.big)} large" title="Show it large">${thumbSVG(p)}</span>
+      </span>
+      <span class="lfoot">
+      <span class="lnum ${p.custom ? "mine" : ""}">${p.custom ? "&#9733;" : p.num}</span>
       <span class="lmeta">
         <span class="lkind ${isRun(p) ? "run" : "pass"}">${isRun(p) ? "Run" : "Pass"}</span>
+        <span class="catchip situation">${p.category}</span>
         <span class="lcomplexity" style="--complex:${COMPLEXITY[p.complexity]}">${p.complexity}</span>
       </span>
-      ${p.custom
+      <span class="lcontrols">${p.custom
         ? `<span class="lren mine" data-ren="${p.id}" role="button" tabindex="0"
              aria-label="Edit ${esc(nameOf(p).big)}" title="Edit">&#9998;</span>`
         : `<span class="lren ${isRenamed(p) ? "on" : ""}" data-ren="${p.id}" role="button"
              tabindex="0" aria-label="Rename ${esc(nameOf(p).big)}" title="Rename">&#9998;</span>`}
-      <span class="lmark">${on ? "&#10003;" : "&#43;"}</span>
+      <span class="lmark" title="${on ? "Remove from deck" : "Add to deck"}">${on ? "&#10003;" : "&#43;"}</span>
+      </span></span>
     </button>`;
   };
 
@@ -3877,16 +3963,23 @@ function renderLibrary(welcome){
     const shown = shownPlays();
     const list = shown.filter(p => libMatch(p, libF)).sort(byCat);
     const lib = document.getElementById("lib");
+    const key = JSON.stringify([libF, cfg.libraryPageSize]);
+    if (key !== libPageKey){ libPage = 0; libPageKey = key; }
+    const pages = [];
+    for (let i = 0; i < list.length; i += cfg.libraryPageSize) pages.push(list.slice(i, i + cfg.libraryPageSize));
+    if (!pages.length) pages.push([]);
+    libPage = Math.min(libPage, pages.length - 1);
     // nothing to show at all is not a filter that matched nothing: every
     // shipped play is hidden and there is none of his own yet
-    lib.innerHTML = list.length
-      ? list.map(rowHTML).join("")
+    lib.innerHTML = pages.map((page, i) => `<div class="lib" role="group" aria-label="Page ${i + 1} of ${pages.length}">` + (list.length
+      ? page.map(rowHTML).join("")
       : !shown.length
       ? `<div class="lempty" id="lnone">Every shipped play is hidden and you have not drawn one
            of your own yet. <button class="fchip" id="lnonew">New play</button></div>`
       : `<div class="lempty">No plays match.
-           <button class="fchip" id="lclear">Clear filters</button></div>`;
-    lib.scrollTop = 0;
+           <button class="fchip" id="lclear">Clear filters</button></div>`) + `</div>`).join("");
+    document.getElementById("lnav").innerHTML = pageNav("l", pages.length, "Library");
+    bindPlayPages("lib", "l", libPage, "library", n => { libPage = n; });
     document.getElementById("lcount").textContent = deck.length + " in your deck";
     document.getElementById("lprint").disabled = !deck.length;
     const pack = packOf();
@@ -3901,8 +3994,8 @@ function renderLibrary(welcome){
     const none = document.getElementById("lnonew");
     if (none) none.onclick = () => pickFormation();
     // after layout settles — row width can still change as the list reflows
-    fitNames();
-    requestAnimationFrame(() => fitNames());
+    fitLibraryPages();
+    requestAnimationFrame(() => { if (S.screen === "library") fitLibraryPages(); });
     const clear = document.getElementById("lclear");
     if (clear) clear.onclick = () => {
       libF = {q:"", kind:"all", cat:"all", deckOnly:false};
@@ -4055,7 +4148,8 @@ function renderLibrary(welcome){
       </div>
       <div class="lfilt" id="lfilt"></div>
       <div class="packs" id="packs"></div>
-      <div class="lib" id="lib"></div>
+      <div class="libpages" id="lib" tabindex="0" role="region" aria-label="Play library pages"></div>
+      <div id="lnav"></div>
       <div class="decknote" id="lnote"></div>
     </div>`;
   document.getElementById("done").onclick = renderDeck;

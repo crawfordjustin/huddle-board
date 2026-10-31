@@ -118,7 +118,7 @@ public sealed class LibraryChecks(AppFixture app)
 
     /// <summary>
     /// The thumbnail on a library row opens the play large, and only the
-    /// thumbnail does: the preview is several times the size of the glance,
+    /// thumbnail does: the preview is larger than the card's field,
     /// all of it on screen at every size, it changes nothing about the deck,
     /// and it goes away on Close, on Escape and on a tap outside. The rest of
     /// the row still adds and removes the play.
@@ -145,7 +145,7 @@ public sealed class LibraryChecks(AppFixture app)
             await page.InnerTextAsync("#prevtitle"));
 
         var big = (await page.Locator("#prevsheet .thumbsvg").BoundingBoxAsync())!;
-        Assert.True(big.Width >= small * 3, $"{label}: the preview is {big.Width:0}px wide against a {small:0}px thumbnail");
+        Assert.True(big.Width >= small * 1.25, $"{label}: the preview is {big.Width:0}px wide against a {small:0}px card field");
         var fits = await page.EvaluateAsync<bool>("""
             () => { const r = document.querySelector('#prevsheet .sheet').getBoundingClientRect();
                     const s = document.querySelector('#prevsheet .sheet');

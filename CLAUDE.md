@@ -253,14 +253,34 @@ think his deck had been eaten — so the header count reads "2 of 14" whenever a
 filter is on, and going back through the intro clears it. `DeckFilterChecks`
 holds all of that.
 
-The deck shows at most six plays per page, so growing a playbook never shrinks
+The deck defaults to six plays per page, so growing a playbook never shrinks
 every card into a lookalike. Swipe horizontally between pages; Previous/Next
 buttons and a page count give the same navigation without a gesture. Landscape
 uses up to three columns and portrait up to two. Returning from a play or
 resizing keeps the page; changing the deck, format or filter starts at page one.
 The page is memory only and clears at the intro. The header still counts the
 whole filtered deck, and every play stays in deck order. `DeckPageChecks` holds
-the navigation, touch swipe and six-play cap across all formats and tablet sizes.
+the navigation and touch swipe across all formats and tablet sizes.
+
+The play library uses the same horizontal pages and navigation, keeping its
+rows, thumbnails, pencils and deck selection controls. Filters and search cover
+the entire library and start on page one. Toggling a row, renaming and closing a
+preview keep the current page; removing the last row of a filtered page clamps
+to the last remaining page. Setup's Game tab has separate **Deck plays per page**
+and **Library plays per page** choices: 4, 6 or 8, each defaulting to 6. They live
+in `hb.settings`, apply across formats, sync with settings and reset with Start
+over. Older exports and tablets default the missing choices to 6; invalid values
+are rejected. `PageSizeChecks` and `LibraryPageChecks` cover fitting, reachability,
+selection, filtering, persistence, sync and resets.
+
+Library plays are cards now, with the field given the larger of two useful
+spaces: beside the names or above them, like the deck. Names can take two lines;
+`fitLibraryCards` fits the whole page after its tags and footer have their room.
+The footer keeps RUN/PASS, situation and complexity with a separate 44px pencil
+and plus/check selection control. The field alone opens the preview; the rest
+of the card still toggles the deck. Six cards use three columns in landscape
+and two in portrait; eight use up to four in landscape so the controls keep
+their height. Selection keeps the existing light/dark card distinction.
 
 The deck has no title row. It is the screen a coach picks plays from, so every
 line of chrome above the tiles is a row of plays he cannot see. The chips sit on
