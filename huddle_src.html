@@ -5113,8 +5113,8 @@ function buildScene(){
     svg.appendChild(g);
     SC.oob[side] = {g, r, lbl, badge, btxt};
   });
-  SC.goal = mk("polygon",{fill:"#1B5E3A","fill-opacity":.14});
-  SC.goalT = mk("text",{"text-anchor":"middle","font-size":30,"font-weight":700,
+  SC.goal = mk("polygon",{fill:in3D() ? "#174C32" : "#1B5E3A","fill-opacity":in3D() ? 1 : .14});
+  SC.goalT = mk("text",{"text-anchor":"middle","font-size":in3D() ? 24 : 30,"font-weight":700,
     fill:in3D() ? "#FFFFFF" : "#1B5E3A","letter-spacing":6,
     "font-family":"Barlow Condensed, Arial Narrow, sans-serif"});
   SC.goalT.textContent = "GOAL";
@@ -5122,6 +5122,11 @@ function buildScene(){
   SC.washR = mk("polygon",{fill:"#E4610F","fill-opacity":.075});
   svg.appendChild(SC.washL); svg.appendChild(SC.washR);
   svg.appendChild(SC.goal); svg.appendChild(SC.goalT);
+  SC.goalLine = null;
+  if (in3D()){
+    SC.goalLine = mk("line",{stroke:"#FFFFFF","stroke-width":4});
+    svg.appendChild(SC.goalLine);
+  }
 
   [5,10].forEach(() => { const l = mk("line",{stroke:in3D() ? "#FFFFFF" : "#C8D0C9","stroke-width":2,
     "stroke-dasharray":in3D() ? "none" : "7 9"}); SC.yard.push(l); svg.appendChild(l); });
@@ -5266,6 +5271,11 @@ function frame(now){
   SC.washR.setAttribute("points", half.map(q => fpt([-q[0], q[1]])).join(" "));
   SC.goal.setAttribute("points",
     [[-EDGE,13.3],[EDGE,13.3],[EDGE,15],[-EDGE,15]].map(fpt).join(" "));
+  if (SC.goalLine){
+    const a = F2S(-EDGE,13.3), b = F2S(EDGE,13.3);
+    SC.goalLine.setAttribute("x1",a[0]); SC.goalLine.setAttribute("y1",a[1]);
+    SC.goalLine.setAttribute("x2",b[0]); SC.goalLine.setAttribute("y2",b[1]);
+  }
   const gt = F2S(0, 14.15);
   SC.goalT.setAttribute("x", gt[0]); SC.goalT.setAttribute("y", gt[1] + 10);
   [5,10].forEach((yv, i) => {
