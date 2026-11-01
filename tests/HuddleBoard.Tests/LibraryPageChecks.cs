@@ -132,4 +132,40 @@ public sealed class LibraryPageChecks(AppFixture app)
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
+
+    [Theory]
+    [InlineData(844, 390)]
+    [InlineData(740, 360)]
+    public async Task APhoneOnItsSideGetsOnlyThePlays(int width, int height)
+    {
+        var (page, errors) = await app.OpenAppAsync(AppFixture.Sizes[4]);
+        await page.EmulateMediaAsync(new() { ReducedMotion = ReducedMotion.Reduce });
+        await page.EvaluateAsync("renderLibrary()");
+        await page.ClickAsync("#lfilt [data-kind=pass]");
+        await page.SetViewportSizeAsync(width, height);
+        // a filter set before turning the phone cannot narrow a list it hides
+        await page.WaitForFunctionAsync("libF.kind === 'all'");
+        await page.WaitForTimeoutAsync(250);
+        Assert.False(await page.IsVisibleAsync("#lfilt"));
+        Assert.False(await page.IsVisibleAsync("#packs"));
+        Assert.True(await page.EvaluateAsync<bool>("""
+            () => {
+              const rows = [...document.querySelectorAll('.lib:not([inert]) .lrow')];
+              const inside = (e, box) => { const r = e.getBoundingClientRect();
+                return r.width > 0 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1
+                  && r.left >= box.left - 1 && r.right <= box.right + 1; };
+              return rows.length === 6 && rows.every(t => {
+                const box = t.getBoundingClientRect();
+                return box.bottom <= innerHeight && t.querySelector('.lthumb').offsetHeight >= 40
+                  && ['.lname b', '.lren', '.lmark'].every(s => inside(t.querySelector(s), box));
+              });
+            }
+            """), "a card's name, picture or controls did not fit");
+        await page.SetViewportSizeAsync(1024, 600);
+        await page.WaitForTimeoutAsync(250);
+        Assert.True(await page.IsVisibleAsync("#lfilt"));
+        Assert.True(await page.IsVisibleAsync("#packs"));
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
 }

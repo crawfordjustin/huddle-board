@@ -313,6 +313,17 @@ button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .lren:active{transform:scale(.94)}
 .lrow.on .lren{color:#6F7C73;border-color:#C6D0C7}
 .lrow.on .lren.on{color:#9A6E12;border-color:#D9BE7A}
+/* A phone on its side has no room for the weeks and the filters, and a coach
+   on one is picking plays, not building a season: the cards get the height.
+   PHONE_LIB is the same query, so no filter can narrow a list it hides.
+   A card is one row there — picture, name, then the pencil and the mark —
+   because a footer under the name left no height for the picture at all. */
+@media (orientation:landscape) and (max-height:500px){
+  #lfilt,#packs{display:none}
+  .lrow{flex-direction:row;align-items:center}
+  .lrow .lbody{align-self:stretch}
+  .lrow .lnum,.lrow .lmeta{display:none}
+}
 
 /* the play preview: the library's thumbnail, large. fitPreview() sizes the
    picture to what the screen leaves once the words are laid out, so the
@@ -4061,6 +4072,11 @@ function fitLibraryCards(grid){
   }
 }
 
+const PHONE_LIB = matchMedia("(orientation:landscape) and (max-height:500px)");
+PHONE_LIB.addEventListener("change", () => {
+  const filtered = libF && (libF.q || libF.kind !== "all" || libF.cat !== "all" || libF.deckOnly);
+  if (PHONE_LIB.matches && S.screen === "library" && filtered) renderLibrary();
+});
 function renderLibrary(welcome){
   S.screen = "library";
   libF = {q:"", kind:"all", cat:"all", deckOnly:false};
