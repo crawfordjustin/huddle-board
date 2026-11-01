@@ -79,8 +79,9 @@ app.MapRazorPages();
 // origin and not under /app/, names the Android package and the certificate
 // that signed it. It is served from here rather than from wwwroot because
 // static files skip anything under a dot-folder. The fingerprint is Play App
-// Signing's SHA-256 (Play Console → App integrity), which is public; until it
-// is filled in the app still runs, with an address bar across the top.
+// Signing's SHA-256 (Play Console → App integrity → Play app signing), which is
+// public. A sideloaded APK is signed with the upload key instead, so that key
+// is listed too.
 app.MapGet("/.well-known/assetlinks.json", () => Results.Json(new[]
 {
     new
@@ -90,7 +91,13 @@ app.MapGet("/.well-known/assetlinks.json", () => Results.Json(new[]
         {
             @namespace = "android_app",
             package_name = "org.kidsflaghuddle.huddleboard",
-            sha256_cert_fingerprints = Array.Empty<string>(),
+            sha256_cert_fingerprints = new[]
+            {
+                // Play App Signing: every copy installed from the Play Store.
+                "8E:D5:C7:D1:F0:37:FA:0D:00:05:DE:1E:9D:94:7D:9C:EC:B7:45:13:E0:61:A2:66:1F:09:37:6F:D3:43:69:49",
+                // The upload key (PWABuilder's signing.keystore): a sideloaded APK.
+                "2E:19:FF:81:79:A8:28:B0:19:D6:BB:22:B4:8D:34:03:60:A1:87:73:6F:6B:47:9D:1E:5F:E0:7B:0F:B7:2D:06",
+            },
         },
     },
 }));
