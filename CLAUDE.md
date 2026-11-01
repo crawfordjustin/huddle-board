@@ -620,7 +620,16 @@ the play screen shows whole. **Start over**, beside Save,
 puts the drawing back on the formation it began from: every kid on his spot,
 no routes, no ball. It keeps the names and, on a saved play, the id, so Save
 still overwrites that play. It takes two taps and is disabled while there is
-nothing to undo. A route is drawn one leg
+nothing to undo. **← Library** with unsaved work opens a sheet
+(`openLeaveSheet`): **Discard changes**, **Keep editing**, **Save** (shut while
+the checker has an error). Tapping outside it or pressing Escape keeps editing.
+Back used to arm in place as "Discard?", so a double tap on the corner threw
+whole plays away; now a second tap where Back was lands outside the sheet.
+Android's back gesture is caught the same way. In the installed app, back with
+no history closes the app, so the designer pushes one history entry of its own
+(`dzHold`). Back with nothing unsaved leaves; with unsaved work it opens the
+sheet. If a sheet is already open, back closes it and pushes the entry again.
+Every way out goes through `leaveDesigner`, which uses up the entry itself. A route is drawn one leg
 at a time, on purpose: tapping a kid only picks him. Tapping inside the
 dotted ring (round the kid, then on the end of his route) starts a leg, the
 next tap is where it ends, and he is back to just picked with the ring on the

@@ -861,7 +861,8 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
 
         // a copy is work: leaving it asks first
         await page.ClickAsync("#dz-back");
-        Assert.Equal("DISCARD?", (await page.InnerTextAsync("#dz-back")).Trim().ToUpperInvariant());
+        await page.WaitForSelectorAsync("#dzleave");
+        await page.ClickAsync("#dzl-keep");
 
         // the wide blue breaks out instead, and it saves as a play of his own
         await TapAsync(page, -9, 0);                               // WIDE BLUE
@@ -1030,13 +1031,95 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         await DragAsync(page, (-9.5, 0), (-5, 0));
         Assert.False(await page.Locator("#dz-save").IsDisabledAsync());
 
-        // leaving with work on the screen is two taps
+        // leaving with work on the screen asks, and a second tap where Back
+        // was — the double tap that used to throw plays away — keeps editing
+        var back = (await page.Locator("#dz-back").BoundingBoxAsync())!;
         await page.ClickAsync("#dz-back");
-        await page.WaitForTimeoutAsync(150);
+        await page.WaitForSelectorAsync("#dzleave");
+        Assert.False(await page.Locator("#dzl-save").IsDisabledAsync());
+        await page.Mouse.ClickAsync(back.X + back.Width / 2, back.Y + back.Height / 2);
+        Assert.Equal(0, await page.Locator("#dzleave").CountAsync());
         Assert.Equal(1, await page.Locator(".designer").CountAsync());
+
+        // Keep editing and Escape both stay, with the drawing as it was
         await page.ClickAsync("#dz-back");
+        await page.ClickAsync("#dzl-keep");
+        Assert.Equal(0, await page.Locator("#dzleave").CountAsync());
+        await page.ClickAsync("#dz-back");
+        await page.Keyboard.PressAsync("Escape");
+        Assert.Equal(0, await page.Locator("#dzleave").CountAsync());
+        Assert.True(await page.EvaluateAsync<bool>("!!DZ && !!DZ.d.ball"), "keeping on lost the drawing");
+
+        // Save from the sheet is the ordinary save sheet
+        await page.ClickAsync("#dz-back");
+        await page.ClickAsync("#dzl-save");
+        await page.WaitForSelectorAsync("#dzsheet");
+        await page.ClickAsync("#dz-cancel");
+
+        // with a checker error on the field the sheet cannot save
+        await DragAsync(page, (-5, 0), (-9.5, 0));
+        await page.ClickAsync("#dz-back");
+        Assert.True(await page.Locator("#dzl-save").IsDisabledAsync());
+        await page.ClickAsync("#dzl-keep");
+        await DragAsync(page, (-9.5, 0), (-5, 0));
+
+        // and Discard changes is what throws it away
+        await page.ClickAsync("#dz-back");
+        await page.ClickAsync("#dzl-discard");
         await page.WaitForSelectorAsync(".lib");
         Assert.Equal(0, await page.EvaluateAsync<int>("customCount()"));
+
+        await page.CloseAsync();
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
+
+    /// <summary>
+    /// Android's back gesture is browser history, and in the installed app
+    /// back with nothing behind it closes the app. The designer holds one
+    /// entry of its own, so back asks the way ← Library does, closes an open
+    /// sheet, and never costs a drawing; leaving spends that entry.
+    /// </summary>
+    [Fact]
+    public async Task TheBackGestureAsksBeforeItLosesADrawing()
+    {
+        var (page, errors) = await OpenDesignerAsync(Desk, "SPREAD");
+        async Task Back()
+        {
+            await page.EvaluateAsync("new Promise(r => { addEventListener('popstate', () => setTimeout(r), {once: true}); history.back(); })");
+        }
+        Assert.True(await page.EvaluateAsync<bool>("!!(history.state && history.state.dz)"));
+
+        // nothing drawn: back is ← Library
+        await Back();
+        await page.WaitForSelectorAsync(".lib");
+        Assert.Equal(0, await page.Locator(".designer").CountAsync());
+
+        // something drawn: back asks, and back again closes the question
+        await page.ClickAsync("#lnew");
+        await page.ClickAsync(".fmbtn[data-fm=\"SPREAD\"]");
+        await page.WaitForSelectorAsync(".designer #field");
+        await ToolAsync(page, "ball");
+        await TapAsync(page, 10, 0);                               // WIDE ORANGE, deep
+        await Back();
+        Assert.Equal(1, await page.Locator("#dzleave").CountAsync());
+        await Back();
+        Assert.Equal(0, await page.Locator("#dzleave").CountAsync());
+        Assert.True(await page.EvaluateAsync<bool>("!!DZ && !!DZ.d.ball"), "back lost the drawing");
+
+        // the save sheet closes the same way, the drawing still there
+        await page.ClickAsync("#dz-save");
+        await page.WaitForSelectorAsync("#dzsheet");
+        await Back();
+        Assert.Equal(0, await page.Locator("#dzsheet").CountAsync());
+        Assert.Equal(1, await page.Locator(".designer").CountAsync());
+
+        // leaving by a button spends the designer's entry, so none piles up
+        await page.ClickAsync("#dz-back");
+        await page.ClickAsync("#dzl-discard");
+        await page.WaitForSelectorAsync(".lib");
+        await page.WaitForFunctionAsync("!(history.state && history.state.dz)");
+        Assert.Equal(0, await page.Locator(".designer").CountAsync());
+        Assert.True(await page.EvaluateAsync<bool>("DZ === null"), "the popstate reopened the designer");
 
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));
@@ -1099,6 +1182,16 @@ public sealed class DesignerChecks(AppFixture app) : IDisposable
         await TapAsync(page, -2.6, -4.4);
         await OnScreen("#dz-hand");
         await OnScreen("#dz-unhand");
+
+        // the question asked on the way out, every answer on screen and on one row
+        await page.ClickAsync("#dz-back");
+        await page.WaitForSelectorAsync("#dzleave");
+        foreach (var sel in new[] { "#dzl-discard", "#dzl-keep", "#dzl-save" })
+            await OnScreen(sel);
+        var tops = new List<float>();
+        foreach (var sel in new[] { "#dzl-discard", "#dzl-keep", "#dzl-save" })
+            tops.Add((await page.Locator(sel).BoundingBoxAsync())!.Y);
+        Assert.True(tops.Max() - tops.Min() < 2, $"the leave sheet's buttons wrap at {size}");
 
         await page.CloseAsync();
         Assert.True(errors.Count == 0, string.Join("\n", errors));

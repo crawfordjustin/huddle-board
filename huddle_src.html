@@ -4367,8 +4367,31 @@ function openDesigner(id, base, from){
   DZ = {d, id, tool: "route", sel: null, armed: false, motion: false, handing: false, drag: null, preview: false, dirty: !!from,
         mode: d.ball ? d.ball.mode : "pass", msg: "", findings: []};
   logEvent("designer_open", {play: id || (from ? "copy" : "new"), base: d.base});
+  dzHold();
   renderDesigner();
 }
+
+/* Android's back gesture is the other fat finger. The app is one page, so in
+   the installed app back with no history closes it, drawing and all. The
+   designer keeps one history entry of its own while it is open: back spends
+   it, and lands here, which does what ← Library does — leave if nothing is
+   unsaved, otherwise ask — or closes whatever sheet is open, and puts the
+   entry back so the next back is caught too. Every way out of the designer
+   goes through leaveDesigner(), which spends the entry itself; the popstate
+   that causes finds the library on screen and does nothing. */
+function dzHold(){ try { history.pushState({dz: 1}, ""); } catch (e) {} }
+function leaveDesigner(){
+  DZ = null;
+  if (history.state && history.state.dz) history.back();
+  renderLibrary();
+}
+addEventListener("popstate", () => {
+  if (S.screen !== "designer" || !DZ) return;
+  const open = document.querySelector(".sheetwrap");
+  if (!DZ.dirty && !open){ DZ = null; renderLibrary(); return; }
+  dzHold();
+  if (open) open.remove(); else openLeaveSheet();
+});
 
 function renderDesigner(){
   S.screen = "designer"; S.solo = null; S.steps = null; S.step = null; S.stage = "lineup";
@@ -4396,14 +4419,9 @@ function renderDesigner(){
       <div class="dzline" id="dz-line"></div>
       <div class="calls" id="dz-calls"></div>
     </div>`;
-  const back = document.getElementById("dz-back");
-  // throwing a drawing away is two taps, like every other button that loses work
-  back.onclick = () => {
-    if (!DZ.dirty || back.dataset.armed){ DZ = null; renderLibrary(); return; }
-    back.dataset.armed = "1"; back.textContent = "Discard?";
-    setTimeout(() => {
-      if (back.isConnected){ delete back.dataset.armed; back.innerHTML = "&larr; Library"; }
-    }, 2500);
+  document.getElementById("dz-back").onclick = () => {
+    if (!DZ.dirty){ leaveDesigner(); return; }
+    openLeaveSheet();
   };
   document.getElementById("dz-save").onclick = openDesignSheet;
   // A drawing gone wrong goes back to the formation it started from — every
@@ -4872,6 +4890,42 @@ function dzRail(){
   document.getElementById("dz-prev").onclick = () => dzPreview(!DZ.preview);
 }
 
+/* Leaving with work on the screen asks, in a sheet, rather than arming the
+   Back button in place: a second tap on the spot that armed it — a double tap,
+   a thumb resting on the corner — threw whole plays away. Here a tap where
+   Back was lands outside the sheet, which keeps editing, and throwing the
+   drawing away is its own button, named for what it does. */
+function openLeaveSheet(){
+  const fresh = !DZ.id, canSave = !document.getElementById("dz-save").disabled;
+  const w = document.createElement("div");
+  w.className = "sheetwrap";
+  w.id = "dzleave";
+  w.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dzltitle">
+      <h2 id="dzltitle">${fresh ? "This play is not saved" : "Your changes are not saved"}</h2>
+      <p class="sheetnote">${fresh
+        ? "Discard changes throws the drawing away."
+        : "Discard changes puts the play back the way it was last saved."}${canSave ? ""
+        : " It cannot be saved until the line under the field is fixed."}</p>
+      <div class="sheetbtns">
+        <button class="sbtn" id="dzl-discard">Discard changes</button>
+        <button class="sbtn" id="dzl-keep">Keep editing</button>
+        <button class="sbtn go" id="dzl-save" ${canSave ? "" : "disabled"}>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(w);
+  const close = () => w.remove();
+  w.addEventListener("click", e => { if (e.target === w) close(); });
+  w.addEventListener("keydown", e => { if (e.key === "Escape"){ e.stopPropagation(); close(); } });
+  document.getElementById("dzl-keep").onclick = close;
+  document.getElementById("dzl-save").onclick = () => { close(); openDesignSheet(); };
+  document.getElementById("dzl-discard").onclick = () => {
+    logEvent("designer_discard", {play: DZ.id || "new"});
+    close(); leaveDesigner();
+  };
+  document.getElementById("dzl-keep").focus();
+}
+
 /* The names and the filing, asked once at the end rather than up front: a
    coach knows what he drew before he knows what to call it. The second place
    in the app a coach types, so it goes through the same tidy-and-escape. */
@@ -4945,13 +4999,13 @@ function openDesignSheet(){
     if (fresh && !deck.includes(clean.id)){ deck.push(clean.id); saveDeck(); }
     logEvent(fresh ? "play_designed" : "play_redesigned",
              {play: clean.id, base: clean.base, name: clean.coachName});
-    close(); DZ = null; renderLibrary();
+    close(); leaveDesigner();
   };
   document.getElementById("dz-ok").onclick = save;
   document.getElementById("dz-cancel").onclick = close;
   if (DZ.id) confirmTap("dz-del", () => {
     logEvent("play_deleted", {play: DZ.id});
-    deleteDesign(DZ.id); close(); DZ = null; renderLibrary();
+    deleteDesign(DZ.id); close(); leaveDesigner();
   });
   const first = document.getElementById("dz-real");
   first.focus(); first.select();
