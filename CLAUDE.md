@@ -311,6 +311,13 @@ of the card still toggles the deck. Six cards use three columns in landscape
 and two in portrait; eight use up to four in landscape so the controls keep
 their height. Selection keeps the existing light/dark card distinction.
 
+A phone on its side (landscape, 500px tall or less) is somebody picking plays,
+not building a season, so the library drops the filter bar and the week strip
+there and lays each card out as one row — name, picture, pencil, mark — with
+no number or tags. `PHONE_LIB` is the same media query in script: turning
+into it with a filter on renders the library afresh, so no hidden filter can
+narrow the list. `LibraryPageChecks` holds it at two phone sizes.
+
 The deck has no title row. It is the screen a coach picks plays from, so every
 line of chrome above the tiles is a row of plays he cannot see. The chips sit on
 the left of one top bar and the clock, the count and the menu on its right.
